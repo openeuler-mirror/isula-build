@@ -1,0 +1,3 @@
+ENV testArg=te
+FROM scratch
+ADD busybox.tar.xz /

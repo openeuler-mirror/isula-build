@@ -1,0 +1,5 @@
+FROM busybox:latest
+        
+LABEL maintainer iSulaTeam <isula@huawei.com>
+
+RUN mkdir /abc

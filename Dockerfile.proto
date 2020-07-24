@@ -1,0 +1,59 @@
+# Copyright (c) Huawei Technologies Co., Ltd. 2020. All rights reserved.
+# isula-build licensed under the Mulan PSL v2.
+# You can use this software according to the terms and conditions of the Mulan PSL v2.
+# You may obtain a copy of Mulan PSL v2 at:
+#     http://license.coscl.org.cn/MulanPSL2
+# THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER EXPRESS OR
+# IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY OR FIT FOR A PARTICULAR
+# PURPOSE.
+# See the Mulan PSL v2 for more details.
+# Author: Feiyu Yang
+# Create: 2020-03-01
+# Description: Dockerfile for generating proto files
+
+FROM euleros
+
+ARG arch
+ENV GIT_SSL_NO_VERIFY true
+
+# set the yum.repo
+RUN echo -e "[base]\n\
+name=EulerOS-2.0SP3 base\n\
+baseurl=https://developer.huawei.com/ict/site-euleros/euleros/repo/yum/2.3/os/${arch}/\n\
+enabled=1\n\
+gpgcheck=1\n\
+gpgkey=http://developer.huawei.com/ict/site-euleros/euleros/repo/yum/2.3/os/RPM-GPG-KEY-EulerOS\n" \
+> /etc/yum.repos.d/euleros.repo
+
+# install building tools
+RUN yum makecache && yum install -y \
+	golang automake libtool glibc-headers gcc-c++ make
+
+# set GO env
+ENV GOPATH /go
+ENV PATH $PATH:/go/bin:/usr/local/go/bin
+ENV GO111MODULE off
+
+# install google/protobuf
+ENV PROTOBUF_PROTOC_COMMIT 7faab5eeebf6aa62d89bf6b3cc1eaea711dea192
+ENV PROTOBUF_VERSION 3.11.2
+RUN curl -fkL https://github.com/google/protobuf/releases/download/v${PROTOBUF_VERSION}/protobuf-cpp-${PROTOBUF_VERSION}.tar.gz \
+	| tar -zxC /opt && cd /opt/protobuf-${PROTOBUF_VERSION} \
+	&& ./autogen.sh && ./configure && make && make install
+
+# install gogo/protobuf
+ENV GOGO_PROTOBUF 1.3.1
+RUN mkdir -p $GOPATH/src/github.com/gogo/protobuf \
+	&& curl -fkL https://github.com/gogo/protobuf/archive/v${GOGO_PROTOBUF}.tar.gz \
+	| tar -zxC $GOPATH/src/github.com/gogo/protobuf --strip-components 1 \
+	&& cd $GOPATH/src/github.com/gogo/protobuf/protoc-gen-gogo && go build . && go install
+
+# add agent repository
+ADD . ${GOPATH}/src/isula.org/isula-build
+
+# default working dir should be agent dir
+WORKDIR ${GOPATH}/src/isula.org/isula-build
+
+ENTRYPOINT ["bash", "-c"]
+
+CMD ["/bin/bash"]

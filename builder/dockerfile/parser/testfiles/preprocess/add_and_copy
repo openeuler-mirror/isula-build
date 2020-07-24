@@ -1,0 +1,11 @@
+FROM    ubuntu:latest
+LABEL   maintainer   iSulaTeam <isula@huawei.com>
+
+COPY    .       /go/src/github.com/docker/docker
+ADD         --chown=1    .       /
+ADD             null /
+COPY      --chown=1 --from=busybox nullfile /tmp
+ADD             [ "vimrc", "/tmp" ]
+COPY    [ "bashrc", "/tmp" ]
+COPY    [ "test file", "/tmp" ]
+ADD             [ "test file", "/tmp/test file" ]

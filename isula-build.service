@@ -1,0 +1,15 @@
+[Unit]
+Description=iSula-Build Image Build Tool
+
+[Service]
+Type=notify
+Environment=GOTRACEBACK=crash
+
+ExecStart=/usr/bin/isula-builder
+LimitNOFILE=1048576
+LimitNPROC=1048576
+LimitCORE=infinity
+
+
+[Install]
+WantedBy=multi-user.target

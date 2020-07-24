@@ -1,0 +1,6 @@
+ARG testArg
+ADD busybox.tar.xz /
+CMD ["sh"]
+ENTRYPOINT ["sh"]
+RUN ["ls"]
+RUN echo "hello world"

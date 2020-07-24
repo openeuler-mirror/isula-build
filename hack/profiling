@@ -1,0 +1,96 @@
+/******************************************************************************
+ * Copyright (c) Huawei Technologies Co., Ltd. 2020. All rights reserved.
+ * isula-build licensed under the Mulan PSL v2.
+ * You can use this software according to the terms and conditions of the Mulan PSL v2.
+ * You may obtain a copy of Mulan PSL v2 at:
+ *     http://license.coscl.org.cn/MulanPSL2
+ * THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY OR FIT FOR A PARTICULAR
+ * PURPOSE.
+ * See the Mulan PSL v2 for more details.
+ * Author: Feiyu Yang
+ * Create: 2020-06-03
+ * Description: This file is used for supporting pprof
+******************************************************************************/
+
+package daemon
+
+import (
+	"context"
+	"net"
+	"net/http"
+	"net/http/pprof"
+	"strconv"
+	"time"
+
+	"github.com/pkg/errors"
+	"github.com/sirupsen/logrus"
+)
+
+const (
+	minPort = 1024
+	maxPort = 65535
+)
+
+func init() {
+	if err := startProfiling(context.Background(), "6060"); err != nil {
+		logrus.Error("Start the pprof failed")
+	}
+}
+
+func checkPort(port string) error {
+	p, err := strconv.Atoi(port)
+	if err != nil {
+		return errors.Wrap(err, "the port should be an integer")
+	}
+
+	if p < minPort || p > maxPort {
+		err = errors.Errorf("the port should between %d and %d", minPort, maxPort)
+	}
+
+	return err
+}
+
+func newMux() *http.ServeMux {
+	mux := http.NewServeMux()
+	mux.HandleFunc("/debug/pprof/", pprof.Index)
+	mux.HandleFunc("/debug/pprof/trace", pprof.Trace)
+	mux.HandleFunc("/debug/pprof/profile", pprof.Profile)
+	mux.HandleFunc("/debug/pprof/cmdline", pprof.Cmdline)
+	mux.HandleFunc("/debug/pprof/symbol", pprof.Symbol)
+	return mux
+}
+
+func startProfiling(ctx context.Context, port string) error {
+	if err := checkPort(port); err != nil {
+		return err
+	}
+
+	l := net.ListenConfig{}
+	ln, err := l.Listen(ctx, "tcp", ":"+port)
+	if err != nil {
+		return err
+	}
+
+	c := make(chan error, 1)
+	defer close(c)
+
+	go func() {
+		if err := http.Serve(ln, newMux()); err != nil {
+			c <- err
+		}
+	}()
+
+	for {
+		select {
+		case err, ok := <-c:
+			if ok == false {
+				return errors.New("the chan for starting pprof has been closed")
+			}
+			return err
+		case <-time.After(time.Second):
+			return nil
+		}
+	}
+
+}
