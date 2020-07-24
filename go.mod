@@ -18,7 +18,6 @@ require (
 	github.com/docker/distribution v2.7.1+incompatible
 	github.com/docker/docker v1.14.0-0.20190319215453-e7b5f7dbe98c
 	github.com/docker/libnetwork v0.8.0-dev.2.0.20190625141545-5a177b73e316
-	github.com/fullsailor/pkcs7 v0.0.0-20190830075926-d7302db945fa // indirect
 	github.com/gofrs/flock v0.7.1
 	github.com/gogo/protobuf v1.3.1
 	github.com/golang/groupcache v0.0.0-20200121045136-8c9f03a8e57e // indirect
@@ -38,7 +37,6 @@ require (
 	github.com/vbauerster/mpb/v5 v5.2.2 // indirect
 	github.com/vishvananda/netlink v1.0.0 // indirect
 	github.com/vishvananda/netns v0.0.0-20190625233234-7109fa855b0f // indirect
-	github.com/xeipuuv/gojsonpointer v0.0.0-20190812004523-df4f5c81cb3b // indirect
 	go.opencensus.io v0.22.3 // indirect
 	golang.org/x/crypto v0.0.0-20200604202706-70a84ac30bf9
 	golang.org/x/net v0.0.0-20200602114024-627f9648deb9 // indirect
