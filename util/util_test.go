@@ -233,3 +233,58 @@ func TestCopyXattrs(t *testing.T) {
 	}
 
 }
+
+func TestValidateSignal(t *testing.T) {
+	type args struct {
+		sigStr string
+	}
+	tests := []struct {
+		name    string
+		args    args
+		want    syscall.Signal
+		wantErr bool
+	}{
+		{
+			name:    "TC1 - normal case with integer",
+			args:    args{sigStr: "9"},
+			want:    syscall.Signal(9),
+			wantErr: false,
+		},
+		{
+			name:    "TC2 - normal case with signal name",
+			args:    args{sigStr: "SIGKILL"},
+			want:    syscall.Signal(9),
+			wantErr: false,
+		},
+		{
+			name:    "TC3 - abnormal case with invalid signal name",
+			args:    args{sigStr: "aaa"},
+			want:    -1,
+			wantErr: true,
+		},
+		{
+			name:    "TC4 - abnormal case with invalid signal value",
+			args:    args{sigStr: "65"},
+			want:    -1,
+			wantErr: true,
+		},
+		{
+			name:    "TC5 - abnormal case with invalid signal value",
+			args:    args{sigStr: "0"},
+			want:    -1,
+			wantErr: true,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := ValidateSignal(tt.args.sigStr)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("ValidateSignal() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+			if got != tt.want {
+				t.Errorf("ValidateSignal() got = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}

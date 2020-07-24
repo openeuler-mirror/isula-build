@@ -15,6 +15,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"io/ioutil"
 	"os"
 	"path/filepath"
@@ -54,6 +55,8 @@ type mockDaemon struct {
 	statusReq *pb.StatusRequest
 	removeReq *pb.RemoveRequest
 	loadReq   *pb.LoadRequest
+	loginReq  *pb.LoginRequest
+	logoutReq *pb.LogoutRequest
 }
 
 func newMockDaemon() *mockDaemon {
@@ -83,6 +86,28 @@ func (f *mockDaemon) contextDir(t *testing.T) string {
 func (f *mockDaemon) remove(_ context.Context, in *pb.RemoveRequest, opts ...grpc.CallOption) (pb.Control_RemoveClient, error) {
 	f.removeReq = in
 	return &mockRemoveClient{}, nil
+}
+
+func (f *mockDaemon) login(_ context.Context, in *pb.LoginRequest, opts ...grpc.CallOption) (*pb.LoginResponse, error) {
+	f.loginReq = in
+	serverLen := len(f.loginReq.Server)
+	if serverLen == 0 || serverLen > 128 {
+		return &pb.LoginResponse{
+			Content: "Login Failed",
+		}, errors.New("empty server address")
+	}
+
+	return &pb.LoginResponse{Content: "Success"}, nil
+}
+
+func (f *mockDaemon) logout(_ context.Context, in *pb.LogoutRequest, opts ...grpc.CallOption) (*pb.LogoutResponse, error) {
+	f.logoutReq = in
+	serverLen := len(f.logoutReq.Server)
+	if serverLen == 0 || serverLen > 128 {
+		return &pb.LogoutResponse{Result: "Logout Failed"}, errors.New("empty server address")
+	}
+
+	return &pb.LogoutResponse{Result: "Success"}, nil
 }
 
 func TestRunBuildWithLocalDockerfile(t *testing.T) {
