@@ -1,0 +1,14 @@
+ARG testArg
+FROM scratch
+ADD busybox.tar.xz /
+CMD ["sh"]
+ENTRYPOINT ["sh"]
+RUN ["ls"]
+RUN echo "hello world"
+RUN echo -e "[base]\n\
+name=EulerOS-2.0SP3 base\n\
+baseurl=https://developer.example.com/ict/repo/yum/2.5/os/${arch}/\n\
+enabled=1\n\
+gpgcheck=1\n\
+gpgkey=http://developer.example.com/ict/repo/yum/2.5/os/RPM-GPG-KEY-OS\n" \
+> /etc/yum.repos.d/isula.repo

@@ -1,0 +1,40 @@
+###############################################################################
+# Copyright (c) Huawei Technologies Co., Ltd. 2020. All rights reserved.
+# isula-build licensed under the Mulan PSL v2.
+# You can use this software according to the terms and conditions of the Mulan PSL v2.
+# You may obtain a copy of Mulan PSL v2 at:
+#     http://license.coscl.org.cn/MulanPSL2
+# THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER EXPRESS OR
+# IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY OR FIT FOR A PARTICULAR
+# PURPOSE.
+# See the Mulan PSL v2 for more details.
+# Author: iSula Team
+# Create: 2020-1-20
+# Description: This is config file for isula-build
+################################################################################
+
+debug = false
+loglevel = ""
+
+# Temporary storage location
+run_root = "/var/run/isula-build/"
+
+# Primary Read/Write location of isula-build
+data_root = "/var/lib/isula-build/"
+
+# Default "runc" found in $PATH
+runtime = ""
+
+[storage]
+# Default config path for containers/storage library
+# See "storage.toml" for details
+storage_config_path = "/etc/isula-build/storage.toml"
+
+[image]
+# Default config path for containers/image library
+# See "registries.toml" for details
+registry_config_path = "/etc/isula-build/registries.toml"
+
+# Syntax for the signature verification policy file
+# See "github.com/containers/image/docs" for details
+signature_policy_path = "/etc/isula-build/policy.json"

@@ -1,0 +1,11 @@
+ARG testArg
+FROM scratch
+ADD busybox.tar.xz /
+CMD ["sh"]
+ENTRYPOINT ["sh"]
+RUN pwd \
+    && ls \
+    && pwd \
+    \
+    \
+    && echo 'done'

@@ -1,0 +1,4 @@
+FROM image
+# escape=`
+
+LABEL maintainer foo@isula.com

@@ -1,0 +1,176 @@
+// Copyright (c) Huawei Technologies Co., Ltd. 2020. All rights reserved.
+// isula-build licensed under the Mulan PSL v1.
+// You can use this software according to the terms and conditions of the Mulan PSL v1.
+// You may obtain a copy of Mulan PSL v2 at:
+//     http://license.coscl.org.cn/MulanPSL
+// THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER EXPRESS OR
+// IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY OR FIT FOR A PARTICULAR
+// PURPOSE.
+// See the Mulan PSL v1 for more details.
+// Description: iSulad Build
+// Author: Jingxiao Lu
+// Create: 2020-01-19
+syntax = "proto3";
+
+package isula.build.v1;
+
+import "google/protobuf/empty.proto";
+import "google/protobuf/timestamp.proto";
+
+service Control {
+    // Build requests a new image building
+    rpc Build(BuildRequest) returns (stream BuildResponse);
+    // Status pipes the image building process log back to client
+    rpc Status(StatusRequest) returns (stream StatusResponse);
+    // List lists all images in isula-builder
+    rpc List(ListRequest) returns (ListResponse);
+    // Version requests the version information of isula-builder
+    rpc Version(google.protobuf.Empty) returns (VersionResponse);
+    // Remove sends an image remove request to isula-builder
+    rpc Remove(RemoveRequest) returns (stream RemoveResponse);
+    // HealthCheck requests a health checking in isula-builder
+    rpc HealthCheck(google.protobuf.Empty) returns (HealthCheckResponse);
+    // Login requests to access image registry with username and password
+    rpc Login(LoginRequest) returns (LoginResponse);
+    // Logout requests to logout registry and delete any credentials
+    rpc Logout(LogoutRequest) returns (LogoutResponse);
+    // Load requests an image tar load
+    rpc Load(LoadRequest) returns (LoadResponse);
+}
+
+message BuildRequest {
+    // buildType is the type of this build action
+    string buildType = 1;
+    // buildID is an unique id for this building process
+    string buildID = 2;
+    // contextDir is the working directory of building context
+    string contextDir = 3;
+    // fileContent is the content of Dockerfile
+    string fileContent = 4;
+    // output is the way of exporting built image
+    string output = 5;
+    // buildArgs are args for this building
+    repeated string buildArgs = 6;
+    // proxy marks for whether inherit proxy environments from host
+    bool proxy = 7;
+    // iidfile is the file client writes image ID to
+    string iidfile = 8;
+    // buildStatic is used to hold the options for static build
+    BuildStatic buildStatic = 9;
+    // encryptKey is key to encrypt items in buildArgs
+    string encryptKey = 10;
+}
+
+message BuildStatic {
+    // buildTime is a fixed time for binary equivalence build
+    google.protobuf.Timestamp buildTime = 1;
+}
+
+message BuildResponse {
+    // imageID is the ID of built image
+    string imageID = 1;
+    // data pipes the output stream back to client
+    bytes data = 2;
+}
+
+message StatusRequest {
+    // buildID is an unique id for this building process, same with BuildRequest
+    string buildID = 1;
+}
+
+message StatusResponse {
+    // content pipes the image building process log back to client
+    string content = 1;
+}
+
+message ListRequest {
+    // imageName lists specific images with imageName
+    string imageName = 1;
+}
+
+message ListResponse {
+    message ImageInfo {
+        string repository = 1;
+        string tag = 2;
+        string id = 3;
+        string created = 4;
+        string size = 5;
+    }
+    // ImageInfo carries the basic info of an image
+    repeated ImageInfo images = 1;
+}
+
+message VersionResponse {
+    // version is isula-builder version
+    string version = 1;
+    // goVersion is the golang version userd for compiling isula-builder
+    string goVersion = 2;
+    // gitCommit is the git commit ID for the compiled isula-builder
+    string gitCommit = 3;
+    // buildTime is the time when compiling isula-builder
+    string buildTime = 4;
+    // osArch is the arch the isula-builder built on
+    string osArch = 5;
+}
+
+message RemoveRequest {
+    // imageID is the images to be deleted
+    repeated string imageID = 1;
+    // all tells isula-builder to delete all images
+    bool all = 2;
+    // prune tells isula-builder to delete all untagge images
+    bool prune = 3;
+}
+
+message RemoveResponse {
+    // layerMessage is response message indicate the images deleted successfully or error occured
+    string layerMessage = 1;
+}
+
+message HealthCheckResponse {
+    enum ServingStatus {
+        UNKNOWN = 0;
+        SERVING = 1;
+        NOT_SERVING = 2;
+    }
+    // status is the health status of isula-builder
+    ServingStatus status = 1;
+}
+
+message LoginRequest {
+    // server is registry address will login
+    string server = 1;
+    // username is username to login
+    string username = 2;
+    // password is password to login
+    string password = 3;
+    // key is aes key used for encrypt and decrypt password
+    string key = 4;
+}
+
+message LoginResponse {
+    // login response sent to front-end
+    string content = 1;
+}
+
+message LogoutRequest {
+    // server to logout
+    string server = 1;
+    // logout from all registries
+    bool all = 2;
+}
+
+message LogoutResponse {
+    // logout response sent to front-end
+    string result = 1;
+}
+
+message LoadRequest {
+    // path is the path of loading file
+    string path = 1;
+}
+
+message LoadResponse {
+    // imageID is the ID of loaded image
+    string imageID = 1;
+}

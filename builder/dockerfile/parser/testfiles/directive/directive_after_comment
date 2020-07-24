@@ -1,0 +1,6 @@
+# directive after comment
+# escape=`
+
+FROM image
+
+LABEL maintainer foo@isula.com
