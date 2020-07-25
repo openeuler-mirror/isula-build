@@ -57,10 +57,15 @@ type mockDaemon struct {
 	loadReq   *pb.LoadRequest
 	loginReq  *pb.LoginRequest
 	logoutReq *pb.LogoutRequest
+	importReq *pb.ImportRequest
 }
 
 func newMockDaemon() *mockDaemon {
 	return &mockDaemon{}
+}
+
+func (f *mockDaemon) importImage(_ context.Context, opts ...grpc.CallOption) (pb.Control_ImportClient, error) {
+	return &mockImportClient{}, nil
 }
 
 func (f *mockDaemon) build(_ context.Context, in *pb.BuildRequest, opts ...grpc.CallOption) (pb.Control_BuildClient, error) {
