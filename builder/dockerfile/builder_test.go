@@ -17,6 +17,8 @@ import (
 	"context"
 	"crypto/sha256"
 	"io/ioutil"
+	"os"
+	"path/filepath"
 	"reflect"
 	"regexp"
 	"strings"
@@ -26,9 +28,12 @@ import (
 	"gotest.tools/fs"
 
 	constant "isula.org/isula-build"
+	pb "isula.org/isula-build/api/services"
 	"isula.org/isula-build/image"
 	"isula.org/isula-build/pkg/logger"
 	"isula.org/isula-build/pkg/parser"
+	"isula.org/isula-build/store"
+	testutil "isula.org/isula-build/tests/util"
 	"isula.org/isula-build/util"
 )
 
@@ -1181,7 +1186,7 @@ func TestSearchArg(t *testing.T) {
 	}
 }
 
-func TestPaseRequestBuildArgs(t *testing.T) {
+func TestParseRequestBuildArgs(t *testing.T) {
 	var tests = []struct {
 		name      string
 		buildArgs []string
@@ -1299,5 +1304,91 @@ func TestParseTag(t *testing.T) {
 	for _, tc := range testcases {
 		tag := parseTag(tc.output)
 		assert.Equal(t, tag, tc.tag, tc.name)
+	}
+}
+
+func TestNewBuilder(t *testing.T) {
+	// tmpfs doesn't not support chattr +i to immutable
+	tmpDir, err := ioutil.TempDir("/var/tmp", t.Name())
+	if err != nil {
+		t.Log(err)
+		t.FailNow()
+	}
+	defer os.RemoveAll(tmpDir)
+	immutablePath := filepath.Join(tmpDir, "run")
+	os.Mkdir(immutablePath, 0644)
+	if err = testutil.Immutable(immutablePath, true); err != nil {
+		t.Log(err)
+		t.FailNow()
+	}
+	defer testutil.Immutable(immutablePath, false)
+
+	type args struct {
+		ctx         context.Context
+		store       store.Store
+		req         *pb.BuildRequest
+		runtimePath string
+		buildDir    string
+		runDir      string
+	}
+	tests := []struct {
+		name    string
+		args    args
+		want    *Builder
+		wantErr bool
+	}{
+		{
+			name: "NewBuilder - decrypts fail - wrong key",
+			args: args{
+				ctx:   context.Background(),
+				store: store.Store{},
+				req: &pb.BuildRequest{
+					BuildArgs:  []string{"foo=bar", "http_proxy=test"},
+					EncryptKey: "1",
+				},
+				buildDir: tmpDir,
+				runDir:   tmpDir,
+			},
+			want:    nil,
+			wantErr: true,
+		},
+		{
+			name: "NewBuilder - wrong rundir",
+			args: args{
+				ctx:      context.Background(),
+				store:    store.Store{},
+				req:      &pb.BuildRequest{},
+				buildDir: tmpDir,
+				runDir:   "",
+			},
+			want:    nil,
+			wantErr: true,
+		},
+		{
+			name: "NewBuilder - parseOutput fail",
+			args: args{
+				ctx:   context.Background(),
+				store: store.Store{},
+				req: &pb.BuildRequest{
+					Output: "docker-archive:/home/test/aa.tar",
+				},
+				buildDir: tmpDir,
+				runDir:   immutablePath,
+			},
+			want:    nil,
+			wantErr: true,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := NewBuilder(tt.args.ctx, tt.args.store, tt.args.req, tt.args.runtimePath, tt.args.buildDir, tt.args.runDir)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("NewBuilder() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+			if !reflect.DeepEqual(got, tt.want) {
+				t.Errorf("NewBuilder() got = %v, want %v", got, tt.want)
+			}
+		})
 	}
 }

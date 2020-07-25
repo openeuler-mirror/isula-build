@@ -17,8 +17,11 @@ package util
 import (
 	"flag"
 	"fmt"
+	"os/exec"
 	"strings"
 	"testing"
+
+	"github.com/pkg/errors"
 )
 
 const (
@@ -52,4 +55,19 @@ func GetTestingArgs(t *testing.T) map[string]string {
 	}
 
 	return args
+}
+
+func Immutable(path string, set bool) error {
+	var op string
+	if set {
+		op = "+i" // set immutable
+	} else {
+		op = "-i" // set mutable
+	}
+	cmd := exec.Command("chattr", op, path)
+	err := cmd.Run()
+	if err != nil {
+		return errors.Wrapf(err, "chattr %s for %s failed", op, path)
+	}
+	return nil
 }
