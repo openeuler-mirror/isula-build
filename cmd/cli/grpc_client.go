@@ -103,8 +103,11 @@ func getStartTimeout(timeout string) (time.Duration, error) {
 		return defaultStartTimeout, nil
 	}
 	timeParse, err := time.ParseDuration(timeout)
-	if err != nil || timeParse < minStartTimeout || timeParse > maxStartTimeout {
-		return -1, errors.Wrapf(err, "invalid timeout value: %s, supported range [%s, %s]", timeout, minStartTimeout, maxStartTimeout)
+	if err != nil {
+		return -1, err
+	}
+	if timeParse < minStartTimeout || timeParse > maxStartTimeout {
+		return -1, errors.Errorf("invalid timeout value: %s, supported range [%s, %s]", timeout, minStartTimeout, maxStartTimeout)
 	}
 	return timeParse, nil
 }

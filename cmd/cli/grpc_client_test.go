@@ -16,6 +16,8 @@ package main
 import (
 	"context"
 	"io"
+	"testing"
+	"time"
 
 	types "github.com/gogo/protobuf/types"
 	"google.golang.org/grpc"
@@ -98,10 +100,10 @@ func (gcli *mockGrpcClient) Login(ctx context.Context, in *pb.LoginRequest, opts
 }
 
 func (gcli *mockGrpcClient) Logout(ctx context.Context, in *pb.LogoutRequest, opts ...grpc.CallOption) (*pb.LogoutResponse, error) {
-	if gcli.loginFunc != nil {
+	if gcli.logoutFunc != nil {
 		return gcli.logoutFunc(ctx, in, opts...)
 	}
-	return nil, nil
+	return &pb.LogoutResponse{Result: "Success Logout"}, nil
 }
 
 func (gcli *mockGrpcClient) Load(ctx context.Context, in *pb.LoadRequest, opts ...grpc.CallOption) (*pb.LoadResponse, error) {
@@ -147,4 +149,59 @@ func (rcli *mockRemoveClient) Recv() (*pb.RemoveResponse, error) {
 		LayerMessage: imageID,
 	}
 	return resp, io.EOF
+}
+
+func TestGetStartTimeout(t *testing.T) {
+	type args struct {
+		timeout string
+	}
+	tests := []struct {
+		name    string
+		args    args
+		want    time.Duration
+		wantErr bool
+	}{
+		{
+			name:    "TC1 - normal case",
+			args:    args{timeout: "1s"},
+			want:    time.Second,
+			wantErr: false,
+		},
+		{
+			name:    "TC2 - normal case with empty timeout input",
+			args:    args{timeout: ""},
+			want:    defaultStartTimeout,
+			wantErr: false,
+		},
+		{
+			name:    "TC3 - abnormal case with larger than max start timeout",
+			args:    args{timeout: "21s"},
+			want:    -1,
+			wantErr: true,
+		},
+		{
+			name:    "TC4 - abnormal case with less than min start timeout",
+			args:    args{timeout: "19ms"},
+			want:    -1,
+			wantErr: true,
+		},
+		{
+			name:    "TC5 - abnormal case with invalid timeout format",
+			args:    args{timeout: "abc"},
+			want:    -1,
+			wantErr: true,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := getStartTimeout(tt.args.timeout)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("getStartTimeout() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+			if got != tt.want {
+				t.Errorf("getStartTimeout() got = %v, want %v", got, tt.want)
+			}
+		})
+	}
 }

@@ -18,6 +18,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"fmt"
+	"io"
 	"os"
 	"strings"
 
@@ -45,6 +46,7 @@ var (
 	errEmptyRegistry        = errors.New("empty registry found, please input one registry")
 	errTooManyArgs          = errors.New("too many arguments, login only accepts 1 argument")
 	errLackOfFlags          = errors.New("must provides --password-stdin with --username")
+	loginOpts               loginOptions
 )
 
 type loginOptions struct {
@@ -55,7 +57,7 @@ type loginOptions struct {
 	stdinPass bool
 }
 
-var loginOpts loginOptions
+type passReader func() ([]byte, error)
 
 // NewLoginCmd returns login command
 func NewLoginCmd() *cobra.Command {
@@ -170,20 +172,23 @@ func getPassword(c *cobra.Command) error {
 	}
 
 	if loginOpts.stdinPass {
-		if err := getPassFromStdin(); err != nil {
+		if err := getPassFromStdin(os.Stdin); err != nil {
 			return err
 		}
 	} else {
-		if err := getPassFromInput(); err != nil {
+		r := func() ([]byte, error) {
+			return terminal.ReadPassword(0)
+		}
+		if err := getPassFromInput(r); err != nil {
 			return err
 		}
 	}
 	return nil
 }
 
-func getPassFromInput() error {
+func getPassFromInput(f passReader) error {
 	fmt.Print("Password: ")
-	termPass, err := terminal.ReadPassword(0)
+	termPass, err := f()
 	if err != nil {
 		return errReadPassFromTerm
 	}
@@ -196,9 +201,9 @@ func getPassFromInput() error {
 	return nil
 }
 
-func getPassFromStdin() error {
+func getPassFromStdin(r io.Reader) error {
 	var buf strings.Builder
-	passScanner := bufio.NewScanner(os.Stdin)
+	passScanner := bufio.NewScanner(r)
 	for passScanner.Scan() {
 		if _, err := fmt.Fprint(&buf, passScanner.Text()); err != nil {
 			return err
