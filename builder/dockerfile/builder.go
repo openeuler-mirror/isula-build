@@ -119,7 +119,7 @@ func NewBuilder(ctx context.Context, store store.Store, req *pb.BuildRequest, ru
 		defer func(dir string) {
 			if err != nil {
 				if rerr := os.RemoveAll(dir); rerr != nil {
-					logrus.WithField(util.LogKeyBuildID, b.buildID).
+					logrus.WithField(util.LogKeySessionID, b.buildID).
 						Warnf("Removing dir in rollback failed: %v", rerr)
 				}
 			}
@@ -176,7 +176,7 @@ func (b *Builder) parseOutput(output string) error {
 
 // Logger adds the "buildID" attribute to build logs
 func (b *Builder) Logger() *logrus.Entry {
-	return logrus.WithField(util.LogKeyBuildID, b.ctx.Value(util.LogFieldKey(util.LogKeyBuildID)))
+	return logrus.WithField(util.LogKeySessionID, b.ctx.Value(util.LogFieldKey(util.LogKeySessionID)))
 }
 
 func (b *Builder) parseBuildArgs(buildArgs []string, key string) (map[string]string, error) {

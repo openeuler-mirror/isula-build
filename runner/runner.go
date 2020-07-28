@@ -125,7 +125,7 @@ func (r *OCIRunner) Run() error {
 }
 
 func (r *OCIRunner) runContainer() (wstatus unix.WaitStatus, err error) { // nolint:gocyclo
-	pLog := logrus.WithField(util.LogKeyBuildID, r.ctx.Value(util.LogFieldKey(util.LogKeyBuildID)))
+	pLog := logrus.WithField(util.LogKeySessionID, r.ctx.Value(util.LogFieldKey(util.LogKeySessionID)))
 	containerName := filepath.Base(r.bundlePath)
 	pidFile := filepath.Join(r.bundlePath, "pid")
 	createOpts := runc.CreateOpts{

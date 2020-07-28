@@ -219,7 +219,7 @@ func TestCmdBuilderCommit(t *testing.T) {
 		Raw:     "s=1111",
 	}
 
-	ctx := context.WithValue(context.Background(), util.LogFieldKey(util.LogKeyBuildID), "0123456789")
+	ctx := context.WithValue(context.Background(), util.LogFieldKey(util.LogKeySessionID), "0123456789")
 	ctx = context.WithValue(ctx, util.BuildDirKey(util.BuildDir), "/tmp/isula-build-test")
 	s := &stageBuilder{
 		localStore: localStore,

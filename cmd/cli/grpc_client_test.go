@@ -41,6 +41,7 @@ type mockGrpcClient struct {
 	logoutFunc      func(ctx context.Context, in *pb.LogoutRequest, opts ...grpc.CallOption) (*pb.LogoutResponse, error)
 	loadFunc        func(ctx context.Context, in *pb.LoadRequest, opts ...grpc.CallOption) (pb.Control_LoadClient, error)
 	importFunc      func(ctx context.Context, opts ...grpc.CallOption) (pb.Control_ImportClient, error)
+	saveFunc        func(ctx context.Context, in *pb.SaveRequest, opts ...grpc.CallOption) (pb.Control_SaveClient, error)
 }
 
 func (gcli *mockGrpcClient) Build(ctx context.Context, in *pb.BuildRequest, opts ...grpc.CallOption) (pb.Control_BuildClient, error) {
@@ -62,6 +63,13 @@ func (gcli *mockGrpcClient) Remove(ctx context.Context, in *pb.RemoveRequest, op
 		return gcli.removeFunc(ctx, in, opts...)
 	}
 	return &mockRemoveClient{}, nil
+}
+
+func (gcli *mockGrpcClient) Save(ctx context.Context, in *pb.SaveRequest, opts ...grpc.CallOption) (pb.Control_SaveClient, error) {
+	if gcli.saveFunc != nil {
+		return gcli.saveFunc(ctx, in, opts...)
+	}
+	return &mockSaveClient{}, nil
 }
 
 func (gcli *mockGrpcClient) List(ctx context.Context, in *pb.ListRequest, opts ...grpc.CallOption) (*pb.ListResponse, error) {
@@ -146,6 +154,10 @@ type mockLoadClient struct {
 	grpc.ClientStream
 }
 
+type mockSaveClient struct {
+	grpc.ClientStream
+}
+
 func (bcli *mockBuildClient) Recv() (*pb.BuildResponse, error) {
 	resp := &pb.BuildResponse{
 		ImageID: imageID,
@@ -185,6 +197,13 @@ func (rcli *mockRemoveClient) Recv() (*pb.RemoveResponse, error) {
 func (lcli *mockLoadClient) Recv() (*pb.LoadResponse, error) {
 	resp := &pb.LoadResponse{
 		Log: "Getting image source signatures",
+	}
+	return resp, io.EOF
+}
+
+func (scli *mockSaveClient) Recv() (*pb.SaveResponse, error) {
+	resp := &pb.SaveResponse{
+		Data: nil,
 	}
 	return resp, io.EOF
 }

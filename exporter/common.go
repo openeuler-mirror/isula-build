@@ -57,7 +57,7 @@ type ExportOptions struct {
 
 // Export export an archive to the client
 func Export(src, destSpec string, iopts ExportOptions, localStore store.Store) error {
-	eLog := logrus.WithField(util.LogKeyBuildID, iopts.Ctx.Value(util.LogFieldKey(util.LogKeyBuildID)))
+	eLog := logrus.WithField(util.LogKeySessionID, iopts.Ctx.Value(util.LogFieldKey(util.LogKeySessionID)))
 	if destSpec == "" {
 		return nil
 	}
@@ -198,11 +198,8 @@ func NewPipeWrapper(runDir, expt string) (*PipeWrapper, error) {
 }
 
 // PipeArchiveStream pipes the GRPC stream with pipeFile
-func PipeArchiveStream(buildID string, pipeWrapper *PipeWrapper) (fc chan []byte, err error) {
-	var (
-		file   *os.File
-		length int
-	)
+func PipeArchiveStream(pipeWrapper *PipeWrapper) (f *os.File, err error) {
+	var file *os.File
 	if pipeWrapper == nil || pipeWrapper.PipeFile == "" {
 		return nil, errors.New("no pipe wrapper found")
 	}
@@ -210,32 +207,7 @@ func PipeArchiveStream(buildID string, pipeWrapper *PipeWrapper) (fc chan []byte
 	if file, err = os.OpenFile(pipeWrapper.PipeFile, os.O_RDONLY, os.ModeNamedPipe); err != nil {
 		return nil, err
 	}
-
-	reader := bufio.NewReader(file)
-	buf := make([]byte, constant.BufferSize, constant.BufferSize)
-	fc = make(chan []byte, constant.BufferSize)
-	go func() {
-		defer func() {
-			if cerr := file.Close(); cerr != nil {
-				logrus.WithField(util.LogKeyBuildID, buildID).Warnf("Closing archive stream pipe %q failed: %v", pipeWrapper.PipeFile, cerr)
-			}
-			close(fc)
-		}()
-		for {
-			if length, err = reader.Read(buf); err != nil && err != io.EOF {
-				pipeWrapper.Err = err
-			}
-			bytes := make([]byte, length, length)
-			copy(bytes, buf[0:length])
-			fc <- bytes
-			if length == 0 && pipeWrapper.Done {
-				break
-			}
-		}
-	}()
-
-	logrus.WithField(util.LogKeyBuildID, buildID).Debugf("Piping archive stream done")
-	return fc, nil
+	return file, nil
 }
 
 // ArchiveRecv receive data stream and write to file

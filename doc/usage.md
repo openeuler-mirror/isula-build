@@ -13,8 +13,10 @@
             * [--iidfile](#--iidfile)
             * [-o, --output](#-o---output)
             * [--proxy](#--proxy)
+            * [--tag](#--tag)
         * [Viewing a Local Persistent Image](#viewing-a-local-persistent-image)
         * [Importing a Base Image from a Tarball](#importing-a-base-image-from-a-tarball)
+        * [Saving a Local Persistent Image](#saving-a-local-persistent-image)
         * [Deleting a Local Persistent Image](#deleting-a-local-persistent-image)
             * [-a, --all](#-a---all)
             * [-p, --prune](#-p---prune)
@@ -233,13 +235,31 @@ Usage:
 `isula-build ctr-img import file [REPOSITORY[:TAG]]`
 
 ```bash
-$ sudo isula-build ctr-img busybox.tar
+$ sudo isula-build ctr-img import busybox.tar
 Import success with image id: bf7b3b8ad6d842fb6e0c2dd60727ccb60a86c0e8781a35ae39de5aeef9979189
 ```
 
 ```bash
-$ sudo isula-build ctr-img busybox.tar busybox:isula
+$ sudo isula-build ctr-img import busybox.tar busybox:isula
 Import success with image id: 2d77083e646bf77e25547ea489b00ed8ec318cc37ba81c41e7ec92bca2845033
+```
+
+### Saving a Local Persistent Image
+
+we can run the `save` command to save the image stored locally and make it a tarball.
+
+Usage:
+
+`isula-build ctr-img save [REPOSITORY:TAG]|imageID -o xx.tar`
+
+```bash
+$ sudo isula-build ctr-img save busybox:latest -o busybox.tar
+Save success with image: busybox:latest
+```
+
+```bash
+$ sudo isula-build ctr-img save 21c3e96ac411 -o busybox.tar
+Save success with image: 21c3e96ac411
 ```
 
 ### Deleting a Local Persistent Image

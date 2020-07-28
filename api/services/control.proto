@@ -40,6 +40,8 @@ service Control {
     rpc Import(stream ImportRequest) returns (ImportResponse);
     // Tag requests to tag an image
     rpc tag(TagRequest) returns (google.protobuf.Empty);
+    // Save saves the image to tarball
+    rpc Save(SaveRequest) returns (stream SaveResponse);
 }
 
 message BuildRequest {
@@ -198,4 +200,22 @@ message LoadRequest {
 message LoadResponse {
     // log is the log sent to client
     string log = 1;
+}
+
+message SaveRequest {
+    // image is the image to save
+    string image = 1;
+    // path is location for output tarball
+    string path = 2;
+    // saveID is the unique ID for each time save
+    // also is the part to construct tempory path to
+    // store transport file
+    string saveID = 3;
+}
+
+message SaveResponse {
+    // data is the tarball of the saved image
+    bytes data = 1;
+    // log is log send to cli
+    string log = 2;
 }
