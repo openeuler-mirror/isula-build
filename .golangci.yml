@@ -1,0 +1,122 @@
+run:
+  deadline: 10m
+  issues-exit-code: 1
+  tests: false
+
+  skip-dirs:
+    - vendor
+
+  skip-files:
+    - ".*\\.pb\\.go$"
+    - ".*\\.dbx\\.go$"
+
+
+linters:
+  enable:
+    - gomnd
+    - govet
+    - golint
+    - staticcheck
+    - errcheck
+    - ineffassign
+    - varcheck
+    - structcheck
+    - deadcode
+    - bodyclose
+    - nakedret
+    - gofmt
+    - misspell
+    - unconvert
+    - scopelint
+    - gocritic
+    - dogsled
+    - gosec
+    - goimports
+    - gocyclo
+    - godox
+    - maligned
+    - misspell
+    - goconst
+  disable:
+    - lll
+    - wsl
+    - depguard
+    - stylecheck
+    - dupl
+    - interfacer
+    - gosimple
+    - unused
+    - rowserrcheck
+    - goprintffuncname
+  fast: false
+
+output:
+  format: colored-line-number
+  print-issued-lines: true
+  print-linter-name: true
+  uniq-by-line: true
+
+linters-settings:
+  dogsled:
+  errcheck:
+    check-type-assertions: false
+    check-blank: false
+    ignore: fmt:.*,io/ioutil:^Read.*
+  govet:
+    check-shadowing: true
+    use-installed-packages: false
+  gomnd:
+    settings:
+      mnd:
+        checks: argument, case, condition, return
+  gocritic:
+    disabled-checks:
+      - ifElseChain
+  goimports:
+    local-prefixes: isula.org/isula-build
+  golint:
+    min-confidence: 0.8
+  gofmt:
+    simplify: true
+  gocyclo:
+    min-complexity: 20
+  maligned:
+    suggest-new: true
+  dupl:
+    threshold: 150
+  goconst:
+    min-len: 3
+    min-occurrences: 3
+  misspell:
+    locale: US
+  lll:
+    line-length: 140
+    tab-width: 1
+  unparam:
+    algo: cha
+    check-exported: false
+  nakedret:
+    max-func-lines: 30
+  prealloc:
+    simple: true
+    range-loops: true
+    for-loops: false
+
+issues:
+  exclude-rules:
+    path: _test\.go
+    linters:
+      - gocyclo
+      - scopelint
+      - errcheck
+      - dupl
+      - gosec
+      - structcheck
+      - staticcheck
+      - gomnd
+      - ineffassign
+  max-issues-per-linter: 0
+  max-same-issues: 0
+  new: true
+  new-from-rev: "HEAD~"
+  exclude-use-default: false
