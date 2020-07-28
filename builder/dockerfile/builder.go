@@ -104,7 +104,15 @@ func NewBuilder(ctx context.Context, store store.Store, req *pb.BuildRequest, ru
 		Iidfile:    req.GetIidfile(),
 	}
 	b.parseStaticBuildOpts(req)
-	b.buildOpts.Tag = parseTag(req.Output)
+
+	tag := parseTag(req.Output)
+	if tag != "" {
+		candidates, _, rerr := image.ResolveName(tag, nil, b.localStore)
+		if rerr != nil || len(candidates) == 0 {
+			return nil, errors.Wrapf(rerr, "parse target tag %v err", tag)
+		}
+		b.buildOpts.Tag = candidates[0]
+	}
 
 	// prepare workdirs for dockerfile builder
 	for _, dir := range []string{buildDir, runDir} {
@@ -511,25 +519,29 @@ func (b *Builder) OutputPipeWrapper() *exporter.PipeWrapper {
 
 func parseTag(output string) string {
 	outputFields := strings.Split(output, ":")
-	if (outputFields[0] == "docker-daemon" || outputFields[0] == "isulad") && len(outputFields) > 1 {
-		return strings.Join(outputFields[1:], ":")
-	}
 	const archiveOutputWithoutTagLen = 2
-	if outputFields[0] == "docker-archive" && len(outputFields) > archiveOutputWithoutTagLen {
+
+	var tag string
+	switch {
+	case (outputFields[0] == "docker-daemon" || outputFields[0] == "isulad") && len(outputFields) > 1:
+		tag = strings.Join(outputFields[1:], ":")
+	case outputFields[0] == "docker-archive" && len(outputFields) > archiveOutputWithoutTagLen:
 		if len(outputFields[archiveOutputWithoutTagLen:]) == 1 {
 			outputFields = append(outputFields, "latest")
 		}
-		return strings.Join(outputFields[archiveOutputWithoutTagLen:], ":")
-	}
-	if outputFields[0] == "docker" && len(outputFields) > 1 {
+		tag = strings.Join(outputFields[archiveOutputWithoutTagLen:], ":")
+	case outputFields[0] == "docker" && len(outputFields) > 1:
 		repoAndTag := strings.Join(outputFields[1:], ":")
 		// repo format regexp, "//registry.example.com/" for example
 		repo := regexp.MustCompile(`^\/\/[\w\.\-\:]+\/`).FindString(repoAndTag)
 		if repo == "" {
 			return ""
 		}
-		return repoAndTag[len(repo):]
+		tag = repoAndTag[len(repo):]
+		if len(strings.Split(tag, ":")) == 1 {
+			tag += ":latest"
+		}
 	}
 
-	return ""
+	return tag
 }
