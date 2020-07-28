@@ -33,6 +33,7 @@ import (
 	"gotest.tools/fs"
 
 	constant "isula.org/isula-build"
+	testutil "isula.org/isula-build/tests/util"
 )
 
 var (
@@ -184,6 +185,34 @@ func TestDumpStack(t *testing.T) {
 	assert.Equal(t, found, true)
 }
 
+// TestDumpStackWriteFail dumpStack fail at WriteFile to the path
+func TestDumpStackWriteFail(t *testing.T) {
+	tmpDir, err := ioutil.TempDir("/var/tmp", t.Name())
+	if err != nil {
+		t.Log(err)
+		t.FailNow()
+	}
+	defer os.RemoveAll(tmpDir)
+	if err = testutil.Immutable(tmpDir, true); err != nil {
+		t.Log(err)
+		t.FailNow()
+	}
+	defer testutil.Immutable(tmpDir, false)
+
+	var regStackLog = regexp.MustCompile(stackLogRegStr)
+	dumpStack(tmpDir)
+
+	var found bool
+	items, err := ioutil.ReadDir(tmpDir)
+	assert.NilError(t, err)
+	for _, fi := range items {
+		if regStackLog.MatchString(fi.Name()) {
+			found = true
+		}
+	}
+	assert.Equal(t, found, false)
+}
+
 func TestLogRotate(t *testing.T) {
 	dir := fs.NewDir(t, "TestLogRotate")
 	defer dir.Remove()
@@ -203,4 +232,46 @@ func TestLogRotate(t *testing.T) {
 	assert.NilError(t, err)
 	// logRotate will keep only "maxStackLogs-1" items. Then will the new dumped stack, we have maxStackLogs items
 	assert.Equal(t, len(items), maxStackLogs-1)
+}
+
+func TestLogRotateWrongPath(t *testing.T) {
+	dirPath := "/abc/foo"
+	if err := logRotate(dirPath); err == nil {
+		t.FailNow()
+	}
+}
+
+// TestLogRotateFail fails for rotating old logs for removing
+func TestLogRotateFail(t *testing.T) {
+	tmpDir, err := ioutil.TempDir("/var/tmp", t.Name())
+	if err != nil {
+		t.Log(err)
+		t.FailNow()
+	}
+	defer os.RemoveAll(tmpDir)
+
+	for i := 0; i < maxStackLogs+2; i++ {
+		fp := filepath.Join(tmpDir, fmt.Sprintf(stackLogFormat, time.Now().Format("2006-01-02T150405+0800")))
+		err = ioutil.WriteFile(fp, []byte("goroutines"), constant.DefaultRootFileMode)
+		assert.NilError(t, err)
+		time.Sleep(1 * time.Second)
+	}
+	items, err := ioutil.ReadDir(tmpDir)
+	assert.NilError(t, err)
+	assert.Equal(t, len(items), maxStackLogs+2)
+
+	if err = testutil.Immutable(tmpDir, true); err != nil {
+		t.Log(err)
+		t.FailNow()
+	}
+	defer testutil.Immutable(tmpDir, false)
+
+	if err = logRotate(tmpDir); err == nil {
+		t.Log(err)
+		t.FailNow()
+	}
+	items, err = ioutil.ReadDir(tmpDir)
+	assert.NilError(t, err)
+	// logRotate failed for immutable dir, so the items are still maxStackLogs+2
+	assert.Equal(t, len(items), maxStackLogs+2)
 }
