@@ -51,6 +51,7 @@ func (b *Backend) Build(req *pb.BuildRequest, stream pb.Control_BuildServer) (er
 		imageID  string
 		pipeFile string
 		eg       *errgroup.Group
+		fileChan chan []byte
 		errc     = make(chan error, 1)
 	)
 
@@ -76,9 +77,26 @@ func (b *Backend) Build(req *pb.BuildRequest, stream pb.Control_BuildServer) (er
 
 		return err
 	})
+
 	eg.Go(func() error {
-		return exporter.PipeArchiveStream(req.BuildID, pipeWrapper, stream.Send)
+		if pipeWrapper == nil {
+			return nil
+		}
+		fileChan, err = exporter.PipeArchiveStream(req.BuildID, pipeWrapper)
+		if err != nil {
+			return err
+		}
+
+		for c := range fileChan {
+			if err = stream.Send(&pb.BuildResponse{
+				Data: c,
+			}); err != nil {
+				return err
+			}
+		}
+		return pipeWrapper.Err
 	})
+
 	go func() {
 		errc <- eg.Wait()
 	}()

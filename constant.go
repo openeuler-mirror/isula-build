@@ -56,6 +56,9 @@ const (
 
 	// BuildContainerImageType is the default build type
 	BuildContainerImageType = "ctr-img"
+
+	// BufferSize is default buffer size for file transportation
+	BufferSize = 32 * 1024
 )
 
 var (
