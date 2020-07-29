@@ -18,6 +18,8 @@ package daemon
 import (
 	"context"
 
+	"github.com/containers/image/v5/docker/tarfile"
+	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
 
 	constant "isula.org/isula-build"
@@ -34,6 +36,16 @@ func (b *Backend) Load(ctx context.Context, req *pb.LoadRequest) (*pb.LoadRespon
 		return &pb.LoadResponse{}, err
 	}
 
+	tarfileSource, err := tarfile.NewSourceFromFile(req.Path)
+	if err != nil {
+		return &pb.LoadResponse{}, errors.Wrapf(err, "failed to get the source of loading tar file")
+	}
+
+	topLevelImageManifest, err := tarfileSource.LoadTarManifest()
+	if err != nil || len(topLevelImageManifest) == 0 {
+		return &pb.LoadResponse{}, errors.Wrapf(err, "failed to get the top level image manifest")
+	}
+
 	_, si, err := image.ResolveFromImage(&image.PrepareImageOptions{
 		Ctx:           ctx,
 		FromImage:     "docker-archive:" + req.Path,
@@ -45,7 +57,7 @@ func (b *Backend) Load(ctx context.Context, req *pb.LoadRequest) (*pb.LoadRespon
 		return nil, err
 	}
 
-	if err := b.daemon.localStore.SetNames(si.ID, []string{"<none>:<none>"}); err != nil {
+	if err := b.daemon.localStore.SetNames(si.ID, topLevelImageManifest[0].RepoTags); err != nil {
 		return nil, err
 	}
 
