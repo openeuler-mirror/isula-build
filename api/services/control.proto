@@ -61,6 +61,8 @@ message BuildRequest {
     BuildStatic buildStatic = 9;
     // encryptKey is key to encrypt items in buildArgs
     string encryptKey = 10;
+    // additionalTag is the tag applied to the built image
+    string additionalTag = 11;
 }
 
 message ImportRequest {

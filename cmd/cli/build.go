@@ -41,15 +41,16 @@ import (
 )
 
 type buildOptions struct {
-	file        string
-	output      string
-	buildArgs   []string
-	encryptKey  string
-	contextDir  string
-	buildID     string
-	proxyFlag   bool
-	buildStatic opts.ListOpts
-	imageIDFile string
+	file          string
+	output        string
+	buildArgs     []string
+	encryptKey    string
+	contextDir    string
+	buildID       string
+	proxyFlag     bool
+	buildStatic   opts.ListOpts
+	imageIDFile   string
+	additionalTag string
 }
 
 type staticBuildMode string
@@ -106,6 +107,7 @@ func NewBuildCmd() *cobra.Command {
 	buildCmd.PersistentFlags().VarP(&buildOpts.buildStatic, "build-static", "", "Static build with the given option")
 	buildCmd.PersistentFlags().StringArrayVar(&buildOpts.buildArgs, "build-arg", []string{}, "Arguments used during build time")
 	buildCmd.PersistentFlags().StringVar(&buildOpts.imageIDFile, "iidfile", "", "Write image ID to the file")
+	buildCmd.PersistentFlags().StringVarP(&buildOpts.additionalTag, "tag", "", "", "Add tag to the built image")
 
 	return buildCmd
 }
@@ -277,16 +279,17 @@ func runBuild(ctx context.Context, cli Cli) (string, error) {
 	}
 
 	budStream, err := cli.Client().Build(ctx, &pb.BuildRequest{
-		BuildType:   constant.BuildContainerImageType,
-		BuildID:     buildOpts.buildID,
-		BuildArgs:   buildOpts.buildArgs,
-		EncryptKey:  buildOpts.encryptKey,
-		ContextDir:  buildOpts.contextDir,
-		FileContent: content,
-		Output:      buildOpts.output,
-		Proxy:       buildOpts.proxyFlag,
-		BuildStatic: buildStatic,
-		Iidfile:     buildOpts.imageIDFile,
+		BuildType:     constant.BuildContainerImageType,
+		BuildID:       buildOpts.buildID,
+		BuildArgs:     buildOpts.buildArgs,
+		EncryptKey:    buildOpts.encryptKey,
+		ContextDir:    buildOpts.contextDir,
+		FileContent:   content,
+		Output:        buildOpts.output,
+		Proxy:         buildOpts.proxyFlag,
+		BuildStatic:   buildStatic,
+		Iidfile:       buildOpts.imageIDFile,
+		AdditionalTag: buildOpts.additionalTag,
 	})
 	if err != nil {
 		return "", err

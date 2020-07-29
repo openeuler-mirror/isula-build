@@ -39,10 +39,10 @@ func (b *Backend) List(ctx context.Context, req *pb.ListRequest) (*pb.ListRespon
 
 	imageName := req.ImageName
 	reqRepository, reqTag := imageName, ""
-	const imageFieldLen = 2
-	parts := strings.SplitN(imageName, ":", imageFieldLen)
-	if len(parts) == imageFieldLen {
-		reqRepository, reqTag = parts[0], parts[1]
+	const minImageFieldLenWithTag = 2
+	parts := strings.Split(imageName, ":")
+	if len(parts) >= minImageFieldLenWithTag {
+		reqRepository, reqTag = strings.Join(parts[0:len(parts)-1], ":"), parts[len(parts)-1]
 	}
 
 	images, err := b.daemon.localStore.Images()
@@ -58,9 +58,9 @@ func (b *Backend) List(ctx context.Context, req *pb.ListRequest) (*pb.ListRespon
 		}
 		for _, name := range names {
 			repository, tag := name, none
-			parts := strings.SplitN(name, ":", imageFieldLen)
-			if len(parts) == imageFieldLen {
-				repository, tag = parts[0], parts[1]
+			parts := strings.Split(name, ":")
+			if len(parts) >= minImageFieldLenWithTag {
+				repository, tag = strings.Join(parts[0:len(parts)-1], ":"), parts[len(parts)-1]
 			}
 			if reqRepository != "" && reqRepository != repository {
 				continue

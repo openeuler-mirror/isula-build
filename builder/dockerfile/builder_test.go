@@ -1288,7 +1288,7 @@ func TestParseTag(t *testing.T) {
 		{
 			name:   "docker-archive output only with name",
 			output: "docker-archive:./isula.tar:isula",
-			tag:    "isula:latest",
+			tag:    "isula",
 		},
 		{
 			name:   "docker output",
@@ -1298,7 +1298,7 @@ func TestParseTag(t *testing.T) {
 		{
 			name:   "docker output",
 			output: "docker://localhost:5000/isula/test",
-			tag:    "isula/test:latest",
+			tag:    "isula/test",
 		},
 		{
 			name:   "invalid docker output",
@@ -1307,7 +1307,7 @@ func TestParseTag(t *testing.T) {
 		},
 	}
 	for _, tc := range testcases {
-		tag := parseTag(tc.output)
+		tag := parseOutputTag(tc.output)
 		assert.Equal(t, tag, tc.tag, tc.name)
 	}
 }

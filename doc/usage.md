@@ -75,10 +75,11 @@ The build contains the following flags:
 
 - --build-arg: string slice, which is used during the build process
 - --build-static: string slice. Build binary equivalence. If this parameter is set, all timestamp differences and other build process differences (including the container ID and host name) will be eliminated, and a container image that meets BE requirements will be built.
-- -f, --filename:string: indicates the path of the Dockerfile. If this parameter is not specified, the Dockerfile in the current path is used
-- --iidfile:string, output image ID to the local file
-- -o, --output:string: specifies the image export mode and path
+- -f, --filename: string, indicates the path of the Dockerfile. If this parameter is not specified, the Dockerfile in the current path is used
+- --iidfile: string, output image ID to the local file
+- -o, --output: string, specifies the image export mode and path
 - --proxy: bool, which inherits the proxy environment variable on the host side. The default value is true
+- --tag: string, add tag to the built image
 
 #### --build-arg
 
@@ -174,6 +175,14 @@ In addition, the command line of the build subcommand also receives an argument(
 #### --proxy
 
 Indicates whether the container started by running the RUN command inherits the proxy environment variable "http_proxy","https_proxy","ftp_proxy","no_proxy","HTTP_PROXY","HTTPS_PROXY","FTP_PROXY","NO_PROXY". The default value is true.
+
+#### --tag
+
+add tag to the built image
+
+Usage:
+
+`isula-build ctr-img build --tag busybox:latest`
 
 ### Viewing a Local Persistent Image
 
