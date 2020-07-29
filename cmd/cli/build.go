@@ -86,6 +86,7 @@ func NewContainerImageBuildCmd() *cobra.Command {
 		NewRemoveCmd(),
 		NewLoadCmd(),
 		NewImportCmd(),
+		NewTagCmd(),
 	)
 
 	return ctrImgBuildCmd

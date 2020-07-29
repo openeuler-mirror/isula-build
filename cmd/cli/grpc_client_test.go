@@ -19,7 +19,7 @@ import (
 	"testing"
 	"time"
 
-	types "github.com/gogo/protobuf/types"
+	"github.com/gogo/protobuf/types"
 	"google.golang.org/grpc"
 
 	pb "isula.org/isula-build/api/services"
@@ -84,6 +84,10 @@ func (gcli *mockGrpcClient) Version(ctx context.Context, in *types.Empty, opts .
 		BuildTime: "",
 		OsArch:    "",
 	}, nil
+}
+
+func (gcli *mockGrpcClient) Tag(ctx context.Context, in *pb.TagRequest, opts ...grpc.CallOption) (*types.Empty, error) {
+	return &types.Empty{}, nil
 }
 
 func (gcli *mockGrpcClient) Status(ctx context.Context, in *pb.StatusRequest, opts ...grpc.CallOption) (pb.Control_StatusClient, error) {
