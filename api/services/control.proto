@@ -36,6 +36,8 @@ service Control {
     rpc Logout(LogoutRequest) returns (LogoutResponse);
     // Load requests an image tar load
     rpc Load(LoadRequest) returns (LoadResponse);
+    // Import requests import a new image
+    rpc Import(stream ImportRequest) returns (ImportResponse);
 }
 
 message BuildRequest {
@@ -59,6 +61,18 @@ message BuildRequest {
     BuildStatic buildStatic = 9;
     // encryptKey is key to encrypt items in buildArgs
     string encryptKey = 10;
+}
+
+message ImportRequest {
+    // reference is reference of the import image
+    string reference = 1;
+    // data is the tarball of the import image
+    bytes data = 2;
+}
+
+message ImportResponse {
+    // imageID is the ID of the import image
+    string imageID = 1;
 }
 
 message BuildStatic {

@@ -40,6 +40,7 @@ type mockGrpcClient struct {
 	loginFunc       func(ctx context.Context, in *pb.LoginRequest, opts ...grpc.CallOption) (*pb.LoginResponse, error)
 	logoutFunc      func(ctx context.Context, in *pb.LogoutRequest, opts ...grpc.CallOption) (*pb.LogoutResponse, error)
 	loadFunc        func(ctx context.Context, in *pb.LoadRequest, opts ...grpc.CallOption) (*pb.LoadResponse, error)
+	importFunc      func(ctx context.Context, opts ...grpc.CallOption) (pb.Control_ImportClient, error)
 }
 
 func (gcli *mockGrpcClient) Build(ctx context.Context, in *pb.BuildRequest, opts ...grpc.CallOption) (pb.Control_BuildClient, error) {
@@ -47,6 +48,13 @@ func (gcli *mockGrpcClient) Build(ctx context.Context, in *pb.BuildRequest, opts
 		return gcli.imageBuildFunc(ctx, in, opts...)
 	}
 	return &mockBuildClient{isArchive: true}, nil
+}
+
+func (gcli *mockGrpcClient) Import(ctx context.Context, opts ...grpc.CallOption) (pb.Control_ImportClient, error) {
+	if gcli.importFunc != nil {
+		return gcli.importFunc(ctx, opts...)
+	}
+	return nil, nil
 }
 
 func (gcli *mockGrpcClient) Remove(ctx context.Context, in *pb.RemoveRequest, opts ...grpc.CallOption) (pb.Control_RemoveClient, error) {
@@ -118,6 +126,10 @@ type mockBuildClient struct {
 	isArchive bool
 }
 
+type mockImportClient struct {
+	grpc.ClientStream
+}
+
 type mockStatusClient struct {
 	grpc.ClientStream
 }
@@ -135,6 +147,17 @@ func (bcli *mockBuildClient) Recv() (*pb.BuildResponse, error) {
 		return resp, io.EOF
 	}
 	return resp, nil
+}
+
+func (icli *mockImportClient) CloseAndRecv() (*pb.ImportResponse, error) {
+	resp := &pb.ImportResponse{
+		ImageID: imageID,
+	}
+	return resp, nil
+}
+
+func (icli *mockImportClient) Send(*pb.ImportRequest) error {
+	return nil
 }
 
 func (scli *mockStatusClient) Recv() (*pb.StatusResponse, error) {

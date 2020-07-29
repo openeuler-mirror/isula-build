@@ -40,7 +40,8 @@ func newImageCopyOptions(reportWriter io.Writer) *cp.Options {
 	}
 }
 
-func getPolicyContext() (*signature.PolicyContext, error) {
+// GetPolicyContext returns a specied policy context
+func GetPolicyContext() (*signature.PolicyContext, error) {
 	systemContext := image.GetSystemContext()
 	systemContext.DirForceCompress = true
 	commitPolicy, err := signature.DefaultPolicy(systemContext)
@@ -124,7 +125,7 @@ func (c *cmdBuilder) commit(ctx context.Context) (string, error) {
 		exporting = !c.isFromImageExist(storeTransport)
 	}
 
-	policyContext, err := getPolicyContext()
+	policyContext, err := GetPolicyContext()
 	if err != nil {
 		return "", err
 	}
