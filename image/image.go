@@ -132,7 +132,7 @@ func pullImage(opt pullOption) (types.ImageReference, error) {
 
 func pullAndGetImageInfo(opt *PrepareImageOptions) (types.ImageReference, *storage.Image, error) {
 	pLog := logrus.WithField(util.LogKeyBuildID, opt.Ctx.Value(util.LogFieldKey(util.LogKeyBuildID)))
-	candidates, transport, err := resolveName(opt.FromImage, opt.SystemContext, opt.Store)
+	candidates, transport, err := ResolveName(opt.FromImage, opt.SystemContext, opt.Store)
 	if err != nil {
 		return nil, nil, errors.Wrapf(err, "error parsing reference to image %q", opt.FromImage)
 	}
@@ -476,7 +476,7 @@ func ResolveImageName(s string, resolveArg func(string) string) (string, error) 
 
 // FindImage get the image from storage by image describe
 func FindImage(store store.Store, image string) (types.ImageReference, *storage.Image, error) {
-	names, _, err := resolveName(image, nil, store)
+	names, _, err := ResolveName(image, nil, store)
 	if err != nil {
 		return nil, nil, errors.Wrapf(err, "error parsing name %q", image)
 	}
@@ -508,7 +508,9 @@ func FindImage(store store.Store, image string) (types.ImageReference, *storage.
 	return ref, img, nil
 }
 
-func resolveName(name string, sc *types.SystemContext, store store.Store) ([]string, string, error) {
+// ResolveName checks whether the image name is valid, if the name does not include a domain,
+// returns a list of candidates it might be
+func ResolveName(name string, sc *types.SystemContext, store store.Store) ([]string, string, error) {
 	// 1. check name valid
 	if name == "" {
 		return nil, "", nil

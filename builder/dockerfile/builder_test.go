@@ -1296,6 +1296,11 @@ func TestParseTag(t *testing.T) {
 			tag:    "isula/test:latest",
 		},
 		{
+			name:   "docker output",
+			output: "docker://localhost:5000/isula/test",
+			tag:    "isula/test:latest",
+		},
+		{
 			name:   "invalid docker output",
 			output: "docker:localhost:5000/isula/test:latest",
 			tag:    "",
