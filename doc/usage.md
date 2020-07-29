@@ -1,3 +1,28 @@
+<!-- vim-markdown-toc GFM -->
+
+* [Usage](#usage)
+    * [Configuration](#configuration)
+    * [Starting the Service](#starting-the-service)
+        * [Using systemd (RPM package installation)](#using-systemd-rpm-package-installation)
+        * [Using binary file](#using-binary-file)
+        * [isula-builder supported flags:](#isula-builder-supported-flags)
+    * [Features](#features)
+        * [Container Image Building](#container-image-building)
+            * [--build-arg](#--build-arg)
+            * [--build-static](#--build-static)
+            * [--iidfile](#--iidfile)
+            * [-o, --output](#-o---output)
+            * [--proxy](#--proxy)
+        * [Viewing a Local Persistent Image](#viewing-a-local-persistent-image)
+        * [Importing a Base Image from a Tarball](#importing-a-base-image-from-a-tarball)
+        * [Deleting a Local Persistent Image](#deleting-a-local-persistent-image)
+            * [-a, --all](#-a---all)
+            * [-p, --prune](#-p---prune)
+        * [Authentication of the Remote Image Repository](#authentication-of-the-remote-image-repository)
+            * [-a, --all](#-a---all-1)
+        * [Version query](#version-query)
+
+<!-- vim-markdown-toc -->
 # Usage
 
 ## Configuration
@@ -86,7 +111,7 @@ Receive parameters from the command line as parameters in the Dockerfile.
 
 Usage:
 
-`sudo isula-build ctr-img build --build-arg foo=bar -f Dockerfile`
+`isula-build ctr-img build --build-arg foo=bar -f Dockerfile`
 
 ```bash
 $ echo "This is bar file" > bar.txt
@@ -133,7 +158,7 @@ If this parameter is set to BE, all timestamp differences and other build proces
 
 Usage:
 
-`$ sudo isula-build ctr-img build -f Dockerfile --build-static='build-time=2020-05-23 10:55:33' -o docker-archive:./my-image.tar`
+`isula-build ctr-img build -f Dockerfile --build-static='build-time=2020-05-23 10:55:33' -o docker-archive:./my-image.tar`
 
 #### --iidfile
 
@@ -179,17 +204,32 @@ Indicates whether the container started by running the RUN command inherits the 
 
 We can run the images command to view the image stored locally.
 
-`$ sudo isula-build ctr-img images`
-
 ```bash
+$ sudo isula-build ctr-img images
 ----------------------------------------------  -----------  -----------------  --------------------------  ------------
  REPOSITORY                                      TAG          IMAGE ID           CREATED                     SIZE
 ----------------------------------------------  -----------  -----------------  --------------------------  ------------
- docker.io/library/alpine                        latest       a24bb4013296       2020-20-19 19:59:197        5.85 MB
-
- <none>                                          <none>       39b62a3342ee       2020-20-38 38:66:387        1.45 MB
-
+ docker.io/library/alpine                        latest       a24bb4013296       2020-20-19 19:59:19         5.85 MB
+ <none>                                          <none>       39b62a3342ee       2020-20-19 20:06:38         1.45 MB
 ----------------------------------------------  -----------  -----------------  --------------------------  ------------
+```
+
+### Importing a Base Image from a Tarball
+
+We can run the `import` command to import a base image into the image store from a tarball.
+
+Usage:
+
+`isula-build ctr-img import file [REPOSITORY[:TAG]]`
+
+```bash
+$ sudo isula-build ctr-img busybox.tar
+Import success with image id: bf7b3b8ad6d842fb6e0c2dd60727ccb60a86c0e8781a35ae39de5aeef9979189
+```
+
+```bash
+$ sudo isula-build ctr-img busybox.tar busybox:isula
+Import success with image id: 2d77083e646bf77e25547ea489b00ed8ec318cc37ba81c41e7ec92bca2845033
 ```
 
 ### Deleting a Local Persistent Image
@@ -215,7 +255,7 @@ Deleting All Images That Do Not Have Tags and Are Stored Locally and Persistentl
 
 Usage:
 
-`sudo isula-build ctr-img rm -p`
+`isula-build ctr-img rm -p`
 
 ```bash
 $ sudo isula-build ctr-img rm -p
@@ -229,7 +269,7 @@ We can `login` or `logout` an image repository
 
 Login Usage：
 
-`sudo isula-build login dockerhub.io`
+`isula-build login dockerhub.io`
 
 We can run the `login` command to login into an image repository
 
@@ -251,7 +291,7 @@ Login Succeeded
 
 Logout Usage:
 
-`sudo isula-build logout mydockerhub.io`
+`isula-build logout mydockerhub.io`
 
 We can run the `logout` command to logout from an image repository
 
