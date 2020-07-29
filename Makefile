@@ -2,7 +2,7 @@ PREFIX := /usr
 BINDIR := $(PREFIX)/bin
 
 SOURCES := $(shell find . 2>&1 | grep -E '.*\.(c|h|go)$$')
-GIT_COMMIT ?= $(if $(shell git rev-parse --short HEAD),$(shell git rev-parse --short HEAD),$(error "git failed"))
+GIT_COMMIT ?= $(if $(shell git rev-parse --short HEAD),$(shell git rev-parse --short HEAD),$(shell cat ./git-commit | head -c 7))
 SOURCE_DATE_EPOCH ?= $(if $(shell date +%s),$(shell date +%s),$(error "date failed"))
 VERSION := $(shell cat ./VERSION)
 ARCH := $(shell arch)
@@ -25,7 +25,7 @@ IMAGE_NAME := isula-build-dev
 GO := go
 # test for go module support
 ifeq ($(shell go help mod >/dev/null 2>&1 && echo true), true)
-export GO_BUILD=GO111MODULE=on; $(GO) mod vendor; $(GO) build -mod=vendor
+export GO_BUILD=GO111MODULE=on; $(GO) build -mod=vendor
 else
 export GO_BUILD=$(GO) build
 endif
