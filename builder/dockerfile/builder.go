@@ -26,6 +26,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/containers/image/v5/docker/reference"
 	"github.com/opencontainers/go-digest"
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
@@ -43,13 +44,14 @@ import (
 
 // BuildOptions is the option for build an image
 type BuildOptions struct {
-	BuildArgs  map[string]string
-	ContextDir string
-	File       string
-	Iidfile    string
-	Output     []string
-	ProxyFlag  bool
-	Tag        string
+	BuildArgs     map[string]string
+	ContextDir    string
+	File          string
+	Iidfile       string
+	Output        []string
+	ProxyFlag     bool
+	Tag           string
+	AdditionalTag string
 }
 
 // Builder is the object to build a Dockerfile
@@ -104,14 +106,8 @@ func NewBuilder(ctx context.Context, store store.Store, req *pb.BuildRequest, ru
 		Iidfile:    req.GetIidfile(),
 	}
 	b.parseStaticBuildOpts(req)
-
-	tag := parseTag(req.Output)
-	if tag != "" {
-		candidates, _, rerr := image.ResolveName(tag, nil, b.localStore)
-		if rerr != nil || len(candidates) == 0 {
-			return nil, errors.Wrapf(rerr, "parse target tag %v err", tag)
-		}
-		b.buildOpts.Tag = candidates[0]
+	if err = b.parseTag(req.Output, req.AdditionalTag); err != nil {
+		return nil, err
 	}
 
 	// prepare workdirs for dockerfile builder
@@ -135,6 +131,23 @@ func NewBuilder(ctx context.Context, store store.Store, req *pb.BuildRequest, ru
 	}
 
 	return b, nil
+}
+
+func (b *Builder) parseTag(output, additionalTag string) error {
+	var err error
+	if tag := parseOutputTag(output); tag != "" {
+		if b.buildOpts.Tag, err = expandTag(tag, b.localStore); err != nil {
+			return err
+		}
+	}
+
+	if additionalTag != "" {
+		if b.buildOpts.AdditionalTag, err = expandTag(additionalTag, b.localStore); err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
 
 func (b *Builder) parseOutput(output string) error {
@@ -458,11 +471,10 @@ func (b *Builder) cleanup() {
 
 func (b *Builder) export(imageID string) error {
 	exportTimer := b.cliLog.StartTimer("EXPORT")
-	if b.buildOpts.Tag != "" {
-		if serr := b.localStore.SetNames(imageID, []string{b.buildOpts.Tag}); serr != nil {
-			return errors.Wrap(serr, "set tag for image error")
-		}
+	if err := b.applyTag(imageID); err != nil {
+		return err
 	}
+
 	var retErr error
 	for _, o := range b.buildOpts.Output {
 		exOpts := exporter.ExportOptions{
@@ -480,6 +492,24 @@ func (b *Builder) export(imageID string) error {
 	b.cliLog.StopTimer(exportTimer)
 	b.Logger().Debugln(b.cliLog.GetCmdTime(exportTimer))
 	return retErr
+}
+
+func (b *Builder) applyTag(imageID string) error {
+	tags := make([]string, 0, 0)
+	if b.buildOpts.Tag != "" {
+		tags = append(tags, b.buildOpts.Tag)
+	}
+	if b.buildOpts.AdditionalTag != "" {
+		tags = append(tags, b.buildOpts.AdditionalTag)
+	}
+
+	if len(tags) > 0 {
+		if serr := b.localStore.SetNames(imageID, tags); serr != nil {
+			return errors.Wrapf(serr, "set tags %v for image %v error", tags, imageID)
+		}
+	}
+
+	return nil
 }
 
 func (b *Builder) writeImageID(imageID string) error {
@@ -517,7 +547,7 @@ func (b *Builder) OutputPipeWrapper() *exporter.PipeWrapper {
 	return b.pipeWrapper
 }
 
-func parseTag(output string) string {
+func parseOutputTag(output string) string {
 	outputFields := strings.Split(output, ":")
 	const archiveOutputWithoutTagLen = 2
 
@@ -526,9 +556,6 @@ func parseTag(output string) string {
 	case (outputFields[0] == "docker-daemon" || outputFields[0] == "isulad") && len(outputFields) > 1:
 		tag = strings.Join(outputFields[1:], ":")
 	case outputFields[0] == "docker-archive" && len(outputFields) > archiveOutputWithoutTagLen:
-		if len(outputFields[archiveOutputWithoutTagLen:]) == 1 {
-			outputFields = append(outputFields, "latest")
-		}
 		tag = strings.Join(outputFields[archiveOutputWithoutTagLen:], ":")
 	case outputFields[0] == "docker" && len(outputFields) > 1:
 		repoAndTag := strings.Join(outputFields[1:], ":")
@@ -538,10 +565,24 @@ func parseTag(output string) string {
 			return ""
 		}
 		tag = repoAndTag[len(repo):]
-		if len(strings.Split(tag, ":")) == 1 {
-			tag += ":latest"
-		}
 	}
 
 	return tag
+}
+
+// expandTag resolves tag name, if it not include a domain, "localhost" will be
+// added, and if it not include a tag, "latest" will be added.
+func expandTag(tag string, store store.Store) (string, error) {
+	candidates, _, err := image.ResolveName(tag, nil, store)
+	if err != nil || len(candidates) == 0 {
+		return "", errors.Errorf("resolve tag %v err: %v", tag, err)
+	}
+
+	tagNamed, err := reference.ParseNormalizedNamed(candidates[0])
+	if err != nil {
+		return "", errors.Wrapf(err, "parse tag %v err", candidates[0])
+	}
+	tagNamed = reference.TagNameOnly(tagNamed)
+
+	return tagNamed.String(), nil
 }
