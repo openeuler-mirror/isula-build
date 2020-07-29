@@ -22,8 +22,6 @@ if [ ! -z "${SKIP_REG}" ]; then
 fi
 echo "Testing with args ${TEST_ARGS}"
 
-go mod vendor
-
 testlog=${PWD}"/unit_test_log"
 rm -f "${testlog}"
 touch "${testlog}"
