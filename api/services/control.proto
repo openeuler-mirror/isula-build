@@ -38,6 +38,8 @@ service Control {
     rpc Load(LoadRequest) returns (LoadResponse);
     // Import requests import a new image
     rpc Import(stream ImportRequest) returns (ImportResponse);
+    // Tag requests to tag an image
+    rpc tag(TagRequest) returns (google.protobuf.Empty);
 }
 
 message BuildRequest {
@@ -102,6 +104,13 @@ message StatusResponse {
 message ListRequest {
     // imageName lists specific images with imageName
     string imageName = 1;
+}
+
+message TagRequest {
+    // image refers to the image to be tagged
+    string image = 1;
+    // tag is the tag added to image
+    string tag = 2;
 }
 
 message ListResponse {

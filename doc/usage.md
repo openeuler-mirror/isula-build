@@ -21,6 +21,7 @@
         * [Authentication of the Remote Image Repository](#authentication-of-the-remote-image-repository)
             * [-a, --all](#-a---all-1)
         * [Version query](#version-query)
+        * [Tag an image](#tag-an-image)
 
 <!-- vim-markdown-toc -->
 # Usage
@@ -340,3 +341,29 @@ Server:
   Built:         Thu Jun 11 19:02:45 2020
   OS/Arch:       linux/amd64
 ```
+
+### Tag an image
+
+We can use the `tag` command to add an additional tag to an image.
+
+Usage:
+
+`isula-build ctr-img tag <imageID>/<imageName> busybox:latest`
+
+```bash
+$ sudo isula-build ctr-img images
+----------------------------------------------  -----------  -----------------  --------------------------  ------------
+ REPOSITORY                                      TAG          IMAGE ID           CREATED                     SIZE
+----------------------------------------------  -----------  -----------------  --------------------------  ------------
+ docker.io/library/alpine                        latest       a24bb4013296       2020-05-29 21:19:46         5.85 MB
+----------------------------------------------  -----------  -----------------  --------------------------  ------------
+$ sudo isula-build ctr-img tag a24bb4013296 alpine:latest
+$ sudo isula-build ctr-img images
+----------------------------------------------  -----------  -----------------  --------------------------  ------------
+ REPOSITORY                                      TAG          IMAGE ID           CREATED                     SIZE
+----------------------------------------------  -----------  -----------------  --------------------------  ------------
+ docker.io/library/alpine                        latest       a24bb4013296       2020-05-29 21:19:46         5.85 MB
+ localhost/alpine                                latest       a24bb4013296       2020-05-29 21:19:46         5.85 MB
+----------------------------------------------  -----------  -----------------  --------------------------  ------------
+```
+

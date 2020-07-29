@@ -136,13 +136,13 @@ func NewBuilder(ctx context.Context, store store.Store, req *pb.BuildRequest, ru
 func (b *Builder) parseTag(output, additionalTag string) error {
 	var err error
 	if tag := parseOutputTag(output); tag != "" {
-		if b.buildOpts.Tag, err = expandTag(tag, b.localStore); err != nil {
+		if b.buildOpts.Tag, err = ExpandTag(tag, b.localStore); err != nil {
 			return err
 		}
 	}
 
 	if additionalTag != "" {
-		if b.buildOpts.AdditionalTag, err = expandTag(additionalTag, b.localStore); err != nil {
+		if b.buildOpts.AdditionalTag, err = ExpandTag(additionalTag, b.localStore); err != nil {
 			return err
 		}
 	}
@@ -570,9 +570,9 @@ func parseOutputTag(output string) string {
 	return tag
 }
 
-// expandTag resolves tag name, if it not include a domain, "localhost" will be
+// ExpandTag resolves tag name, if it not include a domain, "localhost" will be
 // added, and if it not include a tag, "latest" will be added.
-func expandTag(tag string, store store.Store) (string, error) {
+func ExpandTag(tag string, store store.Store) (string, error) {
 	candidates, _, err := image.ResolveName(tag, nil, store)
 	if err != nil || len(candidates) == 0 {
 		return "", errors.Errorf("resolve tag %v err: %v", tag, err)
