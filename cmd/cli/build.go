@@ -260,6 +260,8 @@ func runBuild(ctx context.Context, cli Cli) (string, error) {
 		content  string
 		dest     string
 		isIsulad bool
+		imageID  string
+		msg      *pb.BuildResponse
 	)
 
 	if dest, isIsulad, err = checkAndProcessOutput(); err != nil {
@@ -299,15 +301,38 @@ func runBuild(ctx context.Context, cli Cli) (string, error) {
 		return msg.ImageID, nil
 	}
 
-	imageID, err := exporter.ArchiveRecv(ctx, dest, isIsulad, budStream.Recv)
-	if err != nil {
-		return "", err
-	}
+	ch := make(chan []byte, constant.BufferSize)
+	eg, _ := errgroup.WithContext(ctx)
+	eg.Go(func() error {
+		defer close(ch)
+		for {
+			msg, err = budStream.Recv()
+			if msg != nil {
+				imageID = msg.ImageID
+			}
+			if err == io.EOF {
+				break
+			}
+			if err != nil {
+				imageID = ""
+				return err
+			}
+			ch <- msg.Data
+		}
+		return nil
+	})
 
-	return imageID, nil
+	eg.Go(func() error {
+		if err = exporter.ArchiveRecv(ctx, dest, isIsulad, ch); err != nil {
+			return err
+		}
+		return nil
+	})
+
+	return imageID, eg.Wait()
 }
 
-// encryptes those sensitive args before transmissing via GRPC
+// encrypts those sensitive args before transporting via GRPC
 func encryptBuildArgs() error {
 	var hasSensiArg bool
 	for _, v := range buildOpts.buildArgs {
