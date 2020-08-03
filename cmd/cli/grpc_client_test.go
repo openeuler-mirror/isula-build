@@ -39,7 +39,7 @@ type mockGrpcClient struct {
 	healthCheckFunc func(ctx context.Context, in *types.Empty, opts ...grpc.CallOption) (*pb.HealthCheckResponse, error)
 	loginFunc       func(ctx context.Context, in *pb.LoginRequest, opts ...grpc.CallOption) (*pb.LoginResponse, error)
 	logoutFunc      func(ctx context.Context, in *pb.LogoutRequest, opts ...grpc.CallOption) (*pb.LogoutResponse, error)
-	loadFunc        func(ctx context.Context, in *pb.LoadRequest, opts ...grpc.CallOption) (*pb.LoadResponse, error)
+	loadFunc        func(ctx context.Context, in *pb.LoadRequest, opts ...grpc.CallOption) (pb.Control_LoadClient, error)
 	importFunc      func(ctx context.Context, opts ...grpc.CallOption) (pb.Control_ImportClient, error)
 }
 
@@ -118,7 +118,7 @@ func (gcli *mockGrpcClient) Logout(ctx context.Context, in *pb.LogoutRequest, op
 	return &pb.LogoutResponse{Result: "Success Logout"}, nil
 }
 
-func (gcli *mockGrpcClient) Load(ctx context.Context, in *pb.LoadRequest, opts ...grpc.CallOption) (*pb.LoadResponse, error) {
+func (gcli *mockGrpcClient) Load(ctx context.Context, in *pb.LoadRequest, opts ...grpc.CallOption) (pb.Control_LoadClient, error) {
 	if gcli.loadFunc != nil {
 		return gcli.loadFunc(ctx, in, opts...)
 	}
@@ -139,6 +139,10 @@ type mockStatusClient struct {
 }
 
 type mockRemoveClient struct {
+	grpc.ClientStream
+}
+
+type mockLoadClient struct {
 	grpc.ClientStream
 }
 
@@ -174,6 +178,13 @@ func (scli *mockStatusClient) Recv() (*pb.StatusResponse, error) {
 func (rcli *mockRemoveClient) Recv() (*pb.RemoveResponse, error) {
 	resp := &pb.RemoveResponse{
 		LayerMessage: imageID,
+	}
+	return resp, io.EOF
+}
+
+func (lcli *mockLoadClient) Recv() (*pb.LoadResponse, error) {
+	resp := &pb.LoadResponse{
+		Log: "Getting image source signatures",
 	}
 	return resp, io.EOF
 }
