@@ -24,8 +24,10 @@
             * [-a, --all](#-a---all-1)
         * [Version query](#version-query)
         * [Tag an image](#tag-an-image)
+        * [Show system information](#show-system-information)
 
 <!-- vim-markdown-toc -->
+
 # Usage
 
 ## Configuration
@@ -293,6 +295,31 @@ Deleted: sha256:78731c1dde25361f539555edaf8f0b24132085b7cab6ecb90de63d72fa00c01d
 Deleted: sha256:eeba1bfe9fca569a894d525ed291bdaef389d28a88c288914c1a9db7261ad12c
 ```
 
+### Tag an image
+
+We can use the `tag` command to add an additional tag to an image.
+
+Usage:
+
+`isula-build ctr-img tag <imageID>/<imageName> busybox:latest`
+
+```bash
+$ sudo isula-build ctr-img images
+----------------------------------------------  -----------  -----------------  --------------------------  ------------
+ REPOSITORY                                      TAG          IMAGE ID           CREATED                     SIZE
+----------------------------------------------  -----------  -----------------  --------------------------  ------------
+ docker.io/library/alpine                        latest       a24bb4013296       2020-05-29 21:19:46         5.85 MB
+----------------------------------------------  -----------  -----------------  --------------------------  ------------
+$ sudo isula-build ctr-img tag a24bb4013296 alpine:latest
+$ sudo isula-build ctr-img images
+----------------------------------------------  -----------  -----------------  --------------------------  ------------
+ REPOSITORY                                      TAG          IMAGE ID           CREATED                     SIZE
+----------------------------------------------  -----------  -----------------  --------------------------  ------------
+ docker.io/library/alpine                        latest       a24bb4013296       2020-05-29 21:19:46         5.85 MB
+ localhost/alpine                                latest       a24bb4013296       2020-05-29 21:19:46         5.85 MB
+----------------------------------------------  -----------  -----------------  --------------------------  ------------
+```
+
 ### Authentication of the Remote Image Repository
 
 We can `login` or `logout` an image repository
@@ -343,7 +370,7 @@ Removed authentications
 
 ### Version query
 
-We can run the version command to view the current version information.
+We can run the `version` command to view the current version information.
 
 ```bash
 $ sudo isula-build version
@@ -362,28 +389,43 @@ Server:
   OS/Arch:       linux/amd64
 ```
 
-### Tag an image
+### Show system information
 
-We can use the `tag` command to add an additional tag to an image.
+We can use the `info` command to view isula-build system information.
+
+Currently, the following flags are supported:
+
+```bash
+Flags:
+  -H, --human-readable   print memory info in human readable format, use powers of 1000
+```
+
+#### -H, --human-readable
+
+print memory info in human readable format, use powers of 1000
 
 Usage:
 
-`isula-build ctr-img tag <imageID>/<imageName> busybox:latest`
+`isula-build info -H`
 
 ```bash
-$ sudo isula-build ctr-img images
-----------------------------------------------  -----------  -----------------  --------------------------  ------------
- REPOSITORY                                      TAG          IMAGE ID           CREATED                     SIZE
-----------------------------------------------  -----------  -----------------  --------------------------  ------------
- docker.io/library/alpine                        latest       a24bb4013296       2020-05-29 21:19:46         5.85 MB
-----------------------------------------------  -----------  -----------------  --------------------------  ------------
-$ sudo isula-build ctr-img tag a24bb4013296 alpine:latest
-$ sudo isula-build ctr-img images
-----------------------------------------------  -----------  -----------------  --------------------------  ------------
- REPOSITORY                                      TAG          IMAGE ID           CREATED                     SIZE
-----------------------------------------------  -----------  -----------------  --------------------------  ------------
- docker.io/library/alpine                        latest       a24bb4013296       2020-05-29 21:19:46         5.85 MB
- localhost/alpine                                latest       a24bb4013296       2020-05-29 21:19:46         5.85 MB
-----------------------------------------------  -----------  -----------------  --------------------------  ------------
+$ sudo isula-build info -H
+General:
+  MemTotal:     10.3 GB
+  MemFree:      2.24 GB
+  SwapTotal:    8.46 GB
+  SwapFree:     8.45 GB
+  OCI Runtime:  runc
+  DataRoot:     /var/lib/isula-build/
+  RunRoot:      /var/run/isula-build/
+  Builders:     0
+  Goroutines:   12
+Store:
+  Storage Driver:     overlay
+  Backing Filesystem: extfs
+Registry:
+  Search Registries:
+    docker.io
+  Insecure Registries:
+    localhost:5000
 ```
-

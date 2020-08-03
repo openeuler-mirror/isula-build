@@ -24,7 +24,7 @@ service Control {
     rpc Status(StatusRequest) returns (stream StatusResponse);
     // List lists all images in isula-builder
     rpc List(ListRequest) returns (ListResponse);
-    // Version requests the version information of isula-builder
+    // Version requests version information of isula-builder
     rpc Version(google.protobuf.Empty) returns (VersionResponse);
     // Remove sends an image remove request to isula-builder
     rpc Remove(RemoveRequest) returns (stream RemoveResponse);
@@ -39,9 +39,11 @@ service Control {
     // Import requests import a new image
     rpc Import(stream ImportRequest) returns (ImportResponse);
     // Tag requests to tag an image
-    rpc tag(TagRequest) returns (google.protobuf.Empty);
+    rpc Tag(TagRequest) returns (google.protobuf.Empty);
     // Save saves the image to tarball
     rpc Save(SaveRequest) returns (stream SaveResponse);
+    // Info requests isula-build system information
+    rpc Info(google.protobuf.Empty) returns (InfoResponse);
 }
 
 message BuildRequest {
@@ -218,4 +220,50 @@ message SaveResponse {
     bytes data = 1;
     // log is log send to cli
     string log = 2;
+}
+
+message MemData {
+    // memTotal is total memory
+    int64 memTotal = 1;
+    // memFree is free memory
+    int64 memFree = 2;
+    // swapTotal is total swap
+    int64 swapTotal = 3;
+    // swapFree is free swap
+    int64 swapFree = 4;
+}
+
+message StorageData {
+    // storageDriver is storage driver for isula-build
+    string storageDriver = 1;
+    // storageBackingFs is storage backing file system
+    string storageBackingFs = 2;
+}
+
+message RegistryData {
+    // registriesSearch is registries.search registries
+    repeated string registriesSearch = 1;
+    // registriesInsecure is registries.insecure registries
+    repeated string registriesInsecure = 2;
+    // registriesBlock is registries.block registries
+    repeated string registriesBlock = 3;
+}
+
+message InfoResponse {
+    // memInfo is memory information
+    MemData memInfo = 1;
+    // storageInfo is storage information
+    StorageData storageInfo = 2;
+    // registryInfo is registry information
+    RegistryData registryInfo = 3;
+    // dataRoot is persistent directory for isula-build
+    string dataRoot = 4;
+    // runRoot is runtime directory for isula-build
+    string runRoot = 5;
+    // ociRuntime is OCI runtime for RUN command
+    string OCIRuntime = 6;
+    // builderNum is number of builders
+    int64 builderNum = 7;
+    // goRoutines is number of go routines
+    int64 goRoutines = 8;
 }

@@ -15,7 +15,6 @@ package daemon
 
 import (
 	"context"
-	"fmt"
 	"sort"
 	"strings"
 
@@ -25,11 +24,11 @@ import (
 	constant "isula.org/isula-build"
 	pb "isula.org/isula-build/api/services"
 	"isula.org/isula-build/store"
+	"isula.org/isula-build/util"
 )
 
 const (
-	none              = "<none>"
-	decimalPrefixBase = 1000
+	none = "<none>"
 )
 
 // List lists all images
@@ -90,15 +89,5 @@ func getImageSize(store *store.Store, id string) string {
 	if err != nil {
 		imgSize = -1
 	}
-	return formatImageSize(float64(imgSize))
-}
-
-func formatImageSize(size float64) string {
-	suffixes := [5]string{"B", "KB", "MB", "GB", "TB"}
-	cnt := 0
-	for size >= decimalPrefixBase && cnt < len(suffixes)-1 {
-		size /= decimalPrefixBase
-		cnt++
-	}
-	return fmt.Sprintf("%.3g %s", size, suffixes[cnt])
+	return util.FormatSize(float64(imgSize))
 }

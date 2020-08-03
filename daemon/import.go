@@ -32,13 +32,14 @@ import (
 )
 
 const (
-	tmpFilePattern = "isula-build-ctr-img-import"
-	noneReference  = "<none>:<none>"
-	bufLen         = 1024
+	noneReference = "<none>:<none>"
+	bufLen        = 1024
 )
 
 // Import an image from a tarball
 func (b *Backend) Import(serv pb.Control_ImportServer) error {
+	logrus.Info("ImportRequest received")
+
 	localStore := b.daemon.localStore
 	buf := make([]byte, 0, bufLen)
 	reference := ""

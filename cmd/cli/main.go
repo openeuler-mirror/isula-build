@@ -91,7 +91,7 @@ func main() {
 
 func setupRootCmd(rootCmd *cobra.Command) {
 	rootCmd.SetFlagErrorFunc(util.FlagErrorFunc)
-	rootCmd.PersistentFlags().StringVar(&cliOpts.LogLevel, "log-level", "info", "Log level to be used. Either \"debug\", \"info\", \"warn\" or \"error\"")
+	rootCmd.PersistentFlags().StringVar(&cliOpts.LogLevel, "log-level", "error", "Log level to be used. Either \"debug\", \"info\", \"warn\" or \"error\"")
 	rootCmd.PersistentFlags().BoolVarP(&cliOpts.Debug, "debug", "D", false, "Open debug mode")
 	rootCmd.PersistentFlags().StringVarP(&cliOpts.Timeout, "timeout", "t", "500ms", "Timeout for connecting to daemon")
 	rootCmd.PersistentFlags().BoolP("help", "h", false, "Print usage")
@@ -104,5 +104,6 @@ func addCommands(cmd *cobra.Command) {
 		NewVersionCmd(),
 		NewLoginCmd(),
 		NewLogoutCmd(),
+		NewInfoCmd(),
 	)
 }
