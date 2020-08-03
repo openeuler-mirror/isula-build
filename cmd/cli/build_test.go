@@ -68,6 +68,11 @@ func (f *mockDaemon) importImage(_ context.Context, opts ...grpc.CallOption) (pb
 	return &mockImportClient{}, nil
 }
 
+func (f *mockDaemon) load(_ context.Context, in *pb.LoadRequest, opts ...grpc.CallOption) (pb.Control_LoadClient, error) {
+	f.loadReq = in
+	return &mockLoadClient{}, nil
+}
+
 func (f *mockDaemon) build(_ context.Context, in *pb.BuildRequest, opts ...grpc.CallOption) (pb.Control_BuildClient, error) {
 	f.buildReq = in
 	return &mockBuildClient{}, nil

@@ -16,11 +16,13 @@
 package daemon
 
 import (
-	"context"
+	"path/filepath"
 
 	"github.com/containers/image/v5/docker/tarfile"
+	"github.com/containers/storage"
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
+	"golang.org/x/sync/errgroup"
 
 	constant "isula.org/isula-build"
 	pb "isula.org/isula-build/api/services"
@@ -30,37 +32,65 @@ import (
 )
 
 // Load loads the image
-func (b *Backend) Load(ctx context.Context, req *pb.LoadRequest) (*pb.LoadResponse, error) {
+func (b *Backend) Load(req *pb.LoadRequest, stream pb.Control_LoadServer) error {
+	var si *storage.Image
 	logrus.Info("LoadRequest received")
 	if err := util.CheckLoadFile(req.Path); err != nil {
-		return &pb.LoadResponse{}, err
+		return err
 	}
 
-	tarfileSource, err := tarfile.NewSourceFromFile(req.Path)
+	// tmp dir will be removed after NewSourceFromFileWithContext
+	tmpDir := filepath.Join(b.daemon.opts.DataRoot, "tmp")
+	systemContext := image.GetSystemContext()
+	systemContext.BigFilesTemporaryDir = tmpDir
+
+	tarfileSource, err := tarfile.NewSourceFromFileWithContext(systemContext, req.Path)
 	if err != nil {
-		return &pb.LoadResponse{}, errors.Wrapf(err, "failed to get the source of loading tar file")
+		return errors.Wrapf(err, "failed to get the source of loading tar file")
 	}
 
 	topLevelImageManifest, err := tarfileSource.LoadTarManifest()
 	if err != nil || len(topLevelImageManifest) == 0 {
-		return &pb.LoadResponse{}, errors.Wrapf(err, "failed to get the top level image manifest")
+		return errors.Wrapf(err, "failed to get the top level image manifest")
 	}
 
-	_, si, err := image.ResolveFromImage(&image.PrepareImageOptions{
-		Ctx:           ctx,
-		FromImage:     "docker-archive:" + req.Path,
-		SystemContext: image.GetSystemContext(),
-		Store:         b.daemon.localStore,
-		Reporter:      logger.NewCliLogger(constant.CliLogBufferLen),
+	log := logger.NewCliLogger(constant.CliLogBufferLen)
+	eg, ctx := errgroup.WithContext(stream.Context())
+	eg.Go(func() error {
+		for c := range log.GetContent() {
+			if serr := stream.Send(&pb.LoadResponse{
+				Log: c,
+			}); serr != nil {
+				return serr
+			}
+		}
+		return nil
 	})
-	if err != nil {
-		return nil, err
+
+	eg.Go(func() error {
+		defer log.CloseContent()
+		_, si, err = image.ResolveFromImage(&image.PrepareImageOptions{
+			Ctx:           ctx,
+			FromImage:     "docker-archive:" + req.Path,
+			SystemContext: image.GetSystemContext(),
+			Store:         b.daemon.localStore,
+			Reporter:      log,
+		})
+		if err != nil {
+			return err
+		}
+
+		if serr := b.daemon.localStore.SetNames(si.ID, topLevelImageManifest[0].RepoTags); serr != nil {
+			return serr
+		}
+		log.Print("Loaded image as %s\n", si.ID)
+		return nil
+	})
+
+	if werr := eg.Wait(); werr != nil {
+		return werr
 	}
 
-	if err := b.daemon.localStore.SetNames(si.ID, topLevelImageManifest[0].RepoTags); err != nil {
-		return nil, err
-	}
-
-	logrus.Infof("Loaded image as %v", si.ID)
-	return &pb.LoadResponse{ImageID: si.ID}, nil
+	logrus.Infof("Loaded image as %s", si.ID)
+	return nil
 }

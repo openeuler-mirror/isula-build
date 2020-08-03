@@ -35,7 +35,7 @@ service Control {
     // Logout requests to logout registry and delete any credentials
     rpc Logout(LogoutRequest) returns (LogoutResponse);
     // Load requests an image tar load
-    rpc Load(LoadRequest) returns (LoadResponse);
+    rpc Load(LoadRequest) returns (stream LoadResponse);
     // Import requests import a new image
     rpc Import(stream ImportRequest) returns (ImportResponse);
     // Tag requests to tag an image
@@ -196,6 +196,6 @@ message LoadRequest {
 }
 
 message LoadResponse {
-    // imageID is the ID of loaded image
-    string imageID = 1;
+    // log is the log sent to client
+    string log = 1;
 }

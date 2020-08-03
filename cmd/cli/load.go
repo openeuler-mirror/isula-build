@@ -18,6 +18,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 
@@ -44,6 +45,7 @@ func NewLoadCmd() *cobra.Command {
 		Use:     "load",
 		Short:   "Load images",
 		Example: loadExample,
+		Args:    util.NoArgs,
 		RunE:    loadCommand,
 	}
 
@@ -59,28 +61,13 @@ func loadCommand(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	return runLoad(ctx, cli, args)
+	return runLoad(ctx, cli)
 }
 
-func runLoad(ctx context.Context, cli Cli, args []string) error {
-	if len(args) > 0 {
-		return errors.New("load accepts no arguments")
-	}
+func runLoad(ctx context.Context, cli Cli) error {
+	var err error
 
-	// check input
-	if len(loadOpts.path) == 0 {
-		return errors.New("tarball path should not be empty")
-	}
-
-	if !filepath.IsAbs(loadOpts.path) {
-		pwd, err := os.Getwd()
-		if err != nil {
-			return errors.New("get current path failed")
-		}
-		loadOpts.path = util.MakeAbsolute(loadOpts.path, pwd)
-	}
-
-	if err := util.CheckLoadFile(loadOpts.path); err != nil {
+	if loadOpts.path, err = resolveLoadPath(loadOpts.path); err != nil {
 		return err
 	}
 
@@ -91,9 +78,39 @@ func runLoad(ctx context.Context, cli Cli, args []string) error {
 		return err
 	}
 
-	if resp != nil {
-		fmt.Printf("Imported image as %v\n", resp.ImageID)
+	for {
+		msg, rerr := resp.Recv()
+		if msg != nil {
+			fmt.Print(msg.Log)
+		}
+		if rerr != nil {
+			if rerr != io.EOF {
+				err = rerr
+			}
+			break
+		}
 	}
 
-	return nil
+	return err
+}
+
+func resolveLoadPath(path string) (string, error) {
+	// check input
+	if path == "" {
+		return "", errors.New("tarball path should not be empty")
+	}
+
+	if !filepath.IsAbs(path) {
+		pwd, err := os.Getwd()
+		if err != nil {
+			return "", errors.Wrap(err, "get current path failed while loading image")
+		}
+		path = util.MakeAbsolute(path, pwd)
+	}
+
+	if err := util.CheckLoadFile(path); err != nil {
+		return "", err
+	}
+
+	return path, nil
 }

@@ -25,9 +25,9 @@ import (
 )
 
 func TestRunLoad(t *testing.T) {
-	args := make([]string, 0, 0)
 	ctx := context.Background()
-	cli := newMockClient(&mockGrpcClient{})
+	mockDaemon := newMockDaemon()
+	cli := newMockClient(&mockGrpcClient{loadFunc: mockDaemon.load})
 	fileEmpty := "empty.tar"
 	fileNormal := "test.tar"
 
@@ -67,7 +67,7 @@ func TestRunLoad(t *testing.T) {
 	for _, tc := range testcases {
 		t.Run(tc.name, func(t *testing.T) {
 			loadOpts.path = tc.path
-			err := runLoad(ctx, &cli, args)
+			err := runLoad(ctx, &cli)
 			assert.Equal(t, err != nil, tc.isErr, "Failed at [%s], err: %v", tc.name, err)
 			if err != nil {
 				assert.ErrorContains(t, err, tc.errString)
