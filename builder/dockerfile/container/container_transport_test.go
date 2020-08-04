@@ -15,6 +15,7 @@ package container
 
 import (
 	"context"
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -30,13 +31,11 @@ import (
 )
 
 var (
-	sStore    storage.Store
 	mStore    storage.Store
 	buildTime time.Time
 )
 
 func init() {
-	sStore, _ = store.GetStore()
 	mStore = NewMockStore()
 	buildTime = time.Now()
 }
@@ -61,10 +60,9 @@ func TestNewImage(t *testing.T) {
 				ContainerID: "e6587b2dbfd56b5ce2e64dd7933ba04886bff86836dec5f09ce59d599df012fe",
 				LayerID:     "dacfba0cd5c0d28f33d41fb9a9c8bf2b0c53689da136aeba6dfecf347125fa23",
 			},
-			localStore: sStore,
-			exporting:  true,
-			isErr:      true,
-			errStr:     "get build container layers failed",
+			exporting: true,
+			isErr:     true,
+			errStr:    "get build container layers failed",
 		},
 		{
 			name: "history",
@@ -219,6 +217,22 @@ func TestNewImage(t *testing.T) {
 
 	for _, tc := range testcases {
 		t.Run(tc.name, func(t *testing.T) {
+			if tc.localStore == nil {
+				ctxDir := fs.NewDir(t, "store")
+				defer ctxDir.Remove()
+				dataRoot := filepath.Join(ctxDir.Path(), "/data")
+				runRoot := filepath.Join(ctxDir.Path(), "/run")
+				store.SetDefaultStoreOptions(store.DaemonStoreOptions{
+					DataRoot: dataRoot,
+					RunRoot:  runRoot,
+				})
+				sStore, err := store.GetStore()
+				assert.NilError(t, err, tc.name)
+				if err != nil {
+					defer sStore.Shutdown(false)
+				}
+				tc.localStore = sStore
+			}
 			cf := NewContainerReference(tc.localStore, tc.metadata, tc.exporting)
 			ctx := context.TODO()
 			buildDirCtx := fs.NewDir(t, t.Name(), fs.WithDir("layer", fs.WithDir("diff", fs.WithFile("diff-file", "diff-file-content"))))
@@ -234,5 +248,4 @@ func TestNewImage(t *testing.T) {
 			}
 		})
 	}
-
 }
