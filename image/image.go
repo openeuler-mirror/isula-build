@@ -100,7 +100,7 @@ type pullOption struct {
 }
 
 func pullImage(opt pullOption) (types.ImageReference, error) {
-	pLog := logrus.WithField(util.LogKeyBuildID, opt.ctx.Value(util.LogFieldKey(util.LogKeyBuildID)))
+	pLog := logrus.WithField(util.LogKeySessionID, opt.ctx.Value(util.LogFieldKey(util.LogKeySessionID)))
 	policy, err := signature.DefaultPolicy(opt.sc)
 	if err != nil {
 		return nil, errors.Wrapf(err, "error obtaining default signature policy")
@@ -131,7 +131,7 @@ func pullImage(opt pullOption) (types.ImageReference, error) {
 }
 
 func pullAndGetImageInfo(opt *PrepareImageOptions) (types.ImageReference, *storage.Image, error) {
-	pLog := logrus.WithField(util.LogKeyBuildID, opt.Ctx.Value(util.LogFieldKey(util.LogKeyBuildID)))
+	pLog := logrus.WithField(util.LogKeySessionID, opt.Ctx.Value(util.LogFieldKey(util.LogKeySessionID)))
 	candidates, transport, err := ResolveName(opt.FromImage, opt.SystemContext, opt.Store)
 	if err != nil {
 		return nil, nil, errors.Wrapf(err, "error parsing reference to image %q", opt.FromImage)

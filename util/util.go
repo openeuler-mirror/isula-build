@@ -49,8 +49,8 @@ const (
 	// DefaultTransport is default transport
 	DefaultTransport = "docker://"
 
-	// LogKeyBuildID describes the key field with buildID for logrus
-	LogKeyBuildID = "buildID"
+	// LogKeySessionID describes the key field with sessionID for logrus
+	LogKeySessionID = "sessionID"
 
 	// BuildDir describes the key field with BuildDir in build context
 	BuildDir = "buildDir"

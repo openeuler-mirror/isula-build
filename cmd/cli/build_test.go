@@ -58,6 +58,7 @@ type mockDaemon struct {
 	loginReq  *pb.LoginRequest
 	logoutReq *pb.LogoutRequest
 	importReq *pb.ImportRequest
+	saveReq   *pb.SaveRequest
 }
 
 func newMockDaemon() *mockDaemon {

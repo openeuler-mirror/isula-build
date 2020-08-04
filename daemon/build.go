@@ -14,8 +14,11 @@
 package daemon
 
 import (
+	"bufio"
 	"context"
+	"io"
 	"io/ioutil"
+	"os"
 
 	"github.com/sirupsen/logrus"
 	"golang.org/x/sync/errgroup"
@@ -33,7 +36,7 @@ func (b *Backend) Build(req *pb.BuildRequest, stream pb.Control_BuildServer) (er
 		"BuildID":   req.GetBuildID(),
 	}).Info("BuildRequest received")
 
-	ctx := context.WithValue(stream.Context(), util.LogFieldKey(util.LogKeyBuildID), req.BuildID)
+	ctx := context.WithValue(stream.Context(), util.LogFieldKey(util.LogKeySessionID), req.BuildID)
 	builder, err := b.daemon.NewBuilder(ctx, req)
 	if err != nil {
 		return err
@@ -48,11 +51,12 @@ func (b *Backend) Build(req *pb.BuildRequest, stream pb.Control_BuildServer) (er
 	}()
 
 	var (
+		f        *os.File
+		length   int
 		imageID  string
 		pipeFile string
 		eg       *errgroup.Group
-		fileChan chan []byte
-		errc     = make(chan error, 1)
+		errC     = make(chan error, 1)
 	)
 
 	pipeWrapper := builder.OutputPipeWrapper()
@@ -71,7 +75,7 @@ func (b *Backend) Build(req *pb.BuildRequest, stream pb.Control_BuildServer) (er
 		// message into the pipe to make the goroutine move on instead of hangs.
 		if err != nil && pipeFile != "" {
 			if perr := ioutil.WriteFile(pipeFile, []byte(err.Error()), constant.DefaultRootFileMode); perr != nil {
-				logrus.WithField(util.LogKeyBuildID, req.BuildID).Warnf("Write error [%v] in to pipe file failed: %v", err, perr)
+				logrus.WithField(util.LogKeySessionID, req.BuildID).Warnf("Write error [%v] in to pipe file failed: %v", err, perr)
 			}
 		}
 
@@ -82,28 +86,43 @@ func (b *Backend) Build(req *pb.BuildRequest, stream pb.Control_BuildServer) (er
 		if pipeWrapper == nil {
 			return nil
 		}
-		fileChan, err = exporter.PipeArchiveStream(req.BuildID, pipeWrapper)
+		f, err = exporter.PipeArchiveStream(pipeWrapper)
+		defer func() {
+			if cErr := f.Close(); cErr != nil {
+				logrus.WithField(util.LogKeySessionID, req.BuildID).Warnf("Closing archive stream pipe %q failed: %v", pipeWrapper.PipeFile, cErr)
+			}
+		}()
 		if err != nil {
 			return err
 		}
 
-		for c := range fileChan {
+		reader := bufio.NewReader(f)
+		buf := make([]byte, constant.BufferSize, constant.BufferSize)
+		for {
+			length, err = reader.Read(buf)
+			if length == 0 && pipeWrapper.Done {
+				break
+			}
+			if err != nil && err != io.EOF {
+				return err
+			}
 			if err = stream.Send(&pb.BuildResponse{
-				Data: c,
+				Data: buf[0:length],
 			}); err != nil {
 				return err
 			}
 		}
-		return pipeWrapper.Err
+		logrus.WithField(util.LogKeySessionID, req.BuildID).Debugf("Piping build archive stream done")
+		return nil
 	})
 
 	go func() {
-		errc <- eg.Wait()
+		errC <- eg.Wait()
 	}()
 
 	select {
-	case err = <-errc:
-		close(errc)
+	case err = <-errC:
+		close(errC)
 		if err != nil {
 			return err
 		}
@@ -117,7 +136,7 @@ func (b *Backend) Build(req *pb.BuildRequest, stream pb.Control_BuildServer) (er
 	case <-stream.Context().Done():
 		err = ctx.Err()
 		if err != nil && err != context.Canceled {
-			logrus.WithField(util.LogKeyBuildID, req.BuildID).Warnf("Stream closed with: %v", err)
+			logrus.WithField(util.LogKeySessionID, req.BuildID).Warnf("Stream closed with: %v", err)
 		}
 	}
 
