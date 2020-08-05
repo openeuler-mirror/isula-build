@@ -16,6 +16,7 @@ package daemon
 import (
 	"context"
 	"fmt"
+	"sort"
 	"strings"
 
 	"github.com/pkg/errors"
@@ -49,7 +50,9 @@ func (b *Backend) List(ctx context.Context, req *pb.ListRequest) (*pb.ListRespon
 	if err != nil {
 		return &pb.ListResponse{}, errors.Wrap(err, "failed list images from local storage")
 	}
-
+	sort.Slice(images, func(i, j int) bool {
+		return images[i].Created.After(images[j].Created)
+	})
 	result := make([]*pb.ListResponse_ImageInfo, 0, len(images))
 	for _, image := range images {
 		names := image.Names
