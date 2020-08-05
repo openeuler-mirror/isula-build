@@ -516,7 +516,7 @@ func ResolveName(name string, sc *types.SystemContext, store store.Store) ([]str
 		return nil, "", nil
 	}
 
-	// 2. try to resolve image name as an image id and find it in store
+	// 2. try to find image with name or id in local store
 	if imageID := tryResolveNameInStore(name, store); imageID != "" {
 		return []string{imageID}, "", nil
 	}
@@ -544,16 +544,13 @@ func ResolveName(name string, sc *types.SystemContext, store store.Store) ([]str
 }
 
 func tryResolveNameInStore(name string, store store.Store) string {
-	logrus.Infof("Try to resolve: %s in local storage with image id", name)
+	logrus.Infof("Try to find image: %s in local storage", name)
 	img, err := store.Image(name)
-	if err != nil || img == nil {
+	if err != nil {
 		return ""
 	}
 
-	if strings.HasPrefix(img.ID, name) {
-		return img.ID
-	}
-	return ""
+	return img.ID
 }
 
 func tryResolveNameWithTransport(name string) (string, string) {

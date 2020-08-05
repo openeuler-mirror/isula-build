@@ -15,10 +15,8 @@ package daemon
 
 import (
 	"io"
-	"strings"
 
 	cp "github.com/containers/image/v5/copy"
-	dockerref "github.com/containers/image/v5/docker/reference"
 	is "github.com/containers/image/v5/storage"
 	"github.com/containers/image/v5/tarball"
 	"github.com/containers/image/v5/transports"
@@ -32,8 +30,7 @@ import (
 )
 
 const (
-	noneReference = "<none>:<none>"
-	bufLen        = 1024
+	bufLen = 1024
 )
 
 // Import an image from a tarball
@@ -59,7 +56,8 @@ func (b *Backend) Import(serv pb.Control_ImportServer) error {
 	}
 
 	logrus.Infof("Received and import image %q", reference)
-	reference, err := parseReference(reference)
+
+	reference, err := dockerfile.ExpandTag(reference, localStore)
 	if err != nil {
 		return err
 	}
@@ -97,16 +95,4 @@ func (b *Backend) Import(serv pb.Control_ImportServer) error {
 	logrus.Infof("Import success with image id %q", img.ID)
 
 	return nil
-}
-
-func parseReference(ref string) (string, error) {
-	ref = strings.TrimSpace(ref)
-	if ref == "" {
-		return noneReference, nil
-	}
-	if _, err := dockerref.Parse(ref); err != nil {
-		return "", err
-	}
-
-	return ref, nil
 }
