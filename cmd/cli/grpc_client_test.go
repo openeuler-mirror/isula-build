@@ -94,6 +94,10 @@ func (gcli *mockGrpcClient) Version(ctx context.Context, in *types.Empty, opts .
 	}, nil
 }
 
+func (gcli *mockGrpcClient) Info(ctx context.Context, in *types.Empty, opts ...grpc.CallOption) (*pb.InfoResponse, error) {
+	return &pb.InfoResponse{}, nil
+}
+
 func (gcli *mockGrpcClient) Tag(ctx context.Context, in *pb.TagRequest, opts ...grpc.CallOption) (*types.Empty, error) {
 	return &types.Empty{}, nil
 }
