@@ -2,12 +2,12 @@
 %global debug_package %{nil}
 
 Name: isula-build
-Version: 0.9.0
+Version: 0.9.1
 Release: 1
 Summary: A tool to build container images
 License: Mulan PSL V2
 URL: https://gitee.com/openeuler/isula-build
-Source0: isula-build-v0.9.0.tar.gz
+Source0: isula-build-v0.9.1.tar.gz
 Source1: git-commit 
 BuildRequires: make btrfs-progs-devel device-mapper-devel glib2-devel gpgme-devel
 BuildRequires: libassuan-devel libseccomp-devel git bzip2 go-md2man systemd-devel
@@ -76,5 +76,7 @@ systemctl start isula-build
 %config(noreplace) %attr(0600,root,root) %{_sysconfdir}/isula-build/policy.json
 
 %changelog
+* Wed Aug 05 2020 xiadanni <xiadanni1@huawei.com> - 0.9.1-1
+- Bump version to 0.9.1
 * Sat Jul 25 2020 lixiang <lixiang172@huawei.com> - 0.9.0-1
 - Package init
