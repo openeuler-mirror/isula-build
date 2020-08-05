@@ -613,3 +613,41 @@ func TestEncryptBuildArgs(t *testing.T) {
 		})
 	}
 }
+
+func TestGetAbsPath(t *testing.T) {
+	pwd, _ := os.Getwd()
+	type args struct {
+		path string
+	}
+	tests := []struct {
+		name    string
+		args    args
+		want    string
+		wantErr bool
+	}{
+		{
+			name:    "TC1 - normal case with relative path",
+			args:    args{path: "./imageID.txt"},
+			want:    filepath.Join(pwd, "imageID.txt"),
+			wantErr: false,
+		},
+		{
+			name:    "TC2 - normal case with abs path",
+			args:    args{path: filepath.Join(pwd, "imageID.txt")},
+			want:    filepath.Join(pwd, "imageID.txt"),
+			wantErr: false,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := getAbsPath(tt.args.path)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("getAbsPath() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+			if got != tt.want {
+				t.Errorf("getAbsPath() got = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
