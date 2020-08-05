@@ -25,6 +25,7 @@
         * [Version query](#version-query)
         * [Tag an image](#tag-an-image)
         * [Show system information](#show-system-information)
+        * [Load an image](#load-an-image)
 
 <!-- vim-markdown-toc -->
 
@@ -428,4 +429,32 @@ Registry:
     docker.io
   Insecure Registries:
     localhost:5000
+```
+
+### Load an image
+
+We can use the `load` command to load an image from the tarfile.
+
+Usage:
+
+`isula-build ctr-img load [flags]`
+
+Currently, the following flags are supported:
+
+```bash
+Flags:
+  -i, --input string   Path to local tarball
+```
+
+Use this command as follow:
+
+```bash
+$ sudo isula-build ctr-img load -i image.tar
+Getting image source signatures
+Copying blob sha256:37841116ad3b1eeea972c75ab8bad05f48f721a7431924bc547fc91c9076c1c8
+Copying blob sha256:6eb4c21cc3fcb729a9df230ae522c1d3708ca66e5cf531713dbfa679837aa287
+Copying config sha256:76a4dd2d5d6a18323ac8d90f959c3c8562bf592e2a559bab9b462ab600e9e5fc
+Writing manifest to image destination
+Storing signatures
+Loaded image as 76a4dd2d5d6a18323ac8d90f959c3c8562bf592e2a559bab9b462ab600e9e5fc
 ```
