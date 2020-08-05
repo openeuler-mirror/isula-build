@@ -22,3 +22,4 @@ The `isula-build` compatible with [Dockerfile specification](https://docs.docker
 6. The length of the stage name is limited to 64 in `isula-builder`.
 7. `ADD` command's source can not support remote URL currently.
 8. Not support resource quota for a single build request, but you can limit the `isula-builder` instead.
+9. `isula-builder` add each origin layer tar size to get the image size, but docker only uses the diff content of each layer. So the image size listed by `isula-builder images` is a little different.
