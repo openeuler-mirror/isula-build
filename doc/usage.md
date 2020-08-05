@@ -24,6 +24,7 @@
             * [-a, --all](#-a---all-1)
         * [Version query](#version-query)
         * [Tag an image](#tag-an-image)
+        * [Load an image](#load-an-image)
 
 <!-- vim-markdown-toc -->
 # Usage
@@ -385,5 +386,33 @@ $ sudo isula-build ctr-img images
  docker.io/library/alpine                        latest       a24bb4013296       2020-05-29 21:19:46         5.85 MB
  localhost/alpine                                latest       a24bb4013296       2020-05-29 21:19:46         5.85 MB
 ----------------------------------------------  -----------  -----------------  --------------------------  ------------
+```
+
+### Load an image
+
+We can use the `load` command to load an image from the tarfile.
+
+Usage:
+
+`isula-build ctr-img load [flags]`
+
+Currently, the following flags are supported:
+
+```bash
+Flags:
+  -i, --input string   Path to local tarball
+```
+
+Use this command as follow:
+
+```bash
+$ sudo isula-build ctr-img load -i image.tar
+Getting image source signatures
+Copying blob sha256:37841116ad3b1eeea972c75ab8bad05f48f721a7431924bc547fc91c9076c1c8
+Copying blob sha256:6eb4c21cc3fcb729a9df230ae522c1d3708ca66e5cf531713dbfa679837aa287
+Copying config sha256:76a4dd2d5d6a18323ac8d90f959c3c8562bf592e2a559bab9b462ab600e9e5fc
+Writing manifest to image destination
+Storing signatures
+Loaded image as 76a4dd2d5d6a18323ac8d90f959c3c8562bf592e2a559bab9b462ab600e9e5fc
 ```
 

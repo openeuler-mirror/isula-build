@@ -260,12 +260,13 @@ func parseStaticBuildOpts() (*pb.BuildStatic, error) {
 
 func runBuild(ctx context.Context, cli Cli) (string, error) {
 	var (
-		err      error
-		content  string
-		dest     string
-		isIsulad bool
-		imageID  string
-		msg      *pb.BuildResponse
+		isIsulad        bool
+		msg             *pb.BuildResponse
+		err             error
+		content         string
+		dest            string
+		imageID         string
+		imageIDFilePath string
 	)
 
 	if dest, isIsulad, err = checkAndProcessOutput(); err != nil {
@@ -277,6 +278,12 @@ func runBuild(ctx context.Context, cli Cli) (string, error) {
 	if err = encryptBuildArgs(); err != nil {
 		return "", errors.Wrap(err, "encrypt --build-arg failed")
 	}
+	imageIDFilePath, err = getAbsPath(buildOpts.imageIDFile)
+	if err != nil {
+		return "", err
+	}
+	buildOpts.imageIDFile = imageIDFilePath
+
 	buildStatic, err := parseStaticBuildOpts()
 	if err != nil {
 		return "", err
@@ -456,4 +463,19 @@ func resolveDockerfilePath() (string, error) {
 		return "", errors.Errorf("file is too big with size %v, is it a normal dockerfile?", fileInfo.Size())
 	}
 	return resolvedPath, nil
+}
+
+func getAbsPath(path string) (string, error) {
+	if path == "" {
+		return "", nil
+	}
+	if filepath.IsAbs(path) {
+		return path, nil
+	}
+	pwd, err := os.Getwd()
+	if err != nil {
+		return "", err
+	}
+
+	return util.MakeAbsolute(path, pwd), nil
 }
