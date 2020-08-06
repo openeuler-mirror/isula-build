@@ -123,7 +123,7 @@ func resolveCopySource(isAdd bool, rawSources []string, dest, contextDir string)
 // getCopyContextDir gets the contextDir of from stage or image
 func (c *cmdBuilder) getCopyContextDir(from string) (string, func(), error) {
 	// the "from" parameter is a stage name
-	if i, ok := c.stage.builder.stageAliasMap[from]; ok {
+	if i, ok := c.stage.builder.stageAliasMap[from]; ok && i < c.stage.position {
 		c.stage.builder.Logger().
 			Debugf("Get context dir by stage name %q, context dir %q", from, c.stage.builder.stageBuilders[i].mountpoint)
 		return c.stage.builder.stageBuilders[i].mountpoint, nil, nil
