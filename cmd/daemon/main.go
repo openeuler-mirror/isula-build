@@ -64,7 +64,23 @@ func newDaemonCommand() *cobra.Command {
 	rootCmd.PersistentFlags().BoolP("version", "v", false, "Version for isula-build daemon")
 
 	rootCmd.SetFlagErrorFunc(util.FlagErrorFunc)
+	addCommands(rootCmd)
+
 	return rootCmd
+}
+
+func addCommands(cmd *cobra.Command) {
+	cmd.AddCommand(
+		completionCmd,
+	)
+}
+
+var completionCmd = &cobra.Command{
+	Use:    "completion",
+	Hidden: true,
+	Run: func(cmd *cobra.Command, args []string) {
+		cmd.Root().GenBashCompletion(os.Stdout) // nolint
+	},
 }
 
 func runDaemon(cmd *cobra.Command, args []string) error {
