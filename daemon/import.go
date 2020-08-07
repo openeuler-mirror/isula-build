@@ -57,7 +57,7 @@ func (b *Backend) Import(serv pb.Control_ImportServer) error {
 
 	logrus.Infof("Received and import image %q", reference)
 
-	reference, err := dockerfile.ExpandTag(reference, localStore)
+	reference, err := dockerfile.CheckAndExpandTag(reference)
 	if err != nil {
 		return err
 	}

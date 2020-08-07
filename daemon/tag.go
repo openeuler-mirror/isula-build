@@ -40,7 +40,7 @@ func (b *Backend) Tag(ctx context.Context, req *pb.TagRequest) (*gogotypes.Empty
 		return emptyResp, errors.Wrapf(err, "find local image %v error", req.Image)
 	}
 
-	imageName, err := dockerfile.ExpandTag(req.Tag, s)
+	imageName, err := dockerfile.CheckAndExpandTag(req.Tag)
 	if err != nil {
 		return emptyResp, err
 	}
