@@ -1397,3 +1397,87 @@ func TestNewBuilder(t *testing.T) {
 		})
 	}
 }
+
+func TestCheckAndExpandTag(t *testing.T) {
+	type testcase struct {
+		name    string
+		tag     string
+		output  string
+		wantErr bool
+	}
+	testcases := []testcase{
+		{
+			name:    "test 1",
+			tag:     "isula/test",
+			output:  "isula/test:latest",
+			wantErr: false,
+		},
+		{
+			name:    "test 2",
+			tag:     "localhost:5000/test",
+			output:  "localhost:5000/test:latest",
+			wantErr: false,
+		},
+		{
+			name:    "test 3",
+			tag:     "isula/test:latest",
+			output:  "isula/test:latest",
+			wantErr: false,
+		},
+		{
+			name:    "test 4",
+			tag:     "localhost:5000/test:latest",
+			output:  "localhost:5000/test:latest",
+			wantErr: false,
+		},
+		{
+			name:    "test 5",
+			tag:     "localhost:5000:aaa/test:latest",
+			output:  "",
+			wantErr: true,
+		},
+		{
+			name:    "test 6",
+			tag:     "localhost:5000:aaa/test",
+			output:  "",
+			wantErr: true,
+		},
+		{
+			name:    "test 7",
+			tag:     "localhost:5000/test:latest:latest",
+			output:  "",
+			wantErr: true,
+		},
+		{
+			name:    "test 8",
+			tag:     "test:latest:latest",
+			output:  "",
+			wantErr: true,
+		},
+		{
+			name:    "test 9",
+			tag:     "",
+			output:  "<none>:<none>",
+			wantErr: false,
+		},
+		{
+			name:    "test 10",
+			tag:     "abc efg:latest",
+			output:  "",
+			wantErr: true,
+		},
+		{
+			name:    "test 10",
+			tag:     "abc!@#:latest",
+			output:  "",
+			wantErr: true,
+		},
+	}
+	for _, tc := range testcases {
+		tag, err := CheckAndExpandTag(tc.tag)
+		assert.Equal(t, tag, tc.output, tc.name)
+		if (err != nil) != tc.wantErr {
+			t.Errorf("getCheckAndExpandTag() error = %v, wantErr %v", err, tc.wantErr)
+		}
+	}
+}

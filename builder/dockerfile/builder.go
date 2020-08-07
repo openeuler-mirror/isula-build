@@ -136,13 +136,13 @@ func NewBuilder(ctx context.Context, store store.Store, req *pb.BuildRequest, ru
 func (b *Builder) parseTag(output, additionalTag string) error {
 	var err error
 	if tag := parseOutputTag(output); tag != "" {
-		if b.buildOpts.Tag, err = ExpandTag(tag, b.localStore); err != nil {
+		if b.buildOpts.Tag, err = CheckAndExpandTag(tag); err != nil {
 			return err
 		}
 	}
 
 	if additionalTag != "" {
-		if b.buildOpts.AdditionalTag, err = ExpandTag(additionalTag, b.localStore); err != nil {
+		if b.buildOpts.AdditionalTag, err = CheckAndExpandTag(additionalTag); err != nil {
 			return err
 		}
 	}
@@ -570,19 +570,35 @@ func parseOutputTag(output string) string {
 	return tag
 }
 
-// ExpandTag resolves tag name, if it not include a domain, "localhost" will be
-// added, and if it not include a tag, "latest" will be added.
-func ExpandTag(tag string, store store.Store) (string, error) {
-	candidates, _, err := image.ResolveName(tag, nil, store)
-	if err != nil || len(candidates) == 0 {
-		return "", errors.Errorf("resolve tag %v err: %v", tag, err)
+// CheckAndExpandTag checks tag name. If it not include a tag, "latest" will be added.
+func CheckAndExpandTag(tag string) (string, error) {
+	if tag == "" {
+		return "<none>:<none>", nil
 	}
 
-	tagNamed, err := reference.ParseNormalizedNamed(candidates[0])
+	slashLastIndex := strings.LastIndex(tag, "/")
+	sepLastIndex := strings.LastIndex(tag, ":")
+	if sepLastIndex == -1 || (sepLastIndex < slashLastIndex) {
+		// isula
+		// localhost:5000/isula
+		tag += ":latest"
+	}
+
+	const longestTagFieldsLen = 3
+	if len(strings.Split(tag, ":")) > longestTagFieldsLen {
+		// localhost:5000:5000/isula:latest
+		return "", errors.Errorf("invalid tag: %v", tag)
+	}
+
+	tagWithoutRepo := tag[slashLastIndex+1:]
+	_, err := reference.ParseNormalizedNamed(tagWithoutRepo)
 	if err != nil {
-		return "", errors.Wrapf(err, "parse tag %v err", candidates[0])
+		// isula:latest:latest
+		// localhost/isula:latest:latest
+		// isula!@#:latest
+		// isula :latest
+		return "", errors.Wrapf(err, "parse tag err, invalid tag: %v", tag)
 	}
-	tagNamed = reference.TagNameOnly(tagNamed)
 
-	return tagNamed.String(), nil
+	return tag, nil
 }
