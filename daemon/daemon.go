@@ -71,15 +71,14 @@ func NewDaemon(opts Options, store store.Store) *Daemon {
 
 // Run runs the daemon process
 func (d *Daemon) Run() error {
-
-	if err := d.registerSubReaper(); err != nil {
-		return err
-	}
-
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	gc := gc.NewGC()
 	gc.StartGC(ctx)
+
+	if err := d.registerSubReaper(gc); err != nil {
+		return err
+	}
 
 	logrus.Debugf("Daemon start with option %#v", d.opts)
 
@@ -186,30 +185,36 @@ func (d *Daemon) Cleanup() error {
 	return err
 }
 
-func (d *Daemon) registerSubReaper() error {
+func (d *Daemon) registerSubReaper(g *gc.GarbageCollector) error {
 	if err := unix.Prctl(unix.PR_SET_CHILD_SUBREAPER, uintptr(1), 0, 0, 0); err != nil { //nolint, gomod
 		return errors.Errorf("set subreaper failed: %v", err)
 	}
-	go d.childProcessReap()
-	return nil
-}
 
-func (d *Daemon) childProcessReap() {
-	reapInterval := 10 * time.Second
-	var err error
-	for {
-		time.Sleep(reapInterval)
-		d.Lock()
+	childProcessReap := func(i interface{}) error {
+		var err error
+
+		daemonTmp := i.(*Daemon)
+		daemonTmp.Lock()
+		defer daemonTmp.Unlock()
+
 		// if any of image build process is running, skip reap
-		if len(d.builders) != 0 {
-			d.Unlock()
-			continue
+		if len(daemonTmp.builders) != 0 {
+			return nil
 		}
 		if _, err = sys.Reap(false); err != nil {
 			logrus.Errorf("Reap child process error: %v", err)
 		}
-		d.Unlock()
+		return err
 	}
+
+	opt := &gc.RegisterOption{
+		Name:        "subReaper",
+		Interval:    10 * time.Second,
+		RecycleData: d,
+		RecycleFunc: childProcessReap,
+	}
+
+	return g.RegisterGC(opt)
 }
 
 // setDaemonLock will check if there is another daemon running and return error if any

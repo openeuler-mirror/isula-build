@@ -1,18 +1,17 @@
-/******************************************************************************
- * Copyright (c) Huawei Technologies Co., Ltd. 2020. All rights reserved.
- * isula-build licensed under the Mulan PSL v2.
- * You can use this software according to the terms and conditions of the Mulan PSL v2.
- * You may obtain a copy of Mulan PSL v2 at:
- *     http://license.coscl.org.cn/MulanPSL2
- * THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER EXPRESS OR
- * IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY OR FIT FOR A PARTICULAR
- * PURPOSE.
- * See the Mulan PSL v2 for more details.
- * Author: Feiyu Yang
- * Create: 2020-06-20
- * Description: This file is used for recycling
-******************************************************************************/
+// Copyright (c) Huawei Technologies Co., Ltd. 2020. All rights reserved.
+// isula-build licensed under the Mulan PSL v2.
+// You can use this software according to the terms and conditions of the Mulan PSL v2.
+// You may obtain a copy of Mulan PSL v2 at:
+//     http://license.coscl.org.cn/MulanPSL2
+// THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER EXPRESS OR
+// IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY OR FIT FOR A PARTICULAR
+// PURPOSE.
+// See the Mulan PSL v2 for more details.
+// Author: Feiyu Yang
+// Create: 2020-06-20
+// Description: This file is used for recycling
 
+// Package gc provides garbage collectors
 package gc
 
 import (
@@ -26,21 +25,28 @@ import (
 
 // RegisterOption is the register option for GC
 type RegisterOption struct {
-	recycleFunc func(interface{}) error
-	recycleData interface{}
-	name        string
-	interval    time.Duration
-	once        bool
+	// RecycleFunc is the function that can recycle the resource
+	RecycleFunc func(interface{}) error
+	// RecycleData indicates the data to be recycled
+	RecycleData interface{}
+	// Name indicates the node name
+	Name string
+	// Interval indicates the recycle interval
+	Interval time.Duration
+	// Once is true when it is a once time recycle
+	Once bool
 }
 
 type node struct {
-	recycleFunc func(interface{}) error
-	recycleData interface{}
-	interval    time.Duration
-	lastTrigger time.Time
-	running     bool
-	once        bool
-	success     bool
+	garbageCollector *GarbageCollector
+	name             string
+	recycleFunc      func(interface{}) error
+	recycleData      interface{}
+	interval         time.Duration
+	lastTrigger      time.Time
+	running          bool
+	once             bool
+	success          bool
 	sync.Mutex
 }
 
@@ -51,13 +57,15 @@ type GarbageCollector struct {
 	nodes map[string]*node
 }
 
-func newNode(option *RegisterOption) *node {
+func newNode(option *RegisterOption, g *GarbageCollector) *node {
 	return &node{
-		recycleFunc: option.recycleFunc,
-		recycleData: option.recycleData,
-		interval:    option.interval,
-		lastTrigger: time.Now(),
-		once:        option.once,
+		garbageCollector: g,
+		name:             option.Name,
+		recycleFunc:      option.RecycleFunc,
+		recycleData:      option.RecycleData,
+		interval:         option.Interval,
+		lastTrigger:      time.Now(),
+		once:             option.Once,
 	}
 }
 
@@ -70,7 +78,7 @@ func (n *node) isDiscarded() bool {
 }
 
 func (n *node) isReadyToRun(now time.Time) bool {
-	if n.isDiscarded() || n.running || now.Sub(n.lastTrigger) < n.interval {
+	if n.running || now.Sub(n.lastTrigger) < n.interval {
 		return false
 	}
 
@@ -80,6 +88,11 @@ func (n *node) isReadyToRun(now time.Time) bool {
 func (n *node) checkAndExec(now time.Time) {
 	n.Lock()
 	defer n.Unlock()
+
+	if n.isDiscarded() {
+		go n.garbageCollector.RemoveGCNode(n.name)
+		return
+	}
 
 	if !n.isReadyToRun(now) {
 		return
@@ -100,8 +113,8 @@ func NewGC() *GarbageCollector {
 }
 
 // RegisterGC registers a recycling function
-// once is false when the GC type is loop
-// interval is the interval time in every loop
+// Once is false when the GC type is loop
+// Interval is the Interval time in every loop
 func (g *GarbageCollector) RegisterGC(option *RegisterOption) error {
 	if option == nil {
 		return errors.New("register option is nil")
@@ -110,13 +123,13 @@ func (g *GarbageCollector) RegisterGC(option *RegisterOption) error {
 	g.Lock()
 	defer g.Unlock()
 
-	if _, ok := g.nodes[option.name]; ok {
-		return errors.Errorf("recycle function %s has been registered", option.name)
+	if _, ok := g.nodes[option.Name]; ok {
+		return errors.Errorf("recycle function %s has been registered", option.Name)
 	}
 
-	g.nodes[option.name] = newNode(option)
+	g.nodes[option.Name] = newNode(option, g)
 
-	logrus.Debugf("Recycle function %s is registered successfully", option.name)
+	logrus.Infof("Recycle function %s is registered successfully", option.Name)
 
 	return nil
 }
@@ -137,17 +150,20 @@ func (g *GarbageCollector) StartGC(ctx context.Context) {
 		defer tick.Stop()
 		for {
 			select {
-			case <-ctx.Done():
+			case _, ok := <-ctx.Done():
+				if !ok {
+					logrus.Warnf("Context channel has been closed")
+				}
 				logrus.Debugf("GC exits now")
 				return
-			case now := <-tick.C:
+			case now, ok := <-tick.C:
+				if !ok {
+					logrus.Warnf("Time tick channel has been closed")
+					return
+				}
 				g.RLock()
 				for name := range g.nodes {
 					n := g.nodes[name]
-					if n.isDiscarded() {
-						go g.RemoveGCNode(name)
-						continue
-					}
 					go n.checkAndExec(now)
 				}
 				g.RUnlock()
