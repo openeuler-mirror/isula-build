@@ -192,6 +192,10 @@ func loadConfig(path string) (config.TomlConfig, error) {
 	}
 	_, err = toml.Decode(string(configData), &conf)
 
+	if err = checkFilesInConf(conf); err != nil {
+		return conf, err
+	}
+
 	return conf, err
 }
 
@@ -271,6 +275,32 @@ func setupWorkingDirectories(dirs []string) error {
 		}
 		if !util.IsDirectory(dir) {
 			return errors.Errorf("%q is not a directory", dir)
+		}
+	}
+
+	return nil
+}
+
+func checkFilesInConf(conf config.TomlConfig) error {
+	confFiles := []string{conf.Storage.ConfigPath, conf.Image.RegistryConfigPath, conf.Image.SignaturePolicyPath}
+	for _, file := range confFiles {
+		if file != "" {
+			if !filepath.IsAbs(file) {
+				return errors.Errorf("file path %q in configuration is not an absolute path", file)
+			}
+
+			fi, err := os.Stat(file)
+			if err != nil {
+				return errors.Wrapf(err, "stat file %q in configuration failed", file)
+			}
+
+			if !fi.Mode().IsRegular() {
+				return errors.Errorf("file %s in configuration should be a regular file", fi.Name())
+			}
+
+			if err := util.CheckFileSize(file, constant.MaxFileSize); err != nil {
+				return err
+			}
 		}
 	}
 
