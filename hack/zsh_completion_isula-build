@@ -1,0 +1,215 @@
+#compdef _isula-build isula-build
+# To enable the completions for zsh, place this file in "/usr/share/zsh/site-functions" and do the command: autoload -Uz compinit && compinit
+
+
+function _isula-build {
+  local -a commands
+
+  _arguments -C \
+    '(-D --debug)'{-D,--debug}'[Open debug mode]' \
+    '(-h --help)'{-h,--help}'[Print usage]' \
+    '--log-level[Log level to be used. Either "debug", "info", "warn" or "error"]:' \
+    '(-t --timeout)'{-t,--timeout}'[Timeout for connecting to daemon]:' \
+    '(-v --version)'{-v,--version}'[Version for isula-build client]' \
+    "1: :->cmnds" \
+    "*::arg:->args"
+
+  case $state in
+  cmnds)
+    commands=(
+      "ctr-img:Container Image Operations"
+      "info:Show isula-build system information"
+      "login:Login to an image registry"
+      "logout:Logout from an image registry"
+      "version:Show the isula-build version information"
+    )
+    _describe "command" commands
+    ;;
+  esac
+
+  case "$words[1]" in
+  ctr-img)
+    _isula-build_ctr-img
+    ;;
+  info)
+    _isula-build_info
+    ;;
+  login)
+    _isula-build_login
+    ;;
+  logout)
+    _isula-build_logout
+    ;;
+  version)
+    _isula-build_version
+    ;;
+  esac
+}
+
+
+function _isula-build_ctr-img {
+  local -a commands
+
+  _arguments -C \
+    '(-D --debug)'{-D,--debug}'[Open debug mode]' \
+    '(-h --help)'{-h,--help}'[Print usage]' \
+    '--log-level[Log level to be used. Either "debug", "info", "warn" or "error"]:' \
+    '(-t --timeout)'{-t,--timeout}'[Timeout for connecting to daemon]:' \
+    '(-v --version)'{-v,--version}'[Version for isula-build client]' \
+    "1: :->cmnds" \
+    "*::arg:->args"
+
+  case $state in
+  cmnds)
+    commands=(
+      "build:Build container images"
+      "images:List locally stored images"
+      "import:Import the base image from a tarball to the image store"
+      "load:Load images"
+      "rm:Remove one or more locally stored images"
+      "save:Save image to tarball"
+      "tag:create a tag for source image"
+    )
+    _describe "command" commands
+    ;;
+  esac
+
+  case "$words[1]" in
+  build)
+    _isula-build_ctr-img_build
+    ;;
+  images)
+    _isula-build_ctr-img_images
+    ;;
+  import)
+    _isula-build_ctr-img_import
+    ;;
+  load)
+    _isula-build_ctr-img_load
+    ;;
+  rm)
+    _isula-build_ctr-img_rm
+    ;;
+  save)
+    _isula-build_ctr-img_save
+    ;;
+  tag)
+    _isula-build_ctr-img_tag
+    ;;
+  esac
+}
+
+function _isula-build_ctr-img_build {
+  _arguments \
+    '*--build-arg[Arguments used during build time]:' \
+    '--build-static[Static build with the given option]:' \
+    '(-f --filename)'{-f,--filename}'[Path for Dockerfile]:' \
+    '--iidfile[Write image ID to the file]:' \
+    '(-o --output)'{-o,--output}'[Destination of output images]:' \
+    '--proxy[Inherit proxy environment variables from host]' \
+    '--tag[Add tag to the built image]:' \
+    '(-D --debug)'{-D,--debug}'[Open debug mode]' \
+    '(-h --help)'{-h,--help}'[Print usage]' \
+    '--log-level[Log level to be used. Either "debug", "info", "warn" or "error"]:' \
+    '(-t --timeout)'{-t,--timeout}'[Timeout for connecting to daemon]:' \
+    '(-v --version)'{-v,--version}'[Version for isula-build client]'
+}
+
+function _isula-build_ctr-img_images {
+  _arguments \
+    '(-D --debug)'{-D,--debug}'[Open debug mode]' \
+    '(-h --help)'{-h,--help}'[Print usage]' \
+    '--log-level[Log level to be used. Either "debug", "info", "warn" or "error"]:' \
+    '(-t --timeout)'{-t,--timeout}'[Timeout for connecting to daemon]:' \
+    '(-v --version)'{-v,--version}'[Version for isula-build client]'
+}
+
+function _isula-build_ctr-img_import {
+  _arguments \
+    '(-D --debug)'{-D,--debug}'[Open debug mode]' \
+    '(-h --help)'{-h,--help}'[Print usage]' \
+    '--log-level[Log level to be used. Either "debug", "info", "warn" or "error"]:' \
+    '(-t --timeout)'{-t,--timeout}'[Timeout for connecting to daemon]:' \
+    '(-v --version)'{-v,--version}'[Version for isula-build client]'
+}
+
+function _isula-build_ctr-img_load {
+  _arguments \
+    '(-i --input)'{-i,--input}'[Path to local tarball]:' \
+    '(-D --debug)'{-D,--debug}'[Open debug mode]' \
+    '(-h --help)'{-h,--help}'[Print usage]' \
+    '--log-level[Log level to be used. Either "debug", "info", "warn" or "error"]:' \
+    '(-t --timeout)'{-t,--timeout}'[Timeout for connecting to daemon]:' \
+    '(-v --version)'{-v,--version}'[Version for isula-build client]'
+}
+
+function _isula-build_ctr-img_rm {
+  _arguments \
+    '(-a --all)'{-a,--all}'[Remove all images]' \
+    '(-p --prune)'{-p,--prune}'[Remove all untagged images]' \
+    '(-D --debug)'{-D,--debug}'[Open debug mode]' \
+    '(-h --help)'{-h,--help}'[Print usage]' \
+    '--log-level[Log level to be used. Either "debug", "info", "warn" or "error"]:' \
+    '(-t --timeout)'{-t,--timeout}'[Timeout for connecting to daemon]:' \
+    '(-v --version)'{-v,--version}'[Version for isula-build client]'
+}
+
+function _isula-build_ctr-img_save {
+  _arguments \
+    '(-o --output)'{-o,--output}'[Path to save the tarball]:' \
+    '(-D --debug)'{-D,--debug}'[Open debug mode]' \
+    '(-h --help)'{-h,--help}'[Print usage]' \
+    '--log-level[Log level to be used. Either "debug", "info", "warn" or "error"]:' \
+    '(-t --timeout)'{-t,--timeout}'[Timeout for connecting to daemon]:' \
+    '(-v --version)'{-v,--version}'[Version for isula-build client]'
+}
+
+function _isula-build_ctr-img_tag {
+  _arguments \
+    '(-D --debug)'{-D,--debug}'[Open debug mode]' \
+    '(-h --help)'{-h,--help}'[Print usage]' \
+    '--log-level[Log level to be used. Either "debug", "info", "warn" or "error"]:' \
+    '(-t --timeout)'{-t,--timeout}'[Timeout for connecting to daemon]:' \
+    '(-v --version)'{-v,--version}'[Version for isula-build client]'
+}
+
+function _isula-build_info {
+  _arguments \
+    '(-H --human-readable)'{-H,--human-readable}'[print memory info in human readable format, use powers of 1000]' \
+    '(-D --debug)'{-D,--debug}'[Open debug mode]' \
+    '(-h --help)'{-h,--help}'[Print usage]' \
+    '--log-level[Log level to be used. Either "debug", "info", "warn" or "error"]:' \
+    '(-t --timeout)'{-t,--timeout}'[Timeout for connecting to daemon]:' \
+    '(-v --version)'{-v,--version}'[Version for isula-build client]'
+}
+
+function _isula-build_login {
+  _arguments \
+    '(-p --password-stdin)'{-p,--password-stdin}'[Read password from stdin]' \
+    '(-u --username)'{-u,--username}'[Username to access registry]:' \
+    '(-D --debug)'{-D,--debug}'[Open debug mode]' \
+    '(-h --help)'{-h,--help}'[Print usage]' \
+    '--log-level[Log level to be used. Either "debug", "info", "warn" or "error"]:' \
+    '(-t --timeout)'{-t,--timeout}'[Timeout for connecting to daemon]:' \
+    '(-v --version)'{-v,--version}'[Version for isula-build client]'
+}
+
+function _isula-build_logout {
+  _arguments \
+    '(-a --all)'{-a,--all}'[Logout all registries]' \
+    '(-D --debug)'{-D,--debug}'[Open debug mode]' \
+    '(-h --help)'{-h,--help}'[Print usage]' \
+    '--log-level[Log level to be used. Either "debug", "info", "warn" or "error"]:' \
+    '(-t --timeout)'{-t,--timeout}'[Timeout for connecting to daemon]:' \
+    '(-v --version)'{-v,--version}'[Version for isula-build client]'
+}
+
+function _isula-build_version {
+  _arguments \
+    '(-D --debug)'{-D,--debug}'[Open debug mode]' \
+    '(-h --help)'{-h,--help}'[Print usage]' \
+    '--log-level[Log level to be used. Either "debug", "info", "warn" or "error"]:' \
+    '(-t --timeout)'{-t,--timeout}'[Timeout for connecting to daemon]:' \
+    '(-v --version)'{-v,--version}'[Version for isula-build client]'
+}
+

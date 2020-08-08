@@ -1,0 +1,16 @@
+#compdef _isula-builder isula-builder
+# To enable the completions for zsh, place this file in "/usr/share/zsh/site-functions" and do the command: autoload -Uz compinit && compinit
+
+function _isula-builder {
+  _arguments \
+    '(-c --config)'{-c,--config}'[Config file path]:' \
+    '--dataroot[Persistent dir]:' \
+    '(-D --debug)'{-D,--debug}'[Open debug mode]' \
+    '(-h --help)'{-h,--help}'[Print usage]' \
+    '--log-level[Log level to be used. Either "debug", "info", "warn" or "error"]:' \
+    '--runroot[Runtime dir]:' \
+    '--storage-driver[Storage-driver]:' \
+    '*--storage-opt[Storage driver option]:' \
+    '(-v --version)'{-v,--version}'[Version for isula-build daemon]'
+}
+

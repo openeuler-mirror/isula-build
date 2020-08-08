@@ -105,5 +105,15 @@ func addCommands(cmd *cobra.Command) {
 		NewLoginCmd(),
 		NewLogoutCmd(),
 		NewInfoCmd(),
+		completionCmd,
 	)
+}
+
+// "completion" command to generate bash completion script
+var completionCmd = &cobra.Command{
+	Use:    "completion",
+	Hidden: true,
+	Run: func(cmd *cobra.Command, args []string) {
+		cmd.Root().GenBashCompletion(os.Stdout) // nolint
+	},
 }
