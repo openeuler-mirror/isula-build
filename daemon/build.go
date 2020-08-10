@@ -51,21 +51,16 @@ func (b *Backend) Build(req *pb.BuildRequest, stream pb.Control_BuildServer) (er
 	}()
 
 	var (
-		f        *os.File
-		length   int
-		imageID  string
-		pipeFile string
-		eg       *errgroup.Group
-		errC     = make(chan error, 1)
+		f       *os.File
+		length  int
+		imageID string
+		eg      *errgroup.Group
+		errC    = make(chan error, 1)
 	)
 
 	pipeWrapper := builder.OutputPipeWrapper()
 	eg, ctx = errgroup.WithContext(ctx)
 	eg.Go(func() error {
-		if pipeWrapper != nil {
-			pipeFile = pipeWrapper.PipeFile
-			defer pipeWrapper.Close()
-		}
 		b.syncBuildStatus(req.BuildID) <- struct{}{}
 		imageID, err = builder.Build()
 
@@ -73,8 +68,9 @@ func (b *Backend) Build(req *pb.BuildRequest, stream pb.Control_BuildServer) (er
 		// the pipeFile, which will cause frontend hangs forever.
 		// so if the output type is archive(pipeFile is not empty string) and any error occurred, we write the error
 		// message into the pipe to make the goroutine move on instead of hangs.
-		if err != nil && pipeFile != "" {
-			if perr := ioutil.WriteFile(pipeFile, []byte(err.Error()), constant.DefaultRootFileMode); perr != nil {
+		if err != nil && pipeWrapper.PipeFile != "" {
+			pipeWrapper.Close()
+			if perr := ioutil.WriteFile(pipeWrapper.PipeFile, []byte(err.Error()), constant.DefaultRootFileMode); perr != nil {
 				logrus.WithField(util.LogKeySessionID, req.BuildID).Warnf("Write error [%v] in to pipe file failed: %v", err, perr)
 			}
 		}
@@ -100,10 +96,10 @@ func (b *Backend) Build(req *pb.BuildRequest, stream pb.Control_BuildServer) (er
 		buf := make([]byte, constant.BufferSize, constant.BufferSize)
 		for {
 			length, err = reader.Read(buf)
-			if length == 0 && pipeWrapper.Done {
+			if err == io.EOF || pipeWrapper.Done {
 				break
 			}
-			if err != nil && err != io.EOF {
+			if err != nil {
 				return err
 			}
 			if err = stream.Send(&pb.BuildResponse{
