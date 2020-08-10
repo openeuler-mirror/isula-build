@@ -41,7 +41,7 @@ isula-build ctr-img rm --all`
 func NewRemoveCmd() *cobra.Command {
 	// removeCmd represents the "rm" command
 	removeCmd := &cobra.Command{
-		Use:     "rm",
+		Use:     "rm IMAGE [IMAGE...] [FLAGS]",
 		Short:   "Remove one or more locally stored images",
 		Example: removeExample,
 		RunE:    removeCommand,

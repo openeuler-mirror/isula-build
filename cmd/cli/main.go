@@ -45,12 +45,14 @@ func newCliCommand() *cobra.Command {
 		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
 			return before(cmd)
 		},
-		SilenceUsage:  true,
-		SilenceErrors: true,
-		Version:       fmt.Sprintf("%s, build %s", version.Version, version.GitCommit),
+		SilenceUsage:          true,
+		SilenceErrors:         true,
+		DisableFlagsInUseLine: true,
+		Version:               fmt.Sprintf("%s, build %s", version.Version, version.GitCommit),
 	}
 	setupRootCmd(rootCmd)
 	addCommands(rootCmd)
+	disableFlags(rootCmd)
 	return rootCmd
 }
 
@@ -116,4 +118,10 @@ var completionCmd = &cobra.Command{
 	Run: func(cmd *cobra.Command, args []string) {
 		cmd.Root().GenBashCompletion(os.Stdout) // nolint
 	},
+}
+
+func disableFlags(root *cobra.Command) {
+	for _, c := range root.Commands() {
+		c.DisableFlagsInUseLine = true
+	}
 }

@@ -40,7 +40,7 @@ var logoutOpts logoutOptions
 func NewLogoutCmd() *cobra.Command {
 	// logoutCmd represents the "logout" command
 	logoutCmd := &cobra.Command{
-		Use:     "logout",
+		Use:     "logout [SERVER] [FLAGS]",
 		Short:   "Logout from an image registry",
 		Example: logoutExample,
 		RunE:    logoutCommand,

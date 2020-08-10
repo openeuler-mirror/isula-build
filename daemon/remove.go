@@ -57,11 +57,18 @@ func (b *Backend) Remove(req *pb.RemoveRequest, stream pb.Control_RemoveServer) 
 		}
 
 		for _, layer := range layers {
-			layerString := fmt.Sprintf("Deleted: sha256:%v", layer)
+			layerString := fmt.Sprintf("Deleted layer: sha256:%v", layer)
 			logrus.Debug(layerString)
 			if err = stream.Send(&pb.RemoveResponse{LayerMessage: layerString}); err != nil {
 				return err
 			}
+		}
+
+		// after image is deleted successfully, print it out
+		imageString := fmt.Sprintf("Deleted image: %v", imageID)
+		logrus.Debug(imageString)
+		if err = stream.Send(&pb.RemoveResponse{LayerMessage: imageString}); err != nil {
+			return err
 		}
 	}
 

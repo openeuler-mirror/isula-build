@@ -23,15 +23,15 @@ import (
 )
 
 const (
-	tagExample = `isula-build ctr-img tag <imageID> busybox:latest
-isula-build ctr-img tag <imageName> busybox:latest`
+	tagExample = `isula-build ctr-img tag a24bb4013296 busybox:latest
+isula-build ctr-img tag busybox:v1.0 busybox:latest`
 )
 
 // NewTagCmd returns tag command
 func NewTagCmd() *cobra.Command {
 	// tagCmd represents the "tag" command
 	tagCmd := &cobra.Command{
-		Use:     "tag",
+		Use:     "tag SOURCE_IMAGE[:TAG] TARGET_IMAGE[:TAG]",
 		Short:   "create a tag for source image",
 		RunE:    tagCommand,
 		Example: tagExample,
