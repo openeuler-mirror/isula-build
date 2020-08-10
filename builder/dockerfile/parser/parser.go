@@ -34,7 +34,7 @@ import (
 
 var (
 	regPageName = regexp.MustCompile(`^[a-zA-Z0-9][a-zA-Z0-9-_\\.]{0,63}$`)
-	regComment  = regexp.MustCompile(`^(\s.|)#.*$`)
+	regComment  = regexp.MustCompile(`^(\s*|)#.*$`)
 )
 
 type rowLine struct {
