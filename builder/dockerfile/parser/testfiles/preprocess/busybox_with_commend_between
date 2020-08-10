@@ -1,0 +1,10 @@
+FROM scratch AS busybox
+ADD busybox.tar.xz /
+CMD ["sh"]
+ENTRYPOINT ["sh"]
+RUN ["ls"]
+RUN echo "hello world" \
+    touch a \
+    # need to touch b
+    touch b
+RUN pwd

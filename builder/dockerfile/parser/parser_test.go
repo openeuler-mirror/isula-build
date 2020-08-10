@@ -49,6 +49,10 @@ func TestPreProcess(t *testing.T) {
 			name:   "busybox_with_space_line",
 			expect: 3,
 		},
+		{
+			name:   "busybox_with_commend_between",
+			expect: 9,
+		},
 	}
 
 	for _, tc := range testcases {
@@ -381,21 +385,21 @@ func TestParseWithFuzzCorpus(t *testing.T) {
 
 func TestParserParseOnBuild(t *testing.T) {
 	type testcase struct {
-		name   string
+		name       string
 		dockerfile string
-		isErr  bool
-		errStr string
+		isErr      bool
+		errStr     string
 	}
 	var testcases = []testcase{
 		{
-			name:   "one line onbuild",
+			name:       "one line onbuild",
 			dockerfile: "RUN mkdir /tmp",
-			isErr:  false,
+			isErr:      false,
 		},
 		{
-			name:   "multi-line onbuild",
+			name:       "multi-line onbuild",
 			dockerfile: "ADD . /app/src\n RUN /usr/local/bin/python-build --dir /app/src",
-			isErr:  false,
+			isErr:      false,
 		},
 	}
 	for _, tc := range testcases {
