@@ -32,7 +32,7 @@ import (
 const (
 	bufferSize     = 32 * 1024
 	maxTarballSize = 10 * 1024 * 1024 * 1024 // support tarball max size at most 10G
-	importExample  = `isula-build ctr-img import file [REPOSITORY[:TAG]]`
+	importExample  = `isula-build ctr-img import busybox.tar busybox:isula`
 	importArgsLen  = 1
 )
 
@@ -46,7 +46,7 @@ var importOpts importOptions
 // NewImportCmd returns import command
 func NewImportCmd() *cobra.Command {
 	importCmd := &cobra.Command{
-		Use:     "import",
+		Use:     "import FILE [REPOSITORY[:TAG]]",
 		Short:   "Import the base image from a tarball to the image store",
 		Example: importExample,
 		RunE:    importCommand,

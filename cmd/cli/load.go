@@ -42,7 +42,7 @@ const (
 // NewLoadCmd returns image load command
 func NewLoadCmd() *cobra.Command {
 	loadCmd := &cobra.Command{
-		Use:     "load",
+		Use:     "load [FLAGS]",
 		Short:   "Load images",
 		Example: loadExample,
 		Args:    util.NoArgs,

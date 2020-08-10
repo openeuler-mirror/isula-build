@@ -63,7 +63,7 @@ type passReader func() ([]byte, error)
 func NewLoginCmd() *cobra.Command {
 	// loginCmd represents the "login" command
 	loginCmd := &cobra.Command{
-		Use:     "login",
+		Use:     "login SERVER [FLAGS]",
 		Short:   "Login to an image registry",
 		Example: loginExample,
 		RunE:    loginCommand,

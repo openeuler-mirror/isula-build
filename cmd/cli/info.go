@@ -38,7 +38,7 @@ var infoOpts infoOptions
 func NewInfoCmd() *cobra.Command {
 	// infoCmd represents the "info" command
 	infoCmd := &cobra.Command{
-		Use:     "info",
+		Use:     "info [FLAGS]",
 		Short:   "Show isula-build system information",
 		RunE:    infoCommand,
 		Args:    util.NoArgs,

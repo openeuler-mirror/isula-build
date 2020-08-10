@@ -48,7 +48,7 @@ isula-build ctr-img save 21c3e96ac411 -o myimage.tar`
 // NewSaveCmd cmd for container image saving
 func NewSaveCmd() *cobra.Command {
 	saveCmd := &cobra.Command{
-		Use:     "save",
+		Use:     "save IMAGE [FLAGS]",
 		Short:   "Save image to tarball",
 		Example: saveExample,
 		RunE:    saveCommand,

@@ -90,6 +90,8 @@ func NewContainerImageBuildCmd() *cobra.Command {
 		NewSaveCmd(),
 	)
 
+	disableFlags(ctrImgBuildCmd)
+
 	return ctrImgBuildCmd
 }
 
@@ -97,7 +99,7 @@ func NewContainerImageBuildCmd() *cobra.Command {
 func NewBuildCmd() *cobra.Command {
 	// buildCmd represents the "build" command
 	buildCmd := &cobra.Command{
-		Use:     "build",
+		Use:     "build [FLAGS] PATH",
 		Short:   "Build container images",
 		Example: buildExample,
 		RunE:    buildCommand,
