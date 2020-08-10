@@ -77,7 +77,6 @@ func (b *Backend) Save(req *pb.SaveRequest, stream pb.Control_SaveServer) (err e
 
 	eg.Go(func() error {
 		defer func() {
-			pipeWrapper.Close()
 			cliLogger.CloseContent()
 		}()
 		output := fmt.Sprintf("%s:%s", exportType, pipeWrapper.PipeFile)
@@ -88,6 +87,7 @@ func (b *Backend) Save(req *pb.SaveRequest, stream pb.Control_SaveServer) (err e
 		}
 
 		if err = exporter.Export(imageID, output, exOpts, store); err != nil {
+			pipeWrapper.Close()
 			logrus.Errorf("Save image %s failed: %v", imageID, err)
 			return err
 		}
@@ -110,7 +110,7 @@ func (b *Backend) Save(req *pb.SaveRequest, stream pb.Control_SaveServer) (err e
 		buf := make([]byte, constant.BufferSize, constant.BufferSize)
 		for {
 			length, err = reader.Read(buf)
-			if err == io.EOF {
+			if err == io.EOF || pipeWrapper.Done {
 				break
 			}
 			if err != nil {

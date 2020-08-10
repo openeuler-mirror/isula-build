@@ -177,7 +177,6 @@ func newPolicyContext(sc *types.SystemContext) (*signature.PolicyContext, error)
 type PipeWrapper struct {
 	PipeFile string
 	Done     bool
-	Err      error
 }
 
 // Close set the done flag for this pip
