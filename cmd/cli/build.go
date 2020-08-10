@@ -263,7 +263,7 @@ func parseStaticBuildOpts() (*pb.BuildStatic, error) {
 func runBuild(ctx context.Context, cli Cli) (string, error) {
 	var (
 		isIsulad        bool
-		msg             *pb.BuildResponse
+		buildResp       *pb.BuildResponse
 		err             error
 		content         string
 		dest            string
@@ -308,11 +308,10 @@ func runBuild(ctx context.Context, cli Cli) (string, error) {
 		return "", err
 	}
 	if dest == "" {
-		msg, serr := budStream.Recv()
-		if serr != nil {
-			return "", serr
+		if buildResp, err = budStream.Recv(); err != nil {
+			return "", err
 		}
-		return msg.ImageID, nil
+		return buildResp.ImageID, nil
 	}
 
 	ch := make(chan []byte, constant.BufferSize)
@@ -320,10 +319,7 @@ func runBuild(ctx context.Context, cli Cli) (string, error) {
 	eg.Go(func() error {
 		defer close(ch)
 		for {
-			msg, err = budStream.Recv()
-			if msg != nil {
-				imageID = msg.ImageID
-			}
+			buildResp, err = budStream.Recv()
 			if err == io.EOF {
 				break
 			}
@@ -331,7 +327,10 @@ func runBuild(ctx context.Context, cli Cli) (string, error) {
 				imageID = ""
 				return err
 			}
-			ch <- msg.Data
+			if buildResp != nil {
+				imageID = buildResp.ImageID
+			}
+			ch <- buildResp.Data
 		}
 		return nil
 	})

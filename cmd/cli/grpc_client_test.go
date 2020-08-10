@@ -140,6 +140,7 @@ func (gcli *mockGrpcClient) Load(ctx context.Context, in *pb.LoadRequest, opts .
 type mockBuildClient struct {
 	grpc.ClientStream
 	isArchive bool
+	endStream bool
 }
 
 type mockImportClient struct {
@@ -167,8 +168,12 @@ func (bcli *mockBuildClient) Recv() (*pb.BuildResponse, error) {
 		ImageID: imageID,
 		Data:    []byte{},
 	}
-	if bcli.isArchive {
+	if bcli.isArchive && bcli.endStream {
 		return resp, io.EOF
+	}
+	if bcli.isArchive && !bcli.endStream {
+		bcli.endStream = true
+		return resp, nil
 	}
 	return resp, nil
 }

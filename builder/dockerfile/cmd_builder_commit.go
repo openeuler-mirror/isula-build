@@ -16,7 +16,6 @@ package dockerfile
 import (
 	"context"
 	"encoding/json"
-	"io"
 	"strings"
 
 	cp "github.com/containers/image/v5/copy"
@@ -31,14 +30,6 @@ import (
 	"isula.org/isula-build/image"
 	"isula.org/isula-build/util"
 )
-
-func newImageCopyOptions(reportWriter io.Writer) *cp.Options {
-	return &cp.Options{
-		ReportWriter:   reportWriter,
-		SourceCtx:      image.GetSystemContext(),
-		DestinationCtx: image.GetSystemContext(),
-	}
-}
 
 // GetPolicyContext returns a specied policy context
 func GetPolicyContext() (*signature.PolicyContext, error) {
@@ -142,7 +133,7 @@ func (c *cmdBuilder) commit(ctx context.Context) (string, error) {
 		return "", errors.Wrapf(err, "failed to create container image ref for container %q", c.stage.containerID)
 	}
 
-	imageCopyOptions := newImageCopyOptions(c.stage.builder.cliLog)
+	imageCopyOptions := image.NewImageCopyOptions(c.stage.builder.cliLog)
 
 	if _, err = cp.Image(ctx, policyContext, dest, &srcContainerReference, imageCopyOptions); err != nil {
 		return "", errors.Wrapf(err, "error copying layers and metadata for container %q", c.stage.containerID)

@@ -10,6 +10,7 @@ This chapter is something about constraints, limitations and differences with `d
 6. File permission of Dockerfile is strongly recommended to restrict as 0600, avoiding tampering by other users.
 7. Only host network is supported by `RUN` command currently.
 8. When export image to a tarball, only `tar.gz` compression format supported by isula-builder currently.
+9. The base image tarball szie is limited to 1G when import a base image to the store.
 
 
 ##  Differences with `docker build`

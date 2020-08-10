@@ -25,13 +25,13 @@ import (
 	"github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 
+	constant "isula.org/isula-build"
 	pb "isula.org/isula-build/api/services"
 	"isula.org/isula-build/util"
 )
 
 const (
-	bufferSize     = 32 * 1024
-	maxTarballSize = 10 * 1024 * 1024 * 1024 // support tarball max size at most 10G
+	maxTarballSize = 1024 * 1024 * 1024 // support tarball max size at most 1G
 	importExample  = `isula-build ctr-img import busybox.tar busybox:isula`
 	importArgsLen  = 1
 )
@@ -86,7 +86,7 @@ func runImport(ctx context.Context, cli Cli) error {
 	}
 	defer func() {
 		if ferr := file.Close(); ferr != nil {
-			logrus.Warnf("Close file %s failed", importOpts.source)
+			logrus.Warnf("Close file %s failed", file.Name())
 		}
 	}()
 
@@ -96,15 +96,15 @@ func runImport(ctx context.Context, cli Cli) error {
 	}
 
 	reader := bufio.NewReader(file)
-	buf := make([]byte, bufferSize, bufferSize)
+	buf := make([]byte, constant.BufferSize, constant.BufferSize)
 	var length int
 	for {
 		length, err = reader.Read(buf)
-		if err != nil && err != io.EOF {
-			return err
-		}
-		if length == 0 {
+		if err == io.EOF {
 			break
+		}
+		if err != nil {
+			return err
 		}
 		if err = rpcCli.Send(&pb.ImportRequest{
 			Data:      buf[0:length],
