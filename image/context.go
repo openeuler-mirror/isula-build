@@ -14,9 +14,11 @@
 package image
 
 import (
+	"io"
 	"os"
 	"sync"
 
+	cp "github.com/containers/image/v5/copy"
 	"github.com/containers/image/v5/types"
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
@@ -79,4 +81,13 @@ func GetSystemContext() *types.SystemContext {
 	sc := globalSystemContext
 
 	return &sc
+}
+
+// NewImageCopyOptions returns a copy options for copy.Image call
+func NewImageCopyOptions(reportWriter io.Writer) *cp.Options {
+	return &cp.Options{
+		ReportWriter:   reportWriter,
+		SourceCtx:      GetSystemContext(),
+		DestinationCtx: GetSystemContext(),
+	}
 }

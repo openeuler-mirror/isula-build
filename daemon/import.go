@@ -15,6 +15,8 @@ package daemon
 
 import (
 	"io"
+	"os"
+	"path/filepath"
 
 	cp "github.com/containers/image/v5/copy"
 	is "github.com/containers/image/v5/storage"
@@ -24,13 +26,11 @@ import (
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
 
+	constant "isula.org/isula-build"
 	pb "isula.org/isula-build/api/services"
 	"isula.org/isula-build/builder/dockerfile"
+	"isula.org/isula-build/image"
 	"isula.org/isula-build/util"
-)
-
-const (
-	bufLen = 1024
 )
 
 // Import an image from a tarball
@@ -38,7 +38,7 @@ func (b *Backend) Import(serv pb.Control_ImportServer) error {
 	logrus.Info("ImportRequest received")
 
 	localStore := b.daemon.localStore
-	buf := make([]byte, 0, bufLen)
+	buf := make([]byte, 0, constant.BufferSize)
 	reference := ""
 	for {
 		msg, ierr := serv.Recv()
@@ -75,7 +75,19 @@ func (b *Backend) Import(serv pb.Control_ImportServer) error {
 	if err != nil {
 		return err
 	}
-	if _, err = cp.Image(serv.Context(), policyContext, dstRef, srcRef, nil); err != nil {
+	imageCopyOptions := image.NewImageCopyOptions(nil)
+	tmpDir := filepath.Join(b.daemon.opts.DataRoot, "tmp")
+	if err = os.Mkdir(tmpDir, constant.DefaultRootDirMode); err != nil {
+		return err
+	}
+	defer func() {
+		if rerr := os.Remove(tmpDir); rerr != nil {
+			logrus.Warnf("Remove tmp dir %q failed", rerr)
+		}
+	}()
+	imageCopyOptions.SourceCtx.BigFilesTemporaryDir = tmpDir
+	imageCopyOptions.DestinationCtx.BigFilesTemporaryDir = tmpDir
+	if _, err = cp.Image(serv.Context(), policyContext, dstRef, srcRef, imageCopyOptions); err != nil {
 		return err
 	}
 	img, err := is.Transport.GetStoreImage(localStore, dstRef)
