@@ -2,9 +2,9 @@ package storage
 
 import (
 	"fmt"
+	"io/ioutil"
 	"os"
 	"os/exec"
-	"os/user"
 	"path/filepath"
 	"regexp"
 	"strconv"
@@ -82,31 +82,92 @@ func GetRootlessRuntimeDir(rootlessUID int) (string, error) {
 	return path, nil
 }
 
-func getRootlessRuntimeDir(rootlessUID int) (string, error) {
-	runtimeDir, err := homedir.GetRuntimeDir()
+type rootlessRuntimeDirEnvironment interface {
+	getProcCommandFile() string
+	getRunUserDir() string
+	getTmpPerUserDir() string
+
+	homeDirGetRuntimeDir() (string, error)
+	systemLstat(string) (*system.StatT, error)
+	homedirGet() string
+}
+
+type rootlessRuntimeDirEnvironmentImplementation struct {
+	procCommandFile string
+	runUserDir      string
+	tmpPerUserDir   string
+}
+
+func (env rootlessRuntimeDirEnvironmentImplementation) getProcCommandFile() string {
+	return env.procCommandFile
+}
+func (env rootlessRuntimeDirEnvironmentImplementation) getRunUserDir() string {
+	return env.runUserDir
+}
+func (env rootlessRuntimeDirEnvironmentImplementation) getTmpPerUserDir() string {
+	return env.tmpPerUserDir
+}
+func (rootlessRuntimeDirEnvironmentImplementation) homeDirGetRuntimeDir() (string, error) {
+	return homedir.GetRuntimeDir()
+}
+func (rootlessRuntimeDirEnvironmentImplementation) systemLstat(path string) (*system.StatT, error) {
+	return system.Lstat(path)
+}
+func (rootlessRuntimeDirEnvironmentImplementation) homedirGet() string {
+	return homedir.Get()
+}
+
+func isRootlessRuntimeDirOwner(dir string, env rootlessRuntimeDirEnvironment) bool {
+	st, err := env.systemLstat(dir)
+	return err == nil && int(st.UID()) == os.Getuid() && st.Mode()&0700 == 0700 && st.Mode()&0066 == 0000
+}
+
+// getRootlessRuntimeDirIsolated is an internal implementation detail of getRootlessRuntimeDir to allow testing.
+// Everyone but the tests this is intended for should only call getRootlessRuntimeDir, never this function.
+func getRootlessRuntimeDirIsolated(env rootlessRuntimeDirEnvironment) (string, error) {
+	runtimeDir, err := env.homeDirGetRuntimeDir()
 	if err == nil {
 		return runtimeDir, nil
 	}
-	tmpDir := fmt.Sprintf("/run/user/%d", rootlessUID)
-	st, err := system.Stat(tmpDir)
-	if err == nil && int(st.UID()) == os.Getuid() && st.Mode()&0700 == 0700 && st.Mode()&0066 == 0000 {
-		return tmpDir, nil
+
+	initCommand, err := ioutil.ReadFile(env.getProcCommandFile())
+	if err != nil || string(initCommand) == "systemd" {
+		runUserDir := env.getRunUserDir()
+		if isRootlessRuntimeDirOwner(runUserDir, env) {
+			return runUserDir, nil
+		}
 	}
-	tmpDir = fmt.Sprintf("%s/%d", os.TempDir(), rootlessUID)
-	if err := os.MkdirAll(tmpDir, 0700); err != nil {
-		logrus.Errorf("failed to create %s: %v", tmpDir, err)
-	} else {
-		return tmpDir, nil
+
+	tmpPerUserDir := env.getTmpPerUserDir()
+	if _, err := env.systemLstat(tmpPerUserDir); os.IsNotExist(err) {
+		if err := os.Mkdir(tmpPerUserDir, 0700); err != nil {
+			logrus.Errorf("failed to create temp directory for user: %v", err)
+		} else {
+			return tmpPerUserDir, nil
+		}
+	} else if isRootlessRuntimeDirOwner(tmpPerUserDir, env) {
+		return tmpPerUserDir, nil
 	}
-	home := homedir.Get()
-	if home == "" {
-		return "", errors.Wrapf(err, "neither XDG_RUNTIME_DIR nor HOME was set non-empty")
+
+	homeDir := env.homedirGet()
+	if homeDir == "" {
+		return "", errors.New("neither XDG_RUNTIME_DIR not temp dir nor HOME was set non-empty")
 	}
-	resolvedHome, err := filepath.EvalSymlinks(home)
+	resolvedHomeDir, err := filepath.EvalSymlinks(homeDir)
 	if err != nil {
-		return "", errors.Wrapf(err, "cannot resolve %s", home)
+		return "", errors.Wrapf(err, "cannot resolve %s", homeDir)
 	}
-	return filepath.Join(resolvedHome, "rundir"), nil
+	return filepath.Join(resolvedHomeDir, "rundir"), nil
+}
+
+func getRootlessRuntimeDir(rootlessUID int) (string, error) {
+	return getRootlessRuntimeDirIsolated(
+		rootlessRuntimeDirEnvironmentImplementation{
+			"/proc/1/comm",
+			fmt.Sprintf("/run/user/%d", rootlessUID),
+			fmt.Sprintf("%s/containers-user-%d", os.TempDir(), rootlessUID),
+		},
+	)
 }
 
 // getRootlessDirInfo returns the parent path of where the storage for containers and
@@ -209,30 +270,44 @@ func DefaultStoreOptions(rootless bool, rootlessUID int) (StoreOptions, error) {
 			// directories
 			if storageOpts.RunRoot == "" {
 				storageOpts.RunRoot = defaultRootlessRunRoot
-			}
-			if storageOpts.GraphRoot == "" {
-				storageOpts.GraphRoot = defaultRootlessGraphRoot
-			}
-			if storageOpts.RootlessStoragePath != "" {
-				if err = validRootlessStoragePathFormat(storageOpts.RootlessStoragePath); err != nil {
-					return storageOpts, err
-				}
-				rootlessStoragePath := strings.Replace(storageOpts.RootlessStoragePath, "$HOME", homedir.Get(), -1)
-				rootlessStoragePath = strings.Replace(rootlessStoragePath, "$UID", strconv.Itoa(rootlessUID), -1)
-				usr, err := user.LookupId(strconv.Itoa(rootlessUID))
+			} else {
+				rootlessRunRoot, err := expandEnvPath(storageOpts.RunRoot, rootlessUID)
 				if err != nil {
 					return storageOpts, err
 				}
-				rootlessStoragePath = strings.Replace(rootlessStoragePath, "$USER", usr.Username, -1)
+				storageOpts.RunRoot = rootlessRunRoot
+			}
+			if storageOpts.GraphRoot == "" {
+				storageOpts.GraphRoot = defaultRootlessGraphRoot
+			} else {
+				rootlessGraphRoot, err := expandEnvPath(storageOpts.GraphRoot, rootlessUID)
+				if err != nil {
+					return storageOpts, err
+				}
+				storageOpts.GraphRoot = rootlessGraphRoot
+			}
+			if storageOpts.RootlessStoragePath != "" {
+				rootlessStoragePath, err := expandEnvPath(storageOpts.RootlessStoragePath, rootlessUID)
+				if err != nil {
+					return storageOpts, err
+				}
 				storageOpts.GraphRoot = rootlessStoragePath
 			}
 		}
 	}
 	return storageOpts, nil
 }
+func expandEnvPath(path string, rootlessUID int) (string, error) {
+	if err := validEnvPathFormat(path); err != nil {
+		return path, err
+	}
+	path = strings.Replace(path, "$UID", strconv.Itoa(rootlessUID), -1)
+	path = os.ExpandEnv(path)
+	return path, nil
+}
 
-// validRootlessStoragePathFormat checks if the environments contained in the path are accepted
-func validRootlessStoragePathFormat(path string) error {
+// validEnvPathFormat checks if the environments contained in the path are accepted
+func validEnvPathFormat(path string) error {
 	if !strings.Contains(path, "$") {
 		return nil
 	}
@@ -244,6 +319,21 @@ func validRootlessStoragePathFormat(path string) error {
 			if !validEnv(p) {
 				return errors.Errorf("Unrecognized environment variable")
 			}
+		}
+	}
+	return nil
+}
+
+func validateMountOptions(mountOptions []string) error {
+	var Empty struct{}
+	// Add invalid options for ImageMount() here.
+	invalidOptions := map[string]struct{}{
+		"rw": Empty,
+	}
+
+	for _, opt := range mountOptions {
+		if _, ok := invalidOptions[opt]; ok {
+			return fmt.Errorf(" %q option not supported", opt)
 		}
 	}
 	return nil

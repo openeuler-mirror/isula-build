@@ -58,6 +58,9 @@ type MockStore interface {
 	DeleteLayer(id string) error
 	DeleteImage(id string, commit bool) ([]string, error)
 	DeleteContainer(id string) error
+	Free()
+	MountImage(id string, mountOptions []string, mountLabel string) (string, error)
+	UnmountImage(id string, force bool) (bool, error)
 	Wipe() error
 	Mount(id, mountLabel string) (string, error)
 	Unmount(id string, force bool) (bool, error)
@@ -114,6 +117,16 @@ type mockStore struct {
 func NewMockStore() MockStore {
 	return &mockStore{}
 }
+
+func (m *mockStore) MountImage(id string, mountOptions []string, mountLabel string) (string, error) {
+	return "", nil
+}
+
+func (m *mockStore) UnmountImage(id string, force bool) (bool, error) {
+	return true, nil
+}
+
+func (m *mockStore) Free() {}
 
 func (m *mockStore) RunRoot() string {
 	return ""

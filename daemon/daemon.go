@@ -21,7 +21,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/containerd/containerd/sys"
+	"github.com/containerd/containerd/sys/reaper"
 	"github.com/gofrs/flock"
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
@@ -205,7 +205,7 @@ func (d *Daemon) childProcessReap() {
 			d.Unlock()
 			continue
 		}
-		if _, err = sys.Reap(false); err != nil {
+		if err = reaper.Reap(); err != nil {
 			logrus.Errorf("Reap child process error: %v", err)
 		}
 		d.Unlock()
