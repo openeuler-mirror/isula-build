@@ -142,7 +142,7 @@ func TestParse(t *testing.T) {
 		{
 			name:   "busybox_with_empty_content",
 			isErr:  true,
-			errStr: "dockerfile content is empty",
+			errStr: "no instructions in Dockerfile",
 		},
 		{
 			name:   "busybox_no_command",
