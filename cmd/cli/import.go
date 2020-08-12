@@ -113,14 +113,21 @@ func runImport(ctx context.Context, cli Cli) error {
 			return err
 		}
 	}
-
-	resp, err := rpcCli.CloseAndRecv()
-	if err != nil {
+	if err = rpcCli.CloseSend(); err != nil {
 		return err
 	}
-	if resp == nil {
-		return errors.New("import failed, got nil response")
+	for {
+		msg, rerr := rpcCli.Recv()
+		if rerr != nil {
+			if rerr != io.EOF {
+				return rerr
+			}
+			break
+		}
+		if msg != nil {
+			fmt.Print(msg.Log)
+		}
 	}
-	fmt.Printf("Import success with image id: %s\n", resp.ImageID)
+
 	return nil
 }

@@ -25,11 +25,13 @@ import (
 	"github.com/containers/storage/pkg/stringid"
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
+	"golang.org/x/sync/errgroup"
 
 	constant "isula.org/isula-build"
 	pb "isula.org/isula-build/api/services"
 	"isula.org/isula-build/builder/dockerfile"
 	"isula.org/isula-build/image"
+	"isula.org/isula-build/pkg/logger"
 	"isula.org/isula-build/util"
 )
 
@@ -55,12 +57,11 @@ func (b *Backend) Import(serv pb.Control_ImportServer) error {
 		buf = append(buf, msg.Data...)
 	}
 
-	logrus.Infof("Received and import image %q", reference)
-
 	reference, err := dockerfile.CheckAndExpandTag(reference)
 	if err != nil {
 		return err
 	}
+	logrus.Infof("Received and import image as %q", reference)
 	srcRef, err := tarball.NewReference([]string{"-"}, buf)
 	if err != nil {
 		return err
@@ -75,9 +76,10 @@ func (b *Backend) Import(serv pb.Control_ImportServer) error {
 	if err != nil {
 		return err
 	}
-	imageCopyOptions := image.NewImageCopyOptions(nil)
+	log := logger.NewCliLogger(constant.CliLogBufferLen)
+	imageCopyOptions := image.NewImageCopyOptions(log)
 	tmpDir := filepath.Join(b.daemon.opts.DataRoot, "tmp")
-	if err = os.Mkdir(tmpDir, constant.DefaultRootDirMode); err != nil {
+	if err = os.MkdirAll(tmpDir, constant.DefaultRootDirMode); err != nil {
 		return err
 	}
 	defer func() {
@@ -87,24 +89,44 @@ func (b *Backend) Import(serv pb.Control_ImportServer) error {
 	}()
 	imageCopyOptions.SourceCtx.BigFilesTemporaryDir = tmpDir
 	imageCopyOptions.DestinationCtx.BigFilesTemporaryDir = tmpDir
-	if _, err = cp.Image(serv.Context(), policyContext, dstRef, srcRef, imageCopyOptions); err != nil {
-		return err
-	}
-	img, err := is.Transport.GetStoreImage(localStore, dstRef)
-	if err != nil {
-		return errors.Wrapf(err, "error locating image %q in local storage after import", transports.ImageName(dstRef))
-	}
-	img.Names = append(img.Names, reference)
-	newNames := util.CopyStringsWithoutSpecificElem(img.Names, tmpName)
-	if err = localStore.SetNames(img.ID, newNames); err != nil {
-		return errors.Wrapf(err, "failed to prune temporary name from image %q", img.ID)
-	}
 
-	resp := &pb.ImportResponse{ImageID: img.ID}
-	if err = serv.SendAndClose(resp); err != nil {
+	eg, ctx := errgroup.WithContext(serv.Context())
+	eg.Go(func() error {
+		for c := range log.GetContent() {
+			if serr := serv.Send(&pb.ImportResponse{
+				Log: c,
+			}); serr != nil {
+				return serr
+			}
+		}
+		return nil
+	})
+
+	var imageID string
+	eg.Go(func() error {
+		defer log.CloseContent()
+		if _, err = cp.Image(ctx, policyContext, dstRef, srcRef, imageCopyOptions); err != nil {
+			return err
+		}
+		img, err := is.Transport.GetStoreImage(localStore, dstRef)
+		if err != nil {
+			return errors.Wrapf(err, "error locating image %q in local storage after import", transports.ImageName(dstRef))
+		}
+		imageID = img.ID
+		img.Names = append(img.Names, reference)
+		newNames := util.CopyStringsWithoutSpecificElem(img.Names, tmpName)
+		if err = localStore.SetNames(img.ID, newNames); err != nil {
+			return errors.Wrapf(err, "failed to prune temporary name from image %q", imageID)
+		}
+
+		log.Print("Import success with image id: %q\n", imageID)
+		return nil
+	})
+
+	if err := eg.Wait(); err != nil {
 		return err
 	}
-	logrus.Infof("Import success with image id %q", img.ID)
+	logrus.Infof("Import success with image id: %q", imageID)
 
 	return nil
 }

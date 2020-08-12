@@ -203,9 +203,9 @@ func (bcli *mockBuildClient) Recv() (*pb.BuildResponse, error) {
 	return resp, nil
 }
 
-func (icli *mockImportClient) CloseAndRecv() (*pb.ImportResponse, error) {
+func (icli *mockImportClient) Recv() (*pb.ImportResponse, error) {
 	resp := &pb.ImportResponse{
-		ImageID: imageID,
+		Log: "Import success with image id: " + imageID,
 	}
 	return resp, nil
 }
