@@ -1,8 +1,7 @@
 %global is_systemd 1
-%global debug_package %{nil}
 
 Name: isula-build
-Version: 0.9.1
+Version: 0.9.2
 Release: 1
 Summary: A tool to build container images
 License: Mulan PSL V2
@@ -76,6 +75,8 @@ systemctl start isula-build
 %config(noreplace) %attr(0600,root,root) %{_sysconfdir}/isula-build/policy.json
 
 %changelog
+* Wed Aug 12 2020 xiadanni <xiadanni1@huawei.com> - 0.9.2-1
+- Bump version to 0.9.2
 * Wed Aug 05 2020 xiadanni <xiadanni1@huawei.com> - 0.9.1-1
 - Bump version to 0.9.1
 * Sat Jul 25 2020 lixiang <lixiang172@huawei.com> - 0.9.0-1
