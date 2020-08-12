@@ -36,8 +36,6 @@ import (
 func (b *Backend) Save(req *pb.SaveRequest, stream pb.Control_SaveServer) (err error) { // nolint:gocyclo
 	const exportType = "docker-archive"
 	var (
-		f           *os.File
-		length      int
 		pipeWrapper *exporter.PipeWrapper
 		imageInfo   = req.Image
 		saveID      = req.SaveID
@@ -96,8 +94,11 @@ func (b *Backend) Save(req *pb.SaveRequest, stream pb.Control_SaveServer) (err e
 	})
 
 	eg.Go(func() error {
-		f, err = exporter.PipeArchiveStream(pipeWrapper)
-		if err != nil {
+		var (
+			f      *os.File
+			length int
+		)
+		if f, err = exporter.PipeArchiveStream(pipeWrapper); err != nil {
 			return err
 		}
 		defer func() {
@@ -144,8 +145,14 @@ func (b *Backend) Save(req *pb.SaveRequest, stream pb.Control_SaveServer) (err e
 		errC <- eg.Wait()
 	}()
 
+	var ok bool
+
 	select {
-	case err = <-errC:
+	case err, ok = <-errC:
+		if !ok {
+			logrus.WithField(util.LogKeySessionID, saveID).Warn("Channel errC closed")
+			return nil
+		}
 		close(errC)
 		if err != nil {
 			return err
@@ -154,7 +161,11 @@ func (b *Backend) Save(req *pb.SaveRequest, stream pb.Control_SaveServer) (err e
 		if err = stream.Send(&pb.SaveResponse{Data: nil}); err != nil {
 			return err
 		}
-	case <-stream.Context().Done():
+	case _, ok = <-stream.Context().Done():
+		if !ok {
+			logrus.WithField(util.LogKeySessionID, saveID).Warn("Channel stream done closed")
+			return nil
+		}
 		err = egCtx.Err()
 		if err != nil && err != context.Canceled {
 			logrus.WithField(util.LogKeySessionID, saveID).Warnf("Stream closed with: %v", err)
