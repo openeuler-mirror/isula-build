@@ -37,7 +37,7 @@ service Control {
     // Load requests an image tar load
     rpc Load(LoadRequest) returns (stream LoadResponse);
     // Import requests import a new image
-    rpc Import(stream ImportRequest) returns (ImportResponse);
+    rpc Import(stream ImportRequest) returns (stream ImportResponse);
     // Tag requests to tag an image
     rpc Tag(TagRequest) returns (google.protobuf.Empty);
     // Save saves the image to tarball
@@ -79,8 +79,8 @@ message ImportRequest {
 }
 
 message ImportResponse {
-    // imageID is the ID of the import image
-    string imageID = 1;
+    // log is log send to cli
+    string log = 1;
 }
 
 message BuildStatic {
