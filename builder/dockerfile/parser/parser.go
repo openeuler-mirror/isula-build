@@ -184,7 +184,7 @@ func getPageName(line *parser.Line, pageNum int) (string, error) {
 
 func constructPages(lines []*parser.Line, onbuild bool) ([]*parser.Page, error) {
 	if len(lines) == 0 {
-		return nil, errors.New("dockerfile content is empty")
+		return nil, errors.New("no instructions in Dockerfile")
 	}
 
 	var (

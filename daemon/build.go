@@ -68,7 +68,7 @@ func (b *Backend) Build(req *pb.BuildRequest, stream pb.Control_BuildServer) (er
 		// the pipeFile, which will cause frontend hangs forever.
 		// so if the output type is archive(pipeFile is not empty string) and any error occurred, we write the error
 		// message into the pipe to make the goroutine move on instead of hangs.
-		if err != nil && pipeWrapper.PipeFile != "" {
+		if err != nil && pipeWrapper != nil {
 			pipeWrapper.Close()
 			if perr := ioutil.WriteFile(pipeWrapper.PipeFile, []byte(err.Error()), constant.DefaultRootFileMode); perr != nil {
 				logrus.WithField(util.LogKeySessionID, req.BuildID).Warnf("Write error [%v] in to pipe file failed: %v", err, perr)
