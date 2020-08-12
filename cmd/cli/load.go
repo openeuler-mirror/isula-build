@@ -80,14 +80,14 @@ func runLoad(ctx context.Context, cli Cli) error {
 
 	for {
 		msg, rerr := resp.Recv()
-		if msg != nil {
-			fmt.Print(msg.Log)
-		}
 		if rerr != nil {
 			if rerr != io.EOF {
-				err = rerr
+				return rerr
 			}
 			break
+		}
+		if msg != nil {
+			fmt.Print(msg.Log)
 		}
 	}
 

@@ -51,7 +51,7 @@ func (b *Backend) Load(req *pb.LoadRequest, stream pb.Control_LoadServer) error 
 
 	topLevelImageManifest, err := tarfileSource.LoadTarManifest()
 	if err != nil || len(topLevelImageManifest) == 0 {
-		return errors.Wrapf(err, "failed to get the top level image manifest")
+		return errors.Errorf("failed to get the top level image manifest: %v", err)
 	}
 
 	log := logger.NewCliLogger(constant.CliLogBufferLen)
@@ -90,7 +90,7 @@ func (b *Backend) Load(req *pb.LoadRequest, stream pb.Control_LoadServer) error 
 	if werr := eg.Wait(); werr != nil {
 		return werr
 	}
-
 	logrus.Infof("Loaded image as %s", si.ID)
+
 	return nil
 }

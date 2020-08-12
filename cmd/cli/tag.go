@@ -59,9 +59,6 @@ func runTag(ctx context.Context, cli Cli, args []string) error {
 		Image: args[0],
 		Tag:   args[1],
 	})
-	if err != nil {
-		return err
-	}
 
-	return nil
+	return err
 }

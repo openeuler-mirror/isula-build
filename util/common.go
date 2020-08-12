@@ -29,7 +29,7 @@ import (
 
 const (
 	maxServerNameLength = 255
-	maxLoadFileSize     = 10 * 1024 * 1024 * 1024
+	maxLoadFileSize     = 50 * 1024 * 1024 * 1024
 	decimalPrefixBase   = 1000
 )
 
