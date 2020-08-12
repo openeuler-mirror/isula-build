@@ -14,7 +14,7 @@ LDFLAGS := -X isula.org/isula-build/pkg/version.GitCommit=$(GIT_COMMIT) \
            $(EXTRALDFLAGS)
 BUILDTAGS := seccomp
 BUILDFLAGS := -tags "$(BUILDTAGS)"
-SAFEBUILDFLAGS := -w -s -buildid=IdByIsula -buildmode=pie -extldflags=-static -extldflags=-zrelro -extldflags=-znow $(LDFLAGS)
+SAFEBUILDFLAGS := -buildid=IdByIsula -buildmode=pie -extldflags=-static -extldflags=-zrelro -extldflags=-znow $(LDFLAGS)
 
 IMAGE_BUILDARGS := $(if $(http_proxy), --build-arg http_proxy=$(http_proxy))
 IMAGE_BUILDARGS += $(if $(https_proxy), --build-arg https_proxy=$(https_proxy))
