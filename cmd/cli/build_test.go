@@ -15,116 +15,19 @@ package main
 
 import (
 	"context"
-	"errors"
 	"io/ioutil"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 
-	"google.golang.org/grpc"
 	"gotest.tools/assert"
 	"gotest.tools/fs"
 
 	constant "isula.org/isula-build"
-	pb "isula.org/isula-build/api/services"
 	_ "isula.org/isula-build/exporter/register"
 	"isula.org/isula-build/util"
 )
-
-type mockClient struct {
-	client pb.ControlClient
-}
-
-func newMockClient(gcli *mockGrpcClient) mockClient {
-	return mockClient{
-		client: gcli,
-	}
-}
-
-func (cli *mockClient) Client() pb.ControlClient {
-	return cli.client
-}
-
-func (cli *mockClient) Close() error {
-	return nil
-}
-
-type mockDaemon struct {
-	buildReq  *pb.BuildRequest
-	statusReq *pb.StatusRequest
-	removeReq *pb.RemoveRequest
-	loadReq   *pb.LoadRequest
-	loginReq  *pb.LoginRequest
-	logoutReq *pb.LogoutRequest
-	importReq *pb.ImportRequest
-	saveReq   *pb.SaveRequest
-}
-
-func newMockDaemon() *mockDaemon {
-	return &mockDaemon{}
-}
-
-func (f *mockDaemon) importImage(_ context.Context, opts ...grpc.CallOption) (pb.Control_ImportClient, error) {
-	return &mockImportClient{}, nil
-}
-
-func (f *mockDaemon) load(_ context.Context, in *pb.LoadRequest, opts ...grpc.CallOption) (pb.Control_LoadClient, error) {
-	f.loadReq = in
-	return &mockLoadClient{}, nil
-}
-
-func (f *mockDaemon) build(_ context.Context, in *pb.BuildRequest, opts ...grpc.CallOption) (pb.Control_BuildClient, error) {
-	f.buildReq = in
-	return &mockBuildClient{}, nil
-}
-
-func (f *mockDaemon) status(_ context.Context, in *pb.StatusRequest, opts ...grpc.CallOption) (pb.Control_StatusClient, error) {
-	f.statusReq = in
-	return &mockStatusClient{}, nil
-}
-
-func (f *mockDaemon) save(_ context.Context, in *pb.SaveRequest, opts ...grpc.CallOption) (pb.Control_SaveClient, error) {
-	f.saveReq= in
-	return &mockSaveClient{}, nil
-}
-
-func (f *mockDaemon) dockerfile(t *testing.T) string {
-	t.Helper()
-	return f.buildReq.FileContent
-}
-
-func (f *mockDaemon) contextDir(t *testing.T) string {
-	t.Helper()
-	return f.buildReq.ContextDir
-}
-
-func (f *mockDaemon) remove(_ context.Context, in *pb.RemoveRequest, opts ...grpc.CallOption) (pb.Control_RemoveClient, error) {
-	f.removeReq = in
-	return &mockRemoveClient{}, nil
-}
-
-func (f *mockDaemon) login(_ context.Context, in *pb.LoginRequest, opts ...grpc.CallOption) (*pb.LoginResponse, error) {
-	f.loginReq = in
-	serverLen := len(f.loginReq.Server)
-	if serverLen == 0 || serverLen > 128 {
-		return &pb.LoginResponse{
-			Content: "Login Failed",
-		}, errors.New("empty server address")
-	}
-
-	return &pb.LoginResponse{Content: "Success"}, nil
-}
-
-func (f *mockDaemon) logout(_ context.Context, in *pb.LogoutRequest, opts ...grpc.CallOption) (*pb.LogoutResponse, error) {
-	f.logoutReq = in
-	serverLen := len(f.logoutReq.Server)
-	if serverLen == 0 || serverLen > 128 {
-		return &pb.LogoutResponse{Result: "Logout Failed"}, errors.New("empty server address")
-	}
-
-	return &pb.LogoutResponse{Result: "Success"}, nil
-}
 
 func TestRunBuildWithLocalDockerfile(t *testing.T) {
 	dockerfile := `
