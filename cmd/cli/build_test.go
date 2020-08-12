@@ -84,6 +84,11 @@ func (f *mockDaemon) status(_ context.Context, in *pb.StatusRequest, opts ...grp
 	return &mockStatusClient{}, nil
 }
 
+func (f *mockDaemon) save(_ context.Context, in *pb.SaveRequest, opts ...grpc.CallOption) (pb.Control_SaveClient, error) {
+	f.saveReq= in
+	return &mockSaveClient{}, nil
+}
+
 func (f *mockDaemon) dockerfile(t *testing.T) string {
 	t.Helper()
 	return f.buildReq.FileContent
