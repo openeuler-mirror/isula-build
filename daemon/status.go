@@ -32,7 +32,12 @@ func (b *Backend) Status(req *pb.StatusRequest, stream pb.Control_StatusServer) 
 	}).Info("StatusRequest received")
 
 	// waiting for Build start first so that the builder with req.BuildID will be set already
-	<-b.syncBuildStatus(req.BuildID)
+	select {
+	case <-b.syncBuildStatus(req.BuildID):
+	case <-stream.Context().Done():
+		b.deleteStatus(req.BuildID)
+		return nil
+	}
 
 	builder, err := b.daemon.Builder(req.BuildID)
 	if err != nil {
