@@ -62,6 +62,7 @@ func (b *Backend) Build(req *pb.BuildRequest, stream pb.Control_BuildServer) (er
 	eg, ctx = errgroup.WithContext(ctx)
 	eg.Go(func() error {
 		b.syncBuildStatus(req.BuildID) <- struct{}{}
+		close(b.status[req.BuildID].startBuild)
 		imageID, err = builder.Build()
 
 		// in case there is error during Build stage, the backend will always waiting for content write into
