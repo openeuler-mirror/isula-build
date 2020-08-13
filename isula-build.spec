@@ -6,7 +6,7 @@ Release: 1
 Summary: A tool to build container images
 License: Mulan PSL V2
 URL: https://gitee.com/openeuler/isula-build
-Source0: isula-build-v0.9.1.tar.gz
+Source0: isula-build-v0.9.2.tar.gz
 Source1: git-commit 
 BuildRequires: make btrfs-progs-devel device-mapper-devel glib2-devel gpgme-devel
 BuildRequires: libassuan-devel libseccomp-devel git bzip2 go-md2man systemd-devel
