@@ -62,7 +62,7 @@ func (b *Backend) Login(ctx context.Context, req *pb.LoginRequest) (*pb.LoginRes
 	auth, err := config.GetCredentials(sysCtx, req.Server)
 	if err != nil {
 		auth = types.DockerAuthConfig{}
-		return &pb.LoginResponse{Content: err.Error()}, errors.Wrapf(err, "failed to read auth file %v", image.DefaultAuthFile)
+		return &pb.LoginResponse{Content: err.Error()}, errors.Wrapf(err, "failed to read auth file %v", constant.AuthFilePath)
 	}
 
 	usernameFromAuth, passwordFromAuth := auth.Username, auth.Password

@@ -36,8 +36,6 @@ import (
 	"isula.org/isula-build/util"
 )
 
-const defaultConfigPath = "/etc/isula-build/configuration.toml"
-
 var daemonOpts daemon.Options
 
 func newDaemonCommand() *cobra.Command {
@@ -53,7 +51,6 @@ func newDaemonCommand() *cobra.Command {
 		SilenceErrors: true,
 		Version:       fmt.Sprintf("%s, build %s", version.Version, version.GitCommit),
 	}
-	rootCmd.PersistentFlags().StringVarP(&daemonOpts.ConfigFile, "config", "c", defaultConfigPath, "Config file path")
 	rootCmd.PersistentFlags().BoolVarP(&daemonOpts.Debug, "debug", "D", false, "Open debug mode")
 	rootCmd.PersistentFlags().StringVar(&daemonOpts.DataRoot, "dataroot", constant.DefaultDataRoot, "Persistent dir")
 	rootCmd.PersistentFlags().StringVar(&daemonOpts.RunRoot, "runroot", constant.DefaultRunRoot, "Runtime dir")
@@ -138,38 +135,29 @@ func before(cmd *cobra.Command) error {
 
 	logrus.SetOutput(os.Stdout)
 	logrus.SetFormatter(&logrus.TextFormatter{FullTimestamp: true})
-	if daemonOpts.RunRoot == daemonOpts.DataRoot {
-		return errors.Errorf("runroot(%q) and dataroot(%q) must be different paths", daemonOpts.RunRoot, daemonOpts.DataRoot)
-	}
 
-	configPath := cmd.Flag("config").Value.String()
 	store.SetDefaultStoreOptions(store.DaemonStoreOptions{
 		RunRoot:      filepath.Join(daemonOpts.RunRoot, "storage"),
 		DataRoot:     filepath.Join(daemonOpts.DataRoot, "storage"),
 		Driver:       daemonOpts.StorageDriver,
 		DriverOption: util.CopyStrings(daemonOpts.StorageOpts),
 	})
-	if !util.IsExist(configPath) {
-		logrus.Warnf("Main config file missing, the default configuration is used")
-	} else {
-		conf, err := loadConfig(configPath)
-		if err != nil {
-			logrus.Errorf("Load and parse main config file failed: %v", err)
-			os.Exit(constant.DefaultFailedCode)
-		}
 
-		mergeConfig(conf, cmd)
+	if err := checkAndValidateConfig(cmd); err != nil {
+		return err
 	}
 
 	if err := initLogging(); err != nil {
 		return err
 	}
 
-	image.SetSystemContext()
+	if err := setupWorkingDirectories(); err != nil {
+		return err
+	}
 
-	workDirs := []string{daemonOpts.DataRoot, daemonOpts.RunRoot}
+	image.SetSystemContext(daemonOpts.DataRoot)
 
-	return setupWorkingDirectories(workDirs)
+	return nil
 }
 
 func loadConfig(path string) (config.TomlConfig, error) {
@@ -192,17 +180,11 @@ func loadConfig(path string) (config.TomlConfig, error) {
 	}
 	_, err = toml.Decode(string(configData), &conf)
 
-	if err = checkFilesInConf(conf); err != nil {
-		return conf, err
-	}
-
 	return conf, err
 }
 
-func mergeStorageConfig(conf config.TomlConfig, cmd *cobra.Command) {
-	if conf.Storage.ConfigPath != "" {
-		store.SetDefaultConfigFilePath(conf.Storage.ConfigPath)
-	}
+func mergeStorageConfig(cmd *cobra.Command) {
+	store.SetDefaultConfigFilePath(constant.StorageConfigPath)
 	option, err := store.GetDefaultStoreOptions(true)
 	if err == nil {
 		if option.GraphDriverName != "" && !cmd.Flag("storage-driver").Changed {
@@ -229,15 +211,6 @@ func mergeStorageConfig(conf config.TomlConfig, cmd *cobra.Command) {
 	store.SetDefaultStoreOptions(storeOpt)
 }
 
-func mergeImageConfig(conf config.TomlConfig) {
-	if conf.Image.RegistryConfigPath != "" {
-		image.DefaultRegistryConfigPath = conf.Image.RegistryConfigPath
-	}
-	if conf.Image.SignaturePolicyPath != "" {
-		image.DefaultSignaturePolicyPath = conf.Image.SignaturePolicyPath
-	}
-}
-
 func mergeConfig(conf config.TomlConfig, cmd *cobra.Command) {
 	if strconv.FormatBool(conf.Debug) == "true" && !cmd.Flag("debug").Changed {
 		daemonOpts.Debug = true
@@ -256,12 +229,14 @@ func mergeConfig(conf config.TomlConfig, cmd *cobra.Command) {
 	if conf.DataRoot != "" && !cmd.Flag("dataroot").Changed {
 		daemonOpts.DataRoot = conf.DataRoot
 	}
-
-	mergeStorageConfig(conf, cmd)
-	mergeImageConfig(conf)
 }
 
-func setupWorkingDirectories(dirs []string) error {
+func setupWorkingDirectories() error {
+	if daemonOpts.RunRoot == daemonOpts.DataRoot {
+		return errors.Errorf("runroot(%q) and dataroot(%q) must be different paths", daemonOpts.RunRoot, daemonOpts.DataRoot)
+	}
+
+	dirs := []string{daemonOpts.DataRoot, daemonOpts.RunRoot}
 	for _, dir := range dirs {
 		if !filepath.IsAbs(dir) {
 			return errors.Errorf("%q not an absolute dir, the \"dataroot\" and \"runroot\" must be an absolute path", dir)
@@ -281,27 +256,47 @@ func setupWorkingDirectories(dirs []string) error {
 	return nil
 }
 
-func checkFilesInConf(conf config.TomlConfig) error {
-	confFiles := []string{conf.Storage.ConfigPath, conf.Image.RegistryConfigPath, conf.Image.SignaturePolicyPath}
-	for _, file := range confFiles {
-		if file != "" {
-			if !filepath.IsAbs(file) {
-				return errors.Errorf("file path %q in configuration is not an absolute path", file)
-			}
+func checkAndValidateConfig(cmd *cobra.Command) error {
+	// check if configuration.toml file exists, merge config if exists
+	if !util.IsExist(constant.ConfigurationPath) {
+		logrus.Warnf("Main config file missing, the default configuration is used")
+	} else {
+		conf, err := loadConfig(constant.ConfigurationPath)
+		if err != nil {
+			logrus.Errorf("Load and parse main config file failed: %v", err)
+			os.Exit(constant.DefaultFailedCode)
+		}
 
+		mergeConfig(conf, cmd)
+	}
+
+	// file policy.json must be exist
+	if !util.IsExist(constant.SignaturePolicyPath) {
+		return errors.Errorf("policy config file %v is not exist", constant.SignaturePolicyPath)
+	}
+
+	// check all config files
+	confFiles := []string{constant.RegistryConfigPath, constant.SignaturePolicyPath, constant.StorageConfigPath}
+	for _, file := range confFiles {
+		if util.IsExist(file) {
 			fi, err := os.Stat(file)
 			if err != nil {
-				return errors.Wrapf(err, "stat file %q in configuration failed", file)
+				return errors.Wrapf(err, "stat file %q failed", file)
 			}
 
 			if !fi.Mode().IsRegular() {
-				return errors.Errorf("file %s in configuration should be a regular file", fi.Name())
+				return errors.Errorf("file %s should be a regular file", fi.Name())
 			}
 
 			if err := util.CheckFileSize(file, constant.MaxFileSize); err != nil {
 				return err
 			}
 		}
+	}
+
+	// if storage config file exists, merge storage config
+	if util.IsExist(constant.StorageConfigPath) {
+		mergeStorageConfig(cmd)
 	}
 
 	return nil

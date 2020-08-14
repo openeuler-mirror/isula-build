@@ -24,17 +24,3 @@ data_root = "/var/lib/isula-build/"
 
 # Default "runc" found in $PATH
 runtime = ""
-
-[storage]
-# Default config path for containers/storage library
-# See "storage.toml" for details
-storage_config_path = "/etc/isula-build/storage.toml"
-
-[image]
-# Default config path for containers/image library
-# See "registries.toml" for details
-registry_config_path = "/etc/isula-build/registries.toml"
-
-# Syntax for the signature verification policy file
-# See "github.com/containers/image/docs" for details
-signature_policy_path = "/etc/isula-build/policy.json"

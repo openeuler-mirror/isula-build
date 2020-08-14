@@ -34,9 +34,9 @@ var (
 
 func init() {
 	globalSystemContext = types.SystemContext{
-		SignaturePolicyPath:         DefaultSignaturePolicyPath,
-		SystemRegistriesConfDirPath: DefaultRegistryConfigPath,
-		RegistriesDirPath:           DefaultRegistryDirPath,
+		SignaturePolicyPath:         constant.SignaturePolicyPath,
+		SystemRegistriesConfDirPath: constant.RegistryConfigPath,
+		RegistriesDirPath:           constant.RegistryDirPath,
 	}
 }
 
@@ -61,18 +61,18 @@ func validateConfigFiles(configs []string) error {
 }
 
 // SetSystemContext set the values of globalSystemContext
-func SetSystemContext() {
-	err := validateConfigFiles([]string{DefaultSignaturePolicyPath, DefaultRegistryConfigPath})
+func SetSystemContext(dataRoot string) {
+	err := validateConfigFiles([]string{constant.SignaturePolicyPath, constant.RegistryConfigPath})
 	if err != nil {
 		logrus.Fatal(err)
 	}
 
 	once.Do(func() {
-		globalSystemContext.SignaturePolicyPath = DefaultSignaturePolicyPath
-		globalSystemContext.SystemRegistriesConfPath = DefaultRegistryConfigPath
-		globalSystemContext.RegistriesDirPath = DefaultRegistryDirPath
-		globalSystemContext.BlobInfoCacheDir = DefaultBlobInfoCacheDirPath
-		globalSystemContext.AuthFilePath = DefaultAuthFile
+		globalSystemContext.SignaturePolicyPath = constant.SignaturePolicyPath
+		globalSystemContext.SystemRegistriesConfPath = constant.RegistryConfigPath
+		globalSystemContext.RegistriesDirPath = constant.RegistryDirPath
+		globalSystemContext.BlobInfoCacheDir = dataRoot
+		globalSystemContext.AuthFilePath = constant.AuthFilePath
 	})
 }
 

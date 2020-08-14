@@ -21,19 +21,18 @@ import (
 	"gotest.tools/fs"
 
 	constant "isula.org/isula-build"
-	"isula.org/isula-build/daemon"
 )
 
 func TestSetupWorkingDirectories(t *testing.T) {
 	var testDir *fs.Dir
 	var testcases = []struct {
 		name        string
-		prepareFunc func(t *testing.T, daemonOpts *daemon.Options)
+		prepareFunc func(t *testing.T)
 		wantErr     bool
 	}{
 		{
 			name: "TC1 - normal - new env",
-			prepareFunc: func(t *testing.T, daemonOpts *daemon.Options) {
+			prepareFunc: func(t *testing.T) {
 				testDir = fs.NewDir(t, "TestSetupWorkingDirectories")
 				daemonOpts.DataRoot = testDir.Join("data")
 				daemonOpts.RunRoot = testDir.Join("run")
@@ -42,7 +41,7 @@ func TestSetupWorkingDirectories(t *testing.T) {
 		},
 		{
 			name: "TC2 - normal - already exist",
-			prepareFunc: func(t *testing.T, daemonOpts *daemon.Options) {
+			prepareFunc: func(t *testing.T) {
 				testDir = fs.NewDir(t, "TestSetupWorkingDirectories")
 				daemonOpts.DataRoot = testDir.Join("data")
 				daemonOpts.RunRoot = testDir.Join("run")
@@ -53,7 +52,7 @@ func TestSetupWorkingDirectories(t *testing.T) {
 		},
 		{
 			name: "TC3 - abnormal - exist file with same name",
-			prepareFunc: func(t *testing.T, daemonOpts *daemon.Options) {
+			prepareFunc: func(t *testing.T) {
 				testDir = fs.NewDir(t, "TestSetupWorkingDirectories")
 				daemonOpts.DataRoot = testDir.Join("data")
 				daemonOpts.RunRoot = testDir.Join("run")
@@ -64,7 +63,7 @@ func TestSetupWorkingDirectories(t *testing.T) {
 		},
 		{
 			name: "TC4 - abnormal - exist file with same name 2",
-			prepareFunc: func(t *testing.T, daemonOpts *daemon.Options) {
+			prepareFunc: func(t *testing.T) {
 				testDir = fs.NewDir(t, "TestSetupWorkingDirectories")
 				daemonOpts.DataRoot = testDir.Join("data")
 				daemonOpts.RunRoot = testDir.Join("run")
@@ -75,7 +74,7 @@ func TestSetupWorkingDirectories(t *testing.T) {
 		},
 		{
 			name: "TC5 - abnormal - exist file with same name 3",
-			prepareFunc: func(t *testing.T, daemonOpts *daemon.Options) {
+			prepareFunc: func(t *testing.T) {
 				testDir = fs.NewDir(t, "TestSetupWorkingDirectories")
 				daemonOpts.DataRoot = testDir.Join("data")
 				daemonOpts.RunRoot = testDir.Join("run")
@@ -86,7 +85,7 @@ func TestSetupWorkingDirectories(t *testing.T) {
 		},
 		{
 			name: "TC6 - abnormal - Relative path",
-			prepareFunc: func(t *testing.T, daemonOpts *daemon.Options) {
+			prepareFunc: func(t *testing.T) {
 				daemonOpts.DataRoot = "foo/bar"
 				daemonOpts.RunRoot = "foo/bar"
 			},
@@ -95,12 +94,10 @@ func TestSetupWorkingDirectories(t *testing.T) {
 	}
 	for _, tt := range testcases {
 		t.Run(tt.name, func(t *testing.T) {
-			d := &daemon.Options{}
-			tt.prepareFunc(t, d)
+			tt.prepareFunc(t)
 			defer testDir.Remove()
 
-			dirs := []string{d.RunRoot, d.DataRoot}
-			if err := setupWorkingDirectories(dirs); (err != nil) != tt.wantErr {
+			if err := setupWorkingDirectories(); (err != nil) != tt.wantErr {
 				t.Errorf("testing failed! err = %v, wantErr = %v", err, tt.wantErr)
 			}
 		})
