@@ -291,11 +291,19 @@ func (f *mockDaemon) save(_ context.Context, in *pb.SaveRequest, opts ...grpc.Ca
 
 func (f *mockDaemon) login(_ context.Context, in *pb.LoginRequest, opts ...grpc.CallOption) (*pb.LoginResponse, error) {
 	f.loginReq = in
-	serverLen := len(f.loginReq.Server)
+	username := f.loginReq.Username
+	password := f.loginReq.Password
+	server := f.loginReq.Server
+	serverLen := len(server)
 	if serverLen == 0 || serverLen > 128 {
 		return &pb.LoginResponse{
 			Content: "Login Failed",
 		}, errors.New("empty server address")
+	}
+	if username == "" && password == "" && server != "" {
+		return &pb.LoginResponse{
+			Content: "Failed to authenticate existing credentials",
+		}, errors.New("Failed to authenticate existing credentials")
 	}
 
 	return &pb.LoginResponse{Content: "Success"}, nil

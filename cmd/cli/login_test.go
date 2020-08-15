@@ -17,12 +17,10 @@ import (
 	"bytes"
 	"context"
 	"errors"
-	"fmt"
 	"io"
 	"strings"
 	"testing"
 
-	"github.com/spf13/cobra"
 	"gotest.tools/assert"
 )
 
@@ -33,7 +31,7 @@ func TestNewLoginCmd(t *testing.T) {
 	args := []string{"test.org"}
 	err = loginCommand(loginCmd, args)
 	if err != nil {
-		assert.ErrorContains(t, err, "auth info can not be empty")
+		assert.ErrorContains(t, err, "isula_build.sock")
 	}
 }
 
@@ -120,14 +118,18 @@ func TestRunLogin(t *testing.T) {
 	type testcase struct {
 		name      string
 		server    string
-		errString string
+		username  string
+		password  string
 		wantErr   bool
+		errString string
 	}
 	var testcases = []testcase{
 		{
-			name:    "TC1 - normal case",
-			server:  "test.org",
-			wantErr: false,
+			name:     "TC1 - normal case",
+			server:   "test.org",
+			username: "testUser",
+			password: "testPass",
+			wantErr:  false,
 		},
 		{
 			name:      "TC2 - abnormal case with empty server",
@@ -135,111 +137,30 @@ func TestRunLogin(t *testing.T) {
 			wantErr:   true,
 			errString: "empty server address",
 		},
+		{
+			name:     "TC3 - abnormal case with empty password",
+			server:   "test.org",
+			username: "testUser",
+			password: "",
+			wantErr:  true,
+		},
 	}
 	for _, tc := range testcases {
 		ctx := context.Background()
 		mockD := newMockDaemon()
 		cli := newMockClient(&mockGrpcClient{loginFunc: mockD.login})
 
-		loginOpts.server = tc.server
-		_, err := runLogin(ctx, &cli)
+		c := NewLoginCmd()
+		loginOpts = loginOptions{
+			server:   tc.server,
+			username: tc.username,
+			password: tc.password,
+		}
+
+		_, err := runLogin(ctx, &cli, c)
 		assert.Equal(t, err != nil, tc.wantErr, "Failed at [%s], err: %v", tc.name, err)
 		if err != nil {
 			assert.ErrorContains(t, err, tc.errString)
 		}
-	}
-}
-
-func TestNewLoginOptions(t *testing.T) {
-	type args struct {
-		c    *cobra.Command
-		args []string
-	}
-	type flags struct {
-		username  string
-		passStdin bool
-	}
-	tests := []struct {
-		name      string
-		args      args
-		flags     flags
-		errString string
-	}{
-		{
-			name: "TC1 - normal case",
-			args: args{
-				c:    NewLoginCmd(),
-				args: []string{"test.org -u testuser"},
-			},
-			flags: flags{
-				username:  "aaa",
-				passStdin: true,
-			},
-			errString: "auth info can not be empty",
-		},
-		{
-			name: "TC2 - abnormal case with out username flag",
-			args: args{
-				c:    NewLoginCmd(),
-				args: []string{"test.org"},
-			},
-			flags: flags{
-				passStdin: true,
-			},
-			errString: "",
-		},
-		{
-			name: "TC3 - abnormal case with invalid args",
-			args: args{
-				c:    NewLoginCmd(),
-				args: []string{"a", "b"},
-			},
-			errString: "too many arguments, login only accepts 1 argument",
-		},
-		{
-			name: "TC4 - abnormal case with empty args",
-			args: args{
-				c:    NewLoginCmd(),
-				args: []string{},
-			},
-			errString: "empty registry found",
-		},
-		{
-			name: "TC5 - abnormal case with empty args",
-			args: args{
-				c:    NewLoginCmd(),
-				args: []string{"/aaaa"},
-			},
-			errString: "invalid registry address",
-		},
-		{
-			name: "TC6 - abnormal case with long username",
-			args: args{
-				c:    NewLoginCmd(),
-				args: []string{"test.org"},
-			},
-			flags: flags{
-				username:  strings.Repeat("a", 129),
-				passStdin: true,
-			},
-			errString: "length of input exceeded",
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			if tt.flags.passStdin {
-				tt.args.c.Flag("password-stdin").Changed = true
-				tt.args.c.Flag("password-stdin").Value.Set(fmt.Sprintf("%v", tt.flags.passStdin))
-			}
-			if tt.flags.username != "" {
-				tt.args.c.Flag("username").Changed = true
-				tt.args.c.Flag("username").Value.Set(tt.flags.username)
-			}
-			tt.args.c.ParseFlags(tt.args.args)
-			err := newLoginOptions(tt.args.c, tt.args.args)
-			if err != nil {
-				assert.ErrorContains(t, err, tt.errString)
-			}
-		})
 	}
 }
