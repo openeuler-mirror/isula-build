@@ -2,7 +2,7 @@
 
 Name: isula-build
 Version: 0.9.2
-Release: 1
+Release: 2
 Summary: A tool to build container images
 License: Mulan PSL V2
 URL: https://gitee.com/openeuler/isula-build
@@ -25,6 +25,7 @@ isula-build is a tool used for container images building.
 %build
 cp %{SOURCE1} .
 %{make_build} safe
+./bin/isula-build completion > __isula-build
 
 %install
 install -d %{buildroot}%{_bindir}
@@ -42,6 +43,9 @@ install -p -m 600 ./cmd/daemon/config/configuration.toml %{buildroot}%{_sysconfd
 install -p -m 600 ./cmd/daemon/config/storage.toml %{buildroot}%{_sysconfdir}/isula-build/storage.toml
 install -p -m 600 ./cmd/daemon/config/registries.toml %{buildroot}%{_sysconfdir}/isula-build/registries.toml
 install -p -m 600 ./cmd/daemon/config/policy.json %{buildroot}%{_sysconfdir}/isula-build/policy.json
+# install bash completion script
+install -d %{buildroot}/usr/share/bash-completion/completions
+install -p -m 600 __isula-build %{buildroot}/usr/share/bash-completion/completions/isula-build
 
 %clean
 rm -rf %{buildroot}
@@ -73,11 +77,17 @@ systemctl start isula-build
 %config(noreplace) %attr(0600,root,root) %{_sysconfdir}/isula-build/storage.toml
 %config(noreplace) %attr(0600,root,root) %{_sysconfdir}/isula-build/registries.toml
 %config(noreplace) %attr(0600,root,root) %{_sysconfdir}/isula-build/policy.json
+/usr/share/bash-completion/completions/isula-build
 
 %changelog
+* Sat Aug 15 2020 lixiang <lixiang172@huawei.com> - 0.9.2-2
+- Add bash completion script in rpm
+
 * Wed Aug 12 2020 xiadanni <xiadanni1@huawei.com> - 0.9.2-1
 - Bump version to 0.9.2
+
 * Wed Aug 05 2020 xiadanni <xiadanni1@huawei.com> - 0.9.1-1
 - Bump version to 0.9.1
+
 * Sat Jul 25 2020 lixiang <lixiang172@huawei.com> - 0.9.0-1
 - Package init
