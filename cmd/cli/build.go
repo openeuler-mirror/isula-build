@@ -44,6 +44,7 @@ type buildOptions struct {
 	file          string
 	output        string
 	buildArgs     []string
+	capAddList    []string
 	encryptKey    string
 	contextDir    string
 	buildID       string
@@ -110,6 +111,7 @@ func NewBuildCmd() *cobra.Command {
 	buildCmd.PersistentFlags().BoolVarP(&buildOpts.proxyFlag, "proxy", "", true, "Inherit proxy environment variables from host")
 	buildCmd.PersistentFlags().VarP(&buildOpts.buildStatic, "build-static", "", "Static build with the given option")
 	buildCmd.PersistentFlags().StringArrayVar(&buildOpts.buildArgs, "build-arg", []string{}, "Arguments used during build time")
+	buildCmd.PersistentFlags().StringArrayVar(&buildOpts.capAddList, "cap-add", []string{}, "Add Linux capabilities for RUN command")
 	buildCmd.PersistentFlags().StringVar(&buildOpts.imageIDFile, "iidfile", "", "Write image ID to the file")
 	buildCmd.PersistentFlags().StringVarP(&buildOpts.additionalTag, "tag", "", "", "Add tag to the built image")
 
@@ -271,6 +273,12 @@ func runBuild(ctx context.Context, cli Cli) (string, error) {
 		imageIDFilePath string
 	)
 
+	for _, c := range buildOpts.capAddList {
+		if !util.CheckCap(c) {
+			return "", errors.Errorf("cap %v is invalid", c)
+		}
+	}
+
 	if dest, isIsulad, err = checkAndProcessOutput(); err != nil {
 		return "", err
 	}
@@ -295,6 +303,7 @@ func runBuild(ctx context.Context, cli Cli) (string, error) {
 		BuildType:     constant.BuildContainerImageType,
 		BuildID:       buildOpts.buildID,
 		BuildArgs:     buildOpts.buildArgs,
+		CapAddList:    buildOpts.capAddList,
 		EncryptKey:    buildOpts.encryptKey,
 		ContextDir:    buildOpts.contextDir,
 		FileContent:   content,

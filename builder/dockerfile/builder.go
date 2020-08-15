@@ -49,6 +49,7 @@ type BuildOptions struct {
 	File          string
 	Iidfile       string
 	Output        []string
+	CapAddList    []string
 	ProxyFlag     bool
 	Tag           string
 	AdditionalTag string
@@ -98,10 +99,17 @@ func NewBuilder(ctx context.Context, store store.Store, req *pb.BuildRequest, ru
 		return nil, errors.Wrap(err, "parse build-arg failed")
 	}
 
+	for _, c := range req.GetCapAddList() {
+		if !util.CheckCap(c) {
+			return nil, errors.Errorf("cap %v is invalid", c)
+		}
+	}
+
 	b.buildOpts = BuildOptions{
 		ContextDir: req.GetContextDir(),
 		File:       req.GetFileContent(),
 		BuildArgs:  args,
+		CapAddList: req.GetCapAddList(),
 		ProxyFlag:  req.GetProxy(),
 		Iidfile:    req.GetIidfile(),
 	}

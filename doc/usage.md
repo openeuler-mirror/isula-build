@@ -14,6 +14,7 @@
             * [-o, --output](#-o---output)
             * [--proxy](#--proxy)
             * [--tag](#--tag)
+            * [--cap-add](#--cap-add)
         * [Viewing a Local Persistent Image](#viewing-a-local-persistent-image)
         * [Importing a Base Image from a Tarball](#importing-a-base-image-from-a-tarball)
         * [Saving a Local Persistent Image](#saving-a-local-persistent-image)
@@ -111,6 +112,7 @@ The build contains the following flags:
 - -o, --output: string, specifies the image export mode and path
 - --proxy: bool, which inherits the proxy environment variable on the host side. The default value is true
 - --tag: string, add tag to the built image
+- --cap-add: string slice, which is added in RUN command during the build process
 
 #### --build-arg
 
@@ -214,6 +216,14 @@ add tag to the built image
 Usage:
 
 `isula-build ctr-img build --tag busybox:latest`
+
+#### --cap-add
+
+add Linux capabilities for RUN command
+
+Usage:
+
+`isula-build ctr-img build --cap-add CAP_SYS_ADMIN `
 
 ### Viewing a Local Persistent Image
 

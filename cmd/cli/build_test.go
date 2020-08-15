@@ -559,3 +559,60 @@ func TestGetAbsPath(t *testing.T) {
 		})
 	}
 }
+
+func TestRunBuildWithCap(t *testing.T) {
+	tests := []struct {
+		name    string
+		caps    []string
+		isErr   bool
+		wantErr bool
+	}{
+		{
+			name: "1 cap null",
+			caps: []string{},
+		},
+		{
+			name: "2 cap valid 1",
+			caps: []string{"CAP_SYS_ADMIN"},
+		},
+		{
+			name: "3 cap valid 2",
+			caps: []string{"CAP_SYS_ADMIN", "CAP_CHOWN"},
+		},
+		{
+			name:  "4 cap invalid 1",
+			caps:  []string{"CAP_SYS_ADMINsss", "CAP_CHOWN"},
+			isErr: true,
+		},
+		{
+			name:  "5 cap invalid 2",
+			caps:  []string{"CAP_SY2123", "CAP_CHOWN"},
+			isErr: true,
+		},
+		{
+			name:  "6 cap invalid 3",
+			caps:  []string{"CAP_SYS_ADMINsss", "CAP_CHOWN123"},
+			isErr: true,
+		},
+	}
+	dockerfile := `
+		FROM busybox:latest
+		RUN echo hello world
+		`
+	tmpDir := fs.NewDir(t, t.Name(), fs.WithFile("Dockerfile", dockerfile))
+	defer tmpDir.Remove()
+	buildOpts.file = tmpDir.Join("Dockerfile")
+	mockBuild := newMockDaemon()
+	ctx := context.Background()
+	cli := newMockClient(&mockGrpcClient{imageBuildFunc: mockBuild.build})
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			buildOpts.capAddList = tt.caps
+			_, err := runBuild(ctx, &cli)
+			if tt.isErr {
+				assert.ErrorContains(t, err, "is invalid")
+			}
+		})
+	}
+}
