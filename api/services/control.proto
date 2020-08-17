@@ -69,6 +69,8 @@ message BuildRequest {
     string encryptKey = 10;
     // additionalTag is the tag applied to the built image
     string additionalTag = 11;
+    // capAddList indicates Linux capabilities for RUN command
+    repeated string capAddList = 12;
 }
 
 message ImportRequest {

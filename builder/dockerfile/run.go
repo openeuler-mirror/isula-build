@@ -131,6 +131,13 @@ func (c *cmdBuilder) setupRuntimeSpec(command []string) (*specs.Spec, error) {
 		g.AddLinuxReadonlyPaths(rp)
 	}
 
+	// add capability
+	for _, cap := range c.stage.builder.buildOpts.CapAddList {
+		if aerr := g.AddProcessCapability(cap); aerr != nil {
+			return nil, errors.Wrapf(aerr, "runner: add process capability %v failed", cap)
+		}
+	}
+
 	return g.Config, nil
 }
 
