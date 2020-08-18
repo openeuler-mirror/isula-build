@@ -14,7 +14,9 @@ LDFLAGS := -X isula.org/isula-build/pkg/version.GitCommit=$(GIT_COMMIT) \
            $(EXTRALDFLAGS)
 BUILDTAGS := seccomp
 BUILDFLAGS := -tags "$(BUILDTAGS)"
-SAFEBUILDFLAGS := -buildid=IdByIsula -buildmode=pie -extldflags=-static -extldflags=-zrelro -extldflags=-znow $(LDFLAGS)
+TMPDIR := /tmp/isula_build_tmpdir
+BEFLAG := -tmpdir=${TMPDIR}
+SAFEBUILDFLAGS := -buildid=IdByIsula -buildmode=pie -extldflags=-static -extldflags=-zrelro -extldflags=-znow $(LDFLAGS) $(BEFLAG)
 
 IMAGE_BUILDARGS := $(if $(http_proxy), --build-arg http_proxy=$(http_proxy))
 IMAGE_BUILDARGS += $(if $(https_proxy), --build-arg https_proxy=$(https_proxy))
@@ -47,6 +49,7 @@ isula-builder: ./cmd/daemon
 .PHONY: safe
 safe:
 	@echo "Safe building isula-build..."
+	mkdir -p ${TMPDIR}
 	$(GO_BUILD) -ldflags '$(SAFEBUILDFLAGS)' -o bin/isula-build $(BUILDFLAGS) ./cmd/cli
 	$(GO_BUILD) -ldflags '$(SAFEBUILDFLAGS)' -o bin/isula-builder $(BUILDFLAGS) ./cmd/daemon
 	@echo "Safe build isula-build done!"
@@ -55,8 +58,8 @@ safe:
 debug:
 	@echo "Debug building isula-build..."
 	@cp -f ./hack/profiling ./daemon/profiling.go
-	$(GO_BUILD) -ldflags '$(SAFEBUILDFLAGS)' -o bin/isula-build $(BUILDFLAGS) ./cmd/cli
-	$(GO_BUILD) -ldflags '$(SAFEBUILDFLAGS)' -o bin/isula-builder $(BUILDFLAGS) ./cmd/daemon
+	$(GO_BUILD) -ldflags '$(LDFLAGS)' -gcflags="all=-N -l" -o bin/isula-build $(BUILDFLAGS) ./cmd/cli
+	$(GO_BUILD) -ldflags '$(LDFLAGS)'-gcflags="all=-N -l" -o bin/isula-builder $(BUILDFLAGS) ./cmd/daemon
 	@rm -f ./daemon/profiling.go
 	@echo "Debug build isula-build done!"
 
