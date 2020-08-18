@@ -408,6 +408,11 @@ func (b *Builder) Build() (string, error) {
 		imageID      string
 	)
 
+	// 6. defer cleanup
+	defer func() {
+		b.cleanup()
+	}()
+
 	// 1. parseFiles
 	if err = b.parseFiles(); err != nil {
 		return "", err
@@ -417,11 +422,6 @@ func (b *Builder) Build() (string, error) {
 	if err = b.newStageBuilders(); err != nil {
 		return "", err
 	}
-
-	// 6. defer cleanup
-	defer func() {
-		b.cleanup()
-	}()
 
 	// 3. loop StageBuilders for building
 	for _, stage := range b.stageBuilders {
