@@ -138,6 +138,13 @@ func (c *cmdBuilder) getCopyContextDir(from string) (string, func(), error) {
 		}
 	}
 
+	// update cert path in case it is different between FROM and --from
+	server, err := util.ParseServer(from)
+	if err != nil {
+		return "", nil, err
+	}
+	c.stage.buildOpt.systemContext.DockerCertPath = filepath.Join(constant.DefaultCertRoot, server)
+
 	// "from" is neither name nor index of stage, consider that "from" is image description
 	imgDesc, err := prepareImage(&image.PrepareImageOptions{
 		Ctx:           c.ctx,
