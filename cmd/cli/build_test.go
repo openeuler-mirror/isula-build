@@ -602,6 +602,7 @@ func TestRunBuildWithCap(t *testing.T) {
 	tmpDir := fs.NewDir(t, t.Name(), fs.WithFile("Dockerfile", dockerfile))
 	defer tmpDir.Remove()
 	buildOpts.file = tmpDir.Join("Dockerfile")
+	buildOpts.output = "docker-daemon:cap:latest"
 	mockBuild := newMockDaemon()
 	ctx := context.Background()
 	cli := newMockClient(&mockGrpcClient{imageBuildFunc: mockBuild.build})
