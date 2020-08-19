@@ -40,7 +40,6 @@ const lockFileName = "isula-builder.lock"
 
 // Options carries the options configured to daemon
 type Options struct {
-	ConfigFile    string
 	Debug         bool
 	LogLevel      string
 	DataRoot      string

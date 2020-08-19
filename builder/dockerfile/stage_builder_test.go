@@ -32,7 +32,6 @@ import (
 
 	constant "isula.org/isula-build"
 	dockerfile "isula.org/isula-build/builder/dockerfile/parser"
-	"isula.org/isula-build/image"
 	"isula.org/isula-build/pkg/docker"
 	"isula.org/isula-build/pkg/logger"
 	"isula.org/isula-build/pkg/parser"
@@ -202,9 +201,9 @@ CMD ["sh"]`
 				builder:   getBuilder(),
 				fromImage: "",
 				buildOpt: &stageBuilderOption{systemContext: &types.SystemContext{
-					SignaturePolicyPath:      image.DefaultSignaturePolicyPath,
-					SystemRegistriesConfPath: image.DefaultRegistryConfigPath,
-					RegistriesDirPath:        image.DefaultRegistryDirPath,
+					SignaturePolicyPath:      constant.SignaturePolicyPath,
+					SystemRegistriesConfPath: constant.RegistryConfigPath,
+					RegistriesDirPath:        constant.RegistryDirPath,
 				}},
 				rawStage: generateOneRawStage(t, contentJustForFillLog),
 			},
@@ -217,9 +216,9 @@ CMD ["sh"]`
 				builder:   getBuilder(),
 				fromImage: filepath.Join(testUtil.DefaultTestRegistry, getImageDesc()),
 				buildOpt: &stageBuilderOption{systemContext: &types.SystemContext{
-					SignaturePolicyPath:      image.DefaultSignaturePolicyPath,
-					SystemRegistriesConfPath: image.DefaultRegistryConfigPath,
-					RegistriesDirPath:        image.DefaultRegistryDirPath,
+					SignaturePolicyPath:      constant.SignaturePolicyPath,
+					SystemRegistriesConfPath: constant.RegistryConfigPath,
+					RegistriesDirPath:        constant.RegistryDirPath,
 				}},
 				rawStage: generateOneRawStage(t, contentJustForFillLog),
 			},
@@ -234,9 +233,9 @@ CMD ["sh"]`
 				name:    "stage3",
 				builder: getBuilder(),
 				buildOpt: &stageBuilderOption{systemContext: &types.SystemContext{
-					SignaturePolicyPath:      image.DefaultSignaturePolicyPath,
-					SystemRegistriesConfPath: image.DefaultRegistryConfigPath,
-					RegistriesDirPath:        image.DefaultRegistryDirPath,
+					SignaturePolicyPath:      constant.SignaturePolicyPath,
+					SystemRegistriesConfPath: constant.RegistryConfigPath,
+					RegistriesDirPath:        constant.RegistryDirPath,
 				}},
 				rawStage: generateOneRawStage(t, contentJustForFillLog),
 			},
@@ -251,9 +250,9 @@ CMD ["sh"]`
 				builder:   getBuilder(),
 				fromImage: filepath.Join(testUtil.DefaultTestRegistry, getImageDesc()),
 				buildOpt: &stageBuilderOption{systemContext: &types.SystemContext{
-					SignaturePolicyPath:      image.DefaultSignaturePolicyPath,
-					SystemRegistriesConfPath: image.DefaultRegistryConfigPath,
-					RegistriesDirPath:        image.DefaultRegistryDirPath,
+					SignaturePolicyPath:      constant.SignaturePolicyPath,
+					SystemRegistriesConfPath: constant.RegistryConfigPath,
+					RegistriesDirPath:        constant.RegistryDirPath,
 				}},
 				rawStage: generateOneRawStage(t, contentJustForFillLog),
 			},
@@ -270,9 +269,9 @@ CMD ["sh"]`
 				// NOTE:If the digest changes, the test case fails to be executed.
 				fromImage: filepath.Join(testUtil.DefaultTestRegistry, getImageDigest()),
 				buildOpt: &stageBuilderOption{systemContext: &types.SystemContext{
-					SignaturePolicyPath:      image.DefaultSignaturePolicyPath,
-					SystemRegistriesConfPath: image.DefaultRegistryConfigPath,
-					RegistriesDirPath:        image.DefaultRegistryDirPath,
+					SignaturePolicyPath:      constant.SignaturePolicyPath,
+					SystemRegistriesConfPath: constant.RegistryConfigPath,
+					RegistriesDirPath:        constant.RegistryDirPath,
 				}},
 				rawStage: generateOneRawStage(t, contentJustForFillLog),
 			},
@@ -286,9 +285,9 @@ CMD ["sh"]`
 				builder:   getBuilder(),
 				fromImage: filepath.Join(testUtil.DefaultTestRegistry, "busybox@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"),
 				buildOpt: &stageBuilderOption{systemContext: &types.SystemContext{
-					SignaturePolicyPath:      image.DefaultSignaturePolicyPath,
-					SystemRegistriesConfPath: image.DefaultRegistryConfigPath,
-					RegistriesDirPath:        image.DefaultRegistryDirPath,
+					SignaturePolicyPath:      constant.SignaturePolicyPath,
+					SystemRegistriesConfPath: constant.RegistryConfigPath,
+					RegistriesDirPath:        constant.RegistryDirPath,
 				}},
 				rawStage: generateOneRawStage(t, contentJustForFillLog),
 			},
@@ -302,8 +301,8 @@ CMD ["sh"]`
 				builder:   getBuilder(),
 				fromImage: filepath.Join(testUtil.DefaultTestRegistry, "busybox:aaaaaaaaaaa"),
 				buildOpt: &stageBuilderOption{systemContext: &types.SystemContext{
-					SignaturePolicyPath:      image.DefaultSignaturePolicyPath,
-					SystemRegistriesConfPath: image.DefaultRegistryConfigPath,
+					SignaturePolicyPath:      constant.SignaturePolicyPath,
+					SystemRegistriesConfPath: constant.RegistryConfigPath,
 				}},
 				rawStage: generateOneRawStage(t, contentJustForFillLog),
 			},
@@ -317,9 +316,9 @@ CMD ["sh"]`
 				builder:   getBuilder(),
 				fromImage: "scratch",
 				buildOpt: &stageBuilderOption{systemContext: &types.SystemContext{
-					SignaturePolicyPath:      image.DefaultSignaturePolicyPath,
-					SystemRegistriesConfPath: image.DefaultRegistryConfigPath,
-					RegistriesDirPath:        image.DefaultRegistryDirPath,
+					SignaturePolicyPath:      constant.SignaturePolicyPath,
+					SystemRegistriesConfPath: constant.RegistryConfigPath,
+					RegistriesDirPath:        constant.RegistryDirPath,
 				}},
 				rawStage: generateOneRawStage(t, contentJustForFillLog),
 			},

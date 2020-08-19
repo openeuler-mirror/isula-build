@@ -18,6 +18,8 @@ import (
 	"os"
 	"os/exec"
 	"testing"
+
+	constant "isula.org/isula-build"
 )
 
 func doCmd(cmd string) {
@@ -96,10 +98,11 @@ func TestSetSystemContext(t *testing.T) {
 		}
 	}
 
-	prepareFunc(DefaultSignaturePolicyPath)
-	prepareFunc(DefaultRegistryConfigPath)
+	prepareFunc(constant.SignaturePolicyPath)
+	prepareFunc(constant.RegistryConfigPath)
+	dataRoot := constant.DefaultDataRoot
 
-	SetSystemContext()
+	SetSystemContext(dataRoot)
 }
 
 func TestGetSystemContext(t *testing.T) {

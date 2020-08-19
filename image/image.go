@@ -48,23 +48,6 @@ import (
 	"isula.org/isula-build/util"
 )
 
-var (
-	// DefaultRegistryConfigPath describes the config path of registries
-	DefaultRegistryConfigPath = "/etc/isula-build/registries.toml"
-
-	// DefaultSignaturePolicyPath describes the policy path
-	DefaultSignaturePolicyPath = "/etc/isula-build/policy.json"
-
-	// DefaultRegistryDirPath is the dir to store registry configs
-	DefaultRegistryDirPath = "/etc/isula-build/registries.d"
-
-	// DefaultBlobInfoCacheDirPath is the dir to cache blob info
-	DefaultBlobInfoCacheDirPath = "/var/lib/isula-build"
-
-	// DefaultAuthFile is authentication file used for registry connection
-	DefaultAuthFile = "/etc/isula-build/auth.json"
-)
-
 // PrepareImageOptions describes the options required for preparing the image
 type PrepareImageOptions struct {
 	SystemContext *types.SystemContext

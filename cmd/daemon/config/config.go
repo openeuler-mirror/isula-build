@@ -14,23 +14,11 @@
 // Package config package implements isula-build daemon config
 package config
 
-// TomlConfig defines the configuration of isula-builder, it will work
-// if the daemon starts with "--config path" and the file exists
+// TomlConfig defines the configuration of isula-builder
 type TomlConfig struct {
 	Debug    bool   `toml:"debug"`
 	LogLevel string `toml:"loglevel"`
 	Runtime  string `toml:"runtime"`
 	RunRoot  string `toml:"run_root"`
 	DataRoot string `toml:"data_root"`
-	Storage  storage
-	Image    image
-}
-
-type storage struct {
-	ConfigPath string `toml:"storage_config_path"`
-}
-
-type image struct {
-	RegistryConfigPath  string `toml:"registry_config_path"`
-	SignaturePolicyPath string `toml:"signature_policy_path"`
 }
