@@ -30,14 +30,15 @@ import (
 )
 
 const (
-	loginSuccess       = "Login Succeeded"
-	loginWithAuthFile  = "Login Succeed with AuthFile"
-	loginFailed        = "Login Failed"
-	loginUnauthorized  = "Unauthorized login attempt"
-	loginSetAuthFailed = "Set Auth Failed"
-	emptyKey           = "empty key found"
-	emptyServer        = "empty server address"
-	emptyAuth          = "empty auth info"
+	loginSuccess             = "Login Succeeded"
+	loginFailed              = "Login Failed"
+	loginUnauthorized        = "Unauthorized login attempt"
+	loginSetAuthFailed       = "Set Auth Failed"
+	emptyKey                 = "empty key found"
+	emptyServer              = "empty server address"
+	emptyAuth                = "empty auth info"
+	errTryToUseAuth          = "Failed to authenticate existing credentials, try to use auth directly"
+	loginSuccessWithAuthFile = "Login Succeed with AuthFile"
 )
 
 // Login returns login response
@@ -51,33 +52,35 @@ func (b *Backend) Login(ctx context.Context, req *pb.LoginRequest) (*pb.LoginRes
 		return &pb.LoginResponse{Content: loginFailed}, err
 	}
 
+	sysCtx := image.GetSystemContext()
+	sysCtx.DockerCertPath = filepath.Join(constant.DefaultCertRoot, req.Server)
+
+	if loginWithAuthFile(req) {
+		auth, err := config.GetCredentials(sysCtx, req.Server)
+		if err != nil || auth.Password == "" {
+			auth = types.DockerAuthConfig{}
+			return &pb.LoginResponse{Content: errTryToUseAuth}, errors.Errorf("failed to read auth file: %v", errTryToUseAuth)
+		}
+
+		usernameFromAuth, passwordFromAuth := auth.Username, auth.Password
+		// use existing credentials from authFile if any
+		if usernameFromAuth != "" && passwordFromAuth != "" {
+			logrus.Infof("Authenticating with existing credentials")
+			err = docker.CheckAuth(ctx, sysCtx, usernameFromAuth, passwordFromAuth, req.Server)
+			if err == nil {
+				logrus.Infof("Success login server: %s by auth file with username: %s", req.Server, usernameFromAuth)
+				return &pb.LoginResponse{Content: loginSuccessWithAuthFile}, nil
+			}
+			return &pb.LoginResponse{Content: errTryToUseAuth}, errors.Wrap(err, errTryToUseAuth)
+		}
+	}
+
+	// use username and password from client to access
 	password, err := util.DecryptAES(req.Password, req.Key)
 	if err != nil {
 		return &pb.LoginResponse{Content: err.Error()}, err
 	}
 
-	sysCtx := image.GetSystemContext()
-	sysCtx.DockerCertPath = filepath.Join(constant.DefaultCertRoot, req.Server)
-
-	auth, err := config.GetCredentials(sysCtx, req.Server)
-	if err != nil {
-		auth = types.DockerAuthConfig{}
-		return &pb.LoginResponse{Content: err.Error()}, errors.Wrapf(err, "failed to read auth file %v", constant.AuthFilePath)
-	}
-
-	usernameFromAuth, passwordFromAuth := auth.Username, auth.Password
-	// use existing credentials from authFile if any
-	if usernameFromAuth != "" && passwordFromAuth != "" {
-		logrus.Infof("Authenticating with existing credentials")
-		err = docker.CheckAuth(ctx, sysCtx, usernameFromAuth, passwordFromAuth, req.Server)
-		if err == nil {
-			logrus.Infof("Success login server: %s by auth file with username: %s", req.Server, usernameFromAuth)
-			return &pb.LoginResponse{Content: loginWithAuthFile}, err
-		}
-		logrus.Infof("Failed to authenticate existing credentials, try to use auth directly")
-	}
-
-	// use username and password from client to access
 	if err = docker.CheckAuth(ctx, sysCtx, req.Username, password, req.Server); err != nil {
 		// check if user is authorized
 		if _, ok := err.(docker.ErrUnauthorizedForCredentials); ok {
@@ -95,7 +98,20 @@ func (b *Backend) Login(ctx context.Context, req *pb.LoginRequest) (*pb.LoginRes
 	return &pb.LoginResponse{Content: loginSuccess}, nil
 }
 
+func loginWithAuthFile(req *pb.LoginRequest) bool {
+	if req.Password == "" && req.Username == "" && req.Server != "" {
+		return true
+	}
+	return false
+}
+
 func validLoginOpts(req *pb.LoginRequest) error {
+	// in this scenario, the client just send server address to backend,
+	// there is no pass and user name info sent to here.
+	// we just check if there is valid auth info in auth.json later.
+	if req.Password == "" && req.Username == "" && req.Server != "" {
+		return nil
+	}
 	if req.Key == "" {
 		return errors.New(emptyKey)
 	}

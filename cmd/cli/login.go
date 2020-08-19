@@ -76,9 +76,16 @@ func NewLoginCmd() *cobra.Command {
 }
 
 func loginCommand(c *cobra.Command, args []string) error {
-	if err := newLoginOptions(c, args); err != nil {
+	if len(args) == 0 {
+		return errEmptyRegistry
+	}
+	if len(args) > 1 {
+		return errTooManyArgs
+	}
+	if err := getRegistry(args); err != nil {
 		return err
 	}
+
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
@@ -86,7 +93,7 @@ func loginCommand(c *cobra.Command, args []string) error {
 	if err != nil {
 		return err
 	}
-	msg, err := runLogin(ctx, cli)
+	msg, err := runLogin(ctx, cli, c)
 	fmt.Println(msg)
 	if err != nil {
 		return err
@@ -94,44 +101,75 @@ func loginCommand(c *cobra.Command, args []string) error {
 	return nil
 }
 
-func runLogin(ctx context.Context, cli Cli) (string, error) {
-	if err := encryptOpts(); err != nil {
+func runLogin(ctx context.Context, cli Cli, c *cobra.Command) (string, error) {
+	req, err := genLoginReq(c, false)
+	if err != nil {
 		return "", err
-	}
-	req := &pb.LoginRequest{
-		Server:   loginOpts.server,
-		Username: loginOpts.username,
-		Password: loginOpts.password,
-		Key:      loginOpts.key,
 	}
 	resp, err := cli.Client().Login(ctx, req)
 	if err != nil {
+		if strings.Contains(err.Error(), "Failed to authenticate existing credentials") {
+			fmt.Printf("Failed to authenticate existing credentials, please input auth info directly\n\n")
+			if err = getAuthInfo(c); err != nil {
+				return "", err
+			}
+			req, err = genLoginReq(c, true)
+			if err != nil {
+				return "", err
+			}
+			resp, err = cli.Client().Login(ctx, req)
+			if err != nil {
+				return loginFailed, err
+			}
+			return resp.Content, err
+		}
 		return loginFailed, err
 	}
+
 	return resp.Content, err
 }
 
-func newLoginOptions(c *cobra.Command, args []string) error {
-	if len(args) == 0 {
-		return errEmptyRegistry
-	}
-	if len(args) > 1 {
-		return errTooManyArgs
-	}
-
-	if err := getRegistry(args); err != nil {
-		return err
-	}
-
+func getAuthInfo(c *cobra.Command) error {
 	if err := getUsername(c); err != nil {
 		return err
 	}
-
 	if err := getPassword(c); err != nil {
 		return err
 	}
 
 	return nil
+}
+
+func genLoginReq(c *cobra.Command, shouldGetAuthInfo bool) (*pb.LoginRequest, error) {
+	// first check auth info from auth.json, so no auth info
+	// should be send from client to server
+	if loginOpts.username == "" && loginOpts.password == "" {
+		fmt.Printf("try to login with existing credentials...\n\n")
+		return &pb.LoginRequest{
+			Server:   loginOpts.server,
+			Username: "",
+			Password: "",
+			Key:      "",
+		}, nil
+	}
+
+	// if shouldGetAuthInfo is false, we don't need to getAuthInfo again
+	// because this action will do in outer place
+	if shouldGetAuthInfo || loginOpts.username != "" {
+		if err := getAuthInfo(c); err != nil {
+			return nil, err
+		}
+	}
+	if err := encryptOpts(); err != nil {
+		return nil, err
+	}
+	return &pb.LoginRequest{
+		Server:   loginOpts.server,
+		Username: loginOpts.username,
+		Password: loginOpts.password,
+		Key:      loginOpts.key,
+	}, nil
+
 }
 
 func getRegistry(args []string) error {
@@ -144,6 +182,11 @@ func getRegistry(args []string) error {
 }
 
 func getUsername(c *cobra.Command) error {
+	// in this scenario, it is second time trying to get username
+	// if already got it, there is no need to get username again
+	if loginOpts.username != "" {
+		return nil
+	}
 	username, err := c.Flags().GetString("username")
 	if err != nil {
 		return err
@@ -167,6 +210,11 @@ func getUsername(c *cobra.Command) error {
 }
 
 func getPassword(c *cobra.Command) error {
+	// in this scenario, it is second time trying to get password
+	// if already got it, there is no need to get pass again
+	if loginOpts.password != "" {
+		return nil
+	}
 	if c.Flag("password-stdin").Changed && !c.Flag("username").Changed {
 		return errLackOfFlags
 	}
