@@ -141,7 +141,7 @@ func pullAndGetImageInfo(opt *PrepareImageOptions) (types.ImageReference, *stora
 
 	// record the last pull error
 	var errPull error
-	const tagSeperator = ":"
+	const tagSeperator = "://"
 	for _, strImage := range candidates {
 		if transport != util.DefaultTransport {
 			transport += tagSeperator

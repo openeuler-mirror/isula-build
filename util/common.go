@@ -145,11 +145,14 @@ func ParseServer(server string) (string, error) {
 	}
 	// first trim prefix https:// and http://
 	server = strings.TrimPrefix(strings.TrimPrefix(server, "https://"), "http://")
+	// then trim prefix docker://
+	server = strings.TrimPrefix(server, DefaultTransport)
 	// always get first part split by "/"
 	fields := strings.Split(server, "/")
 	if fields[0] == "" {
 		return "", errors.Errorf("invalid registry address %s", server)
 	}
+
 	return fields[0], nil
 }
 

@@ -88,3 +88,82 @@ func TestCheckFileSize(t *testing.T) {
 		})
 	}
 }
+
+func TestParseServer(t *testing.T) {
+	type args struct {
+		server string
+	}
+	tests := []struct {
+		name    string
+		args    args
+		want    string
+		wantErr bool
+	}{
+		{
+			name:    "TC1 - normal server address with http prefix",
+			args:    args{server: "http://mydockerhub.org"},
+			want:    "mydockerhub.org",
+			wantErr: false,
+		},
+		{
+			name:    "TC2 - normal server address with https prefix",
+			args:    args{server: "https://mydockerhub.org"},
+			want:    "mydockerhub.org",
+			wantErr: false,
+		},
+		{
+			name:    "TC3 - normal server address with docker prefix",
+			args:    args{server: "docker://mydockerhub.org"},
+			want:    "mydockerhub.org",
+			wantErr: false,
+		},
+		{
+			name:    "TC4 - normal server address with none prefix",
+			args:    args{server: "mydockerhub.org"},
+			want:    "mydockerhub.org",
+			wantErr: false,
+		},
+		{
+			name:    "TC5 - normal server address with other suffix",
+			args:    args{server: "mydockerhub.org/test/test1"},
+			want:    "mydockerhub.org",
+			wantErr: false,
+		},
+		{
+			name:    "TC6 - normal server address with other suffix",
+			args:    args{server: "https://mydockerhub.org/test/test1"},
+			want:    "mydockerhub.org",
+			wantErr: false,
+		},
+		{
+			name:    "TC7 - normal server address with other suffix 2",
+			args:    args{server: "mydockerhub.org/test/test1:3030"},
+			want:    "mydockerhub.org",
+			wantErr: false,
+		},
+		{
+			name:    "TC8 - abnormal server address",
+			args:    args{server: "/mydockerhub.org"},
+			want:    "",
+			wantErr: true,
+		},
+		{
+			name:    "TC9 - abnormal server address with wrong prefix 2",
+			args:    args{server: "http:///mydockerhub.org"},
+			want:    "",
+			wantErr: true,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := ParseServer(tt.args.server)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("ParseServer() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+			if got != tt.want {
+				t.Errorf("ParseServer() got = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
