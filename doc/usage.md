@@ -36,14 +36,12 @@
 
 isula-builder contains the following configuration files:
 
-- `/etc/isula-build/configuration.toml`: isula-builder overall configuration file, which is used to set the isula-builder log level, persistency and runtime directories, OCI runtime. Besides, other configs path are also included.
+- `/etc/isula-build/configuration.toml`: isula-builder overall configuration file, which is used to set the isula-builder log level, persistency and runtime directories, OCI runtime.
     - debug: specifies whether to enable the debug log function. The options are true or false
     - loglevel: specifies the log level. The value can be "debug", "info", "warn", or "error"
     - data_root: set the local persistency directory
     - run_root: set runtime data directory
     - runtime: runtime type. Currently, "runc" is supported only
-    - storage_config_path: path of the configuration file for local persistent storage
-    - registry_config_path: specifies the address of the image repository configuration file
 - `/etc/isula-build/storage.toml`: configuration file of the local persistent storage, including the configuration of the used storage driver
     - driver: specifies the storage driver type. Currently, overlay2 is supported
     - runroot: temporary storage directory
@@ -76,7 +74,6 @@ Some configurations can be set through the flag of the isula-builder. For exampl
 ### isula-builder supported flags:
 
 ```bash
-  -c, --config string           config file path (default "/etc/isula/build.toml")
       --dataroot string         persistent dir (default "/var/lib/isula-build")
   -D, --debug                   print debugging information (default true)
   -h, --help                    help for isula-builder
@@ -87,7 +84,6 @@ Some configurations can be set through the flag of the isula-builder. For exampl
       --version                 version for isula-builder
 ```
 
-- -c, --config: configuration file. The default path is "/etc/isula-build/configuration.toml". For details about the configuration method, see section "Configuration"
 - -d, --debug: indicates whether to enable the debug mode
 - --log-level: log level. The value can be "debug", "info", "warn" or "error". The default value is info
 - --dataroot: local persistent path. The default path is /var/lib/isula-build/
