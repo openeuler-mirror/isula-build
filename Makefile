@@ -59,7 +59,7 @@ debug:
 	@echo "Debug building isula-build..."
 	@cp -f ./hack/profiling ./daemon/profiling.go
 	$(GO_BUILD) -ldflags '$(LDFLAGS)' -gcflags="all=-N -l" -o bin/isula-build $(BUILDFLAGS) ./cmd/cli
-	$(GO_BUILD) -ldflags '$(LDFLAGS)'-gcflags="all=-N -l" -o bin/isula-builder $(BUILDFLAGS) ./cmd/daemon
+	$(GO_BUILD) -ldflags '$(LDFLAGS)' -gcflags="all=-N -l" -o bin/isula-builder $(BUILDFLAGS) ./cmd/daemon
 	@rm -f ./daemon/profiling.go
 	@echo "Debug build isula-build done!"
 
