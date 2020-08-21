@@ -27,6 +27,7 @@ import (
 
 	"github.com/containers/storage/pkg/stringid"
 	"github.com/gogo/protobuf/types"
+	"github.com/opencontainers/go-digest"
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
@@ -238,9 +239,9 @@ func checkAndProcessOutput() (string, bool, error) {
 	return "", false, nil
 }
 
-func parseStaticBuildOpts() (*pb.BuildStatic, error) {
+func parseStaticBuildOpts() (*pb.BuildStatic, time.Time, error) {
 	var (
-		t           time.Time
+		t           time.Time = time.Now()
 		err         error
 		buildStatic *pb.BuildStatic = &pb.BuildStatic{}
 	)
@@ -249,17 +250,17 @@ func parseStaticBuildOpts() (*pb.BuildStatic, error) {
 		switch mode {
 		case buildTimeType:
 			if t, err = time.Parse(constant.LayoutTime, v); err != nil {
-				return nil, errors.Wrap(err, "build time format need like '2020-05-23 10:55:33'")
+				return nil, t, errors.Wrap(err, "build time format need like '2020-05-23 10:55:33'")
 			}
 			if buildStatic.BuildTime, err = types.TimestampProto(t); err != nil {
-				return nil, err
+				return nil, t, err
 			}
 		default:
-			return nil, errors.Errorf("option %q not support by build-static", mode)
+			return nil, t, errors.Errorf("option %q not support by build-static", mode)
 		}
 	}
 
-	return buildStatic, nil
+	return buildStatic, t, nil
 }
 
 func runBuild(ctx context.Context, cli Cli) (string, error) {
@@ -271,6 +272,7 @@ func runBuild(ctx context.Context, cli Cli) (string, error) {
 		dest            string
 		imageID         string
 		imageIDFilePath string
+		digest          string
 	)
 
 	for _, c := range buildOpts.capAddList {
@@ -282,9 +284,10 @@ func runBuild(ctx context.Context, cli Cli) (string, error) {
 	if dest, isIsulad, err = checkAndProcessOutput(); err != nil {
 		return "", err
 	}
-	if content, err = readDockerfile(); err != nil {
+	if content, digest, err = readDockerfile(); err != nil {
 		return "", err
 	}
+
 	if err = encryptBuildArgs(); err != nil {
 		return "", errors.Wrap(err, "encrypt --build-arg failed")
 	}
@@ -294,14 +297,16 @@ func runBuild(ctx context.Context, cli Cli) (string, error) {
 	}
 	buildOpts.imageIDFile = imageIDFilePath
 
-	buildStatic, err := parseStaticBuildOpts()
+	buildStatic, t, err := parseStaticBuildOpts()
 	if err != nil {
 		return "", err
 	}
+	entityID := fmt.Sprintf("%s:%s", digest, t.String())
 
 	budStream, err := cli.Client().Build(ctx, &pb.BuildRequest{
 		BuildType:     constant.BuildContainerImageType,
 		BuildID:       buildOpts.buildID,
+		EntityID:      entityID,
 		BuildArgs:     buildOpts.buildArgs,
 		CapAddList:    buildOpts.capAddList,
 		EncryptKey:    buildOpts.encryptKey,
@@ -417,18 +422,18 @@ func runStatus(ctx context.Context, cli Cli) error {
 	}
 }
 
-// readDockerfile validates the --file, opens it and returns its content
+// readDockerfile validates the --file, opens it and returns its content and sha256sum
 // The possible Dockerfile path should be: filepath or contextDir+filepath
 // or contextDir+Dockerfile if filepath is empty
-func readDockerfile() (string, error) {
+func readDockerfile() (string, string, error) {
 	resolvedPath, err := resolveDockerfilePath()
 	if err != nil {
-		return "", err
+		return "", "", err
 	}
 
 	f, err := os.Open(filepath.Clean(resolvedPath))
 	if err != nil {
-		return "", errors.Wrapf(err, "open dockerfile failed")
+		return "", "", errors.Wrapf(err, "open dockerfile failed")
 	}
 	defer func() {
 		if err2 := f.Close(); err2 != nil {
@@ -436,12 +441,17 @@ func readDockerfile() (string, error) {
 		}
 	}()
 
-	buf, err := ioutil.ReadAll(f)
+	srcHasher := digest.Canonical.Digester()
+	reader := io.TeeReader(f, srcHasher.Hash())
+
+	buf, err := ioutil.ReadAll(reader)
 	if err != nil {
-		return "", errors.Wrapf(err, "read dockerfile failed")
+		return "", "", errors.Wrapf(err, "read dockerfile failed")
 	}
+	hash := srcHasher.Digest().String()
+	parts := strings.SplitN(hash, ":", 2)
 	logrus.Debugf("Read Dockerfile at %s", resolvedPath)
-	return string(buf), nil
+	return string(buf), parts[1], nil
 }
 
 func resolveDockerfilePath() (string, error) {

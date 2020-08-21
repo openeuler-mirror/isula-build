@@ -32,6 +32,7 @@ type Builder interface {
 	StatusChan() <-chan string
 	CleanResources() error
 	OutputPipeWrapper() *exporter.PipeWrapper
+	EntityID() string
 }
 
 // NewBuilder init a builder
