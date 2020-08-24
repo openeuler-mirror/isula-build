@@ -212,7 +212,7 @@ RUN echo hello world
 	buildOpts.contextDir, _ = os.Getwd()
 	buildOpts.file = tmpDir.Join(filename)
 
-	_, err := readDockerfile()
+	_, _, err := readDockerfile()
 	assert.NilError(t, err)
 }
 
@@ -231,7 +231,7 @@ RUN echo hello world
 	buildOpts.contextDir = tmpDir.Path()
 	buildOpts.file = "testDockerfile"
 
-	_, err := readDockerfile()
+	_, _, err := readDockerfile()
 	assert.NilError(t, err)
 }
 
@@ -250,7 +250,7 @@ RUN echo hello world
 	buildOpts.contextDir = tmpDir.Path()
 	buildOpts.file = ""
 
-	_, err := readDockerfile()
+	_, _, err := readDockerfile()
 	assert.NilError(t, err)
 }
 
@@ -267,7 +267,7 @@ func TestReadDockerfileWithNoContent(t *testing.T) {
 	buildOpts.contextDir = tmpDir.Path()
 	buildOpts.file = filename
 
-	_, err := readDockerfile()
+	_, _, err := readDockerfile()
 	assert.ErrorContains(t, err, "file is empty")
 }
 
@@ -278,7 +278,7 @@ func TestReadDockerfileWithDirectory(t *testing.T) {
 	buildOpts.contextDir = ""
 	buildOpts.file = "."
 
-	_, err := readDockerfile()
+	_, _, err := readDockerfile()
 	assert.ErrorContains(t, err, "should be a regular file")
 }
 
