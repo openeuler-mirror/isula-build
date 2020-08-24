@@ -54,6 +54,7 @@ type Daemon struct {
 	sync.RWMutex
 	opts       *Options
 	builders   map[string]builder.Builder
+	entities   map[string]string
 	backend    *Backend
 	grpc       *GrpcServer
 	localStore store.Store
@@ -64,6 +65,7 @@ func NewDaemon(opts Options, store store.Store) *Daemon {
 	return &Daemon{
 		opts:       &opts,
 		builders:   make(map[string]builder.Builder),
+		entities:   make(map[string]string),
 		localStore: store,
 	}
 }
@@ -143,8 +145,13 @@ func (d *Daemon) NewBuilder(ctx context.Context, req *pb.BuildRequest) (b builde
 	}
 
 	d.Lock()
+	defer d.Unlock()
+	entityID := b.EntityID()
+	if buildID, exist := d.entities[entityID]; exist {
+		return nil, errors.Errorf("the dockerfile is already on building with static build mode by buildID: %s", buildID)
+	}
+	d.entities[entityID] = req.BuildID
 	d.builders[req.BuildID] = b
-	d.Unlock()
 
 	return b, nil
 }
@@ -162,7 +169,9 @@ func (d *Daemon) Builder(buildID string) (builder.Builder, error) {
 // deleteBuilder deletes builder from daemon
 func (d *Daemon) deleteBuilder(buildID string) {
 	d.Lock()
+	builder := d.builders[buildID]
 	delete(d.builders, buildID)
+	delete(d.entities, builder.EntityID())
 	d.Unlock()
 }
 
@@ -170,6 +179,7 @@ func (d *Daemon) deleteBuilder(buildID string) {
 func (d *Daemon) deleteAllBuilders() {
 	d.Lock()
 	d.builders = make(map[string]builder.Builder)
+	d.entities = make(map[string]string)
 	d.Unlock()
 }
 

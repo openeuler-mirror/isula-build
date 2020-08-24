@@ -60,6 +60,7 @@ type Builder struct {
 	cliLog           *logger.Logger
 	playbook         *parser.PlayBook
 	buildID          string
+	entityID         string
 	ctx              context.Context
 	localStore       store.Store
 	buildOpts        BuildOptions
@@ -84,6 +85,7 @@ func NewBuilder(ctx context.Context, store store.Store, req *pb.BuildRequest, ru
 	b := &Builder{
 		ctx:          ctx,
 		buildID:      req.BuildID,
+		entityID:     req.EntityID,
 		cliLog:       logger.NewCliLogger(constant.CliLogBufferLen),
 		unusedArgs:   make(map[string]string),
 		headingArgs:  make(map[string]string),
@@ -553,6 +555,11 @@ func (b *Builder) CleanResources() error {
 // OutputPipeWrapper returns the output pipe file path
 func (b *Builder) OutputPipeWrapper() *exporter.PipeWrapper {
 	return b.pipeWrapper
+}
+
+// EntityID returns the entityID of the Builder
+func (b *Builder) EntityID() string {
+	return b.entityID
 }
 
 func parseOutputTag(output string) string {

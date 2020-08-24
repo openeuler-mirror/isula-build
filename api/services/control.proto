@@ -71,6 +71,8 @@ message BuildRequest {
     string additionalTag = 11;
     // capAddList indicates Linux capabilities for RUN command
     repeated string capAddList = 12;
+    // entityID is an id to descript a physic building
+    string entityID = 13;
 }
 
 message ImportRequest {
