@@ -126,6 +126,7 @@ func (d *Daemon) Run() error {
 
 	systemd.NotifySystemStopping()
 	d.grpc.server.GracefulStop()
+	d.backend.wg.Wait()
 	return err
 }
 

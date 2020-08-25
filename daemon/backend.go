@@ -26,6 +26,7 @@ type Backend struct {
 	sync.RWMutex
 	daemon *Daemon
 	status map[string]*status
+	wg     sync.WaitGroup
 }
 
 // NewBackend create an instance of backend
@@ -33,6 +34,7 @@ func (d *Daemon) NewBackend() {
 	d.backend = &Backend{
 		daemon: d,
 		status: make(map[string]*status),
+		wg:     sync.WaitGroup{},
 	}
 }
 
