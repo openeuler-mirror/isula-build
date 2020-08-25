@@ -27,9 +27,16 @@ func TestImageCommand(t *testing.T) {
 	assert.ErrorContains(t, err, "isula_build.sock")
 }
 
+func TestImageCommandMultipleArgs(t *testing.T) {
+	imageCmd := NewImagesCmd()
+	args := []string{"aaa", "bbb"}
+	err := imagesCommand(imageCmd, args)
+	assert.ErrorContains(t, err, "requires at most one argument")
+}
+
 func TestRunList(t *testing.T) {
 	ctx := context.Background()
 	cli := newMockClient(&mockGrpcClient{})
-	err := runList(ctx, &cli)
+	err := runList(ctx, &cli, "")
 	assert.NilError(t, err)
 }
