@@ -18,11 +18,11 @@ import (
 	"fmt"
 
 	"github.com/bndr/gotabulate"
+	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
 
 	constant "isula.org/isula-build"
 	pb "isula.org/isula-build/api/services"
-	"isula.org/isula-build/util"
 )
 
 const (
@@ -33,17 +33,17 @@ REPOSITORY    TAG    IMAGE ID    CREATED
 )
 
 const (
-	imagesExample = `isula-build ctr-img images`
+	imagesExample = `isula-build ctr-img images
+isula-build ctr-img images <image name>`
 )
 
 // NewImagesCmd returns images command
 func NewImagesCmd() *cobra.Command {
 	// imagesCmd represents the "images" command
 	imagesCmd := &cobra.Command{
-		Use:     "images",
+		Use:     "images [REPOSITORY[:TAG]]",
 		Short:   "List locally stored images",
 		Example: imagesExample,
-		Args:    util.NoArgs,
 		RunE:    imagesCommand,
 	}
 
@@ -51,18 +51,29 @@ func NewImagesCmd() *cobra.Command {
 }
 
 func imagesCommand(c *cobra.Command, args []string) error {
+	if len(args) > 1 {
+		return errors.New("isula-build images requires at most one argument")
+	}
+
+	var image string
+	if len(args) == 0 {
+		image = ""
+	} else {
+		image = args[0]
+	}
+
 	ctx := context.TODO()
 	cli, err := NewClient(ctx)
 	if err != nil {
 		return err
 	}
 
-	return runList(ctx, cli)
+	return runList(ctx, cli, image)
 }
 
-func runList(ctx context.Context, cli Cli) error {
+func runList(ctx context.Context, cli Cli, image string) error {
 	resp, err := cli.Client().List(ctx, &pb.ListRequest{
-		ImageName: "",
+		ImageName: image,
 	})
 	if err != nil {
 		return err

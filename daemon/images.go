@@ -23,6 +23,7 @@ import (
 
 	constant "isula.org/isula-build"
 	pb "isula.org/isula-build/api/services"
+	"isula.org/isula-build/image"
 	"isula.org/isula-build/store"
 	"isula.org/isula-build/util"
 )
@@ -37,12 +38,29 @@ func (b *Backend) List(ctx context.Context, req *pb.ListRequest) (*pb.ListRespon
 		"ImageName": req.GetImageName(),
 	}).Info("ListRequest received")
 
-	imageName := req.ImageName
-	reqRepository, reqTag := imageName, ""
+	var reqRepository, reqTag string
 	const minImageFieldLenWithTag = 2
-	parts := strings.Split(imageName, ":")
-	if len(parts) >= minImageFieldLenWithTag {
-		reqRepository, reqTag = strings.Join(parts[0:len(parts)-1], ":"), parts[len(parts)-1]
+	if req.ImageName != "" {
+		imageName := req.ImageName
+		_, img, err := image.FindImage(b.daemon.localStore, imageName)
+		if err != nil {
+			return nil, errors.Wrapf(err, "find local image %v error", imageName)
+		}
+
+		parts := strings.Split(imageName, ":")
+		if len(parts) >= minImageFieldLenWithTag {
+			reqRepository, reqTag = strings.Join(parts[0:len(parts)-1], ":"), parts[len(parts)-1]
+		}
+
+		imageInfo := &pb.ListResponse_ImageInfo{
+			Repository: reqRepository,
+			Tag:        reqTag,
+			Id:         img.ID,
+			Created:    img.Created.Format(constant.LayoutTime),
+			Size_:      getImageSize(&b.daemon.localStore, img.ID),
+		}
+
+		return &pb.ListResponse{Images: []*pb.ListResponse_ImageInfo{imageInfo}}, nil
 	}
 
 	images, err := b.daemon.localStore.Images()
