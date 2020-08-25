@@ -31,6 +31,8 @@ import (
 
 // Build receives a build request and build an image
 func (b *Backend) Build(req *pb.BuildRequest, stream pb.Control_BuildServer) (err error) { // nolint:gocyclo
+	b.wg.Add(1)
+	defer b.wg.Done()
 	logrus.WithFields(logrus.Fields{
 		"BuildType": req.GetBuildType(),
 		"BuildID":   req.GetBuildID(),
