@@ -41,7 +41,7 @@ func TestRunRemove(t *testing.T) {
 			name:      "test 1",
 			all:       false,
 			prune:     false,
-			errString: "imageID must be specified",
+			errString: "imageID/name must be specified",
 			isErr:     true,
 		},
 		{
@@ -75,7 +75,7 @@ func TestRunRemove(t *testing.T) {
 			args:      []string{"abc"},
 			all:       false,
 			prune:     true,
-			errString: "imageID is not allowed when using --prune",
+			errString: "imageID/name is not allowed when using --prune",
 			isErr:     true,
 		},
 		{
@@ -83,7 +83,7 @@ func TestRunRemove(t *testing.T) {
 			args:      []string{"abc"},
 			all:       true,
 			prune:     false,
-			errString: "imageID is not allowed when using --all",
+			errString: "imageID/name is not allowed when using --all",
 			isErr:     true,
 		},
 		{
@@ -91,7 +91,7 @@ func TestRunRemove(t *testing.T) {
 			args:      []string{"abc"},
 			all:       true,
 			prune:     true,
-			errString: "imageID is not allowed when using --all",
+			errString: "imageID/name is not allowed when using --all",
 			isErr:     true,
 		},
 	}

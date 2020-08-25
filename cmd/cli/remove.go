@@ -32,7 +32,7 @@ type removeOptions struct {
 var removeOpts removeOptions
 
 const (
-	removeExample = `isula-build ctr-img rm <imageID>
+	removeExample = `isula-build ctr-img rm <imageID>/<image name>
 isula-build ctr-img rm --prune
 isula-build ctr-img rm --all`
 )
@@ -93,17 +93,17 @@ func runRemove(ctx context.Context, cli Cli, args []string) error {
 func checkArgsAndOptions(args []string) error {
 	if len(args) > 0 {
 		if removeOpts.all {
-			return errors.New("imageID is not allowed when using --all")
+			return errors.New("imageID/name is not allowed when using --all")
 		}
 
 		if removeOpts.prune {
-			return errors.New("imageID is not allowed when using --prune")
+			return errors.New("imageID/name is not allowed when using --prune")
 		}
 		return nil
 	}
 
 	if !removeOpts.all && !removeOpts.prune {
-		return errors.New("imageID must be specified")
+		return errors.New("imageID/name must be specified")
 	}
 
 	if removeOpts.all && removeOpts.prune {

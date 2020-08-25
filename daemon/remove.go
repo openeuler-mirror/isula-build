@@ -16,9 +16,12 @@ package daemon
 import (
 	"fmt"
 
+	"github.com/containers/storage"
+	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
 
 	pb "isula.org/isula-build/api/services"
+	"isula.org/isula-build/image"
 	"isula.org/isula-build/store"
 )
 
@@ -45,7 +48,39 @@ func (b *Backend) Remove(req *pb.RemoveRequest, stream pb.Control_RemoveServer) 
 	}
 
 	for _, imageID := range rmImageIDs {
-		layers, err := s.DeleteImage(imageID, true)
+		_, img, err := image.FindImage(s, imageID)
+		if err != nil {
+			errMsg := fmt.Sprintf("Find local image %s error: %v", imageID, err.Error())
+			logrus.Error(errMsg)
+			if err = stream.Send(&pb.RemoveResponse{LayerMessage: errMsg}); err != nil {
+				return err
+			}
+			continue
+		}
+
+		// just untag image name if it refers to multiple tags
+		if len(img.Names) > 1 {
+			removed, uerr := untagImage(imageID, s, img)
+			if uerr != nil {
+				errMsg := fmt.Sprintf("Untag image %s error: %v", imageID, uerr.Error())
+				logrus.Error(errMsg)
+				if err = stream.Send(&pb.RemoveResponse{LayerMessage: errMsg}); err != nil {
+					return err
+				}
+				continue
+			}
+
+			if removed == true {
+				imageString := fmt.Sprintf("Untagged image: %v", imageID)
+				logrus.Debug(imageString)
+				if err = stream.Send(&pb.RemoveResponse{LayerMessage: imageString}); err != nil {
+					return err
+				}
+				continue
+			}
+		}
+
+		layers, err := s.DeleteImage(img.ID, true)
 		if err != nil {
 			// if delete failed, print out message and continue deleting the rest images
 			errMsg := fmt.Sprintf("Remove image %s failed: %v", imageID, err.Error())
@@ -73,6 +108,26 @@ func (b *Backend) Remove(req *pb.RemoveRequest, stream pb.Control_RemoveServer) 
 	}
 
 	return nil
+}
+
+func untagImage(imageID string, store storage.Store, image *storage.Image) (bool, error) {
+	newNames := make([]string, 0, 0)
+	removed := false
+	for _, imgName := range image.Names {
+		if imgName == imageID {
+			removed = true
+			continue
+		}
+		newNames = append(newNames, imgName)
+	}
+
+	if removed == true {
+		if err := store.SetNames(image.ID, newNames); err != nil {
+			return false, errors.Wrapf(err, "remove name %v from image %v error", imageID, image.ID)
+		}
+	}
+
+	return removed, nil
 }
 
 func getImageIDs(s store.Store, prune bool) ([]string, error) {
