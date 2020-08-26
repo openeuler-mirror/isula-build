@@ -14,15 +14,24 @@
 package util
 
 import (
+	"crypto"
 	"crypto/aes"
 	"crypto/cipher"
 	"crypto/rand"
+	"crypto/rsa"
+	"crypto/x509"
 	"encoding/hex"
+	"encoding/pem"
 	"hash"
 	"io"
+	"io/ioutil"
+	"os"
+	"path/filepath"
 
 	"github.com/pkg/errors"
 	"golang.org/x/crypto/pbkdf2"
+
+	constant "isula.org/isula-build"
 )
 
 const (
@@ -32,6 +41,10 @@ const (
 	iteration           = 409600
 	aesKeyLenUpperBound = 32
 	aesKeyLenLowerBound = 16
+	// DefaultRSAKeySize is secure key length for RSA
+	DefaultRSAKeySize = 2048
+	// DefaultRSAKeyPath is the default directory to store rsa public key
+	DefaultRSAKeyPath = "/etc/isula-build/isula-build.pub"
 )
 
 var (
@@ -125,4 +138,94 @@ func DecryptAES(data string, aeskey string) (string, error) {
 	decrypter.XORKeyStream(decryptData, cipherText[block.BlockSize():])
 
 	return string(decryptData), nil
+}
+
+// GenerateRSAKey generates a RAS key pair with key size s
+// the recommend key size is 4096 and which will be use when
+// key size is less than it
+func GenerateRSAKey(keySize int) (*rsa.PrivateKey, error) {
+	if keySize <= DefaultRSAKeySize {
+		keySize = DefaultRSAKeySize
+	}
+	privateKey, err := rsa.GenerateKey(rand.Reader, keySize)
+	if err != nil {
+		return nil, errors.Errorf("generate rsa key pair failed: %v", err)
+	}
+
+	return privateKey, nil
+}
+
+// EncryptRSA encrypts text with RSA public key
+// the hash function(ordinary one) need to be same level with decrypt end
+func EncryptRSA(data string, key rsa.PublicKey, h hash.Hash) (string, error) {
+	cipherText, err := rsa.EncryptOAEP(h, rand.Reader, &key, []byte(data), nil)
+	if err != nil {
+		return "", errors.Errorf("encryption failed: %v", err)
+	}
+
+	return hex.EncodeToString(cipherText), nil
+}
+
+// DecryptRSA decrypts cipher text with RSA private key
+// the hash function(crypto one) need to be same level with encrypt end
+func DecryptRSA(data string, key *rsa.PrivateKey, h crypto.Hash) (string, error) {
+	msg, err := hex.DecodeString(data)
+	if err != nil {
+		return "", err
+	}
+	plainText, errDec := key.Decrypt(nil, msg, &rsa.OAEPOptions{Hash: h, Label: nil})
+	if errDec != nil {
+		return "", errors.Errorf("decryption failed: %v", err)
+	}
+
+	return string(plainText), nil
+}
+
+// GenRSAPublicKeyFile store public key from rsa key pair into local file
+func GenRSAPublicKeyFile(key *rsa.PrivateKey, path string) error {
+	if IsExist(path) {
+		if err := os.Remove(path); err != nil {
+			return errors.Errorf("failed to delete the residual key file: %v", err)
+		}
+	}
+	publicKey := &key.PublicKey
+	stream, err := x509.MarshalPKIXPublicKey(publicKey)
+	if err != nil {
+		return err
+	}
+	block := &pem.Block{
+		Type:  "RSA PUBLIC KEY",
+		Bytes: stream,
+	}
+	file, err := os.Create(path)
+	if err != nil {
+		return err
+	}
+	if err := os.Chmod(path, constant.DefaultReadOnlyFileMode); err != nil {
+		return err
+	}
+	if err := pem.Encode(file, block); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// ReadPublicKey gets public key from key file
+func ReadPublicKey(path string) (rsa.PublicKey, error) {
+	keyFile, err := ioutil.ReadFile(filepath.Clean(path))
+	if err != nil {
+		return rsa.PublicKey{}, err
+	}
+	block, _ := pem.Decode(keyFile)
+	if block == nil {
+		return rsa.PublicKey{}, errors.New("decoding public key failed")
+	}
+	pubInterface, err := x509.ParsePKIXPublicKey(block.Bytes)
+	if err != nil {
+		return rsa.PublicKey{}, err
+	}
+	key := pubInterface.(*rsa.PublicKey)
+
+	return *key, nil
 }

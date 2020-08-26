@@ -16,6 +16,7 @@ package builder
 
 import (
 	"context"
+	"crypto/rsa"
 
 	"github.com/pkg/errors"
 
@@ -36,10 +37,10 @@ type Builder interface {
 }
 
 // NewBuilder init a builder
-func NewBuilder(ctx context.Context, store store.Store, req *pb.BuildRequest, runtimePath, buildDir, runDir string) (Builder, error) {
+func NewBuilder(ctx context.Context, store store.Store, req *pb.BuildRequest, runtimePath, buildDir, runDir string, key *rsa.PrivateKey) (Builder, error) {
 	switch req.GetBuildType() {
 	case constant.BuildContainerImageType:
-		return dockerfile.NewBuilder(ctx, store, req, runtimePath, buildDir, runDir)
+		return dockerfile.NewBuilder(ctx, store, req, runtimePath, buildDir, runDir, key)
 	default:
 		return nil, errors.Errorf("the build type %q is not supported", req.GetBuildType())
 	}

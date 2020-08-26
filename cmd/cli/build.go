@@ -15,7 +15,7 @@ package main
 
 import (
 	"context"
-	"crypto/sha256"
+	"crypto/sha512"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -287,8 +287,7 @@ func runBuild(ctx context.Context, cli Cli) (string, error) {
 	if content, digest, err = readDockerfile(); err != nil {
 		return "", err
 	}
-
-	if err = encryptBuildArgs(); err != nil {
+	if err = encryptBuildArgs(util.DefaultRSAKeyPath); err != nil {
 		return "", errors.Wrap(err, "encrypt --build-arg failed")
 	}
 	imageIDFilePath, err = getAbsPath(buildOpts.imageIDFile)
@@ -309,7 +308,6 @@ func runBuild(ctx context.Context, cli Cli) (string, error) {
 		EntityID:      entityID,
 		BuildArgs:     buildOpts.buildArgs,
 		CapAddList:    buildOpts.capAddList,
-		EncryptKey:    buildOpts.encryptKey,
 		ContextDir:    buildOpts.contextDir,
 		FileContent:   content,
 		Output:        buildOpts.output,
@@ -360,7 +358,7 @@ func runBuild(ctx context.Context, cli Cli) (string, error) {
 }
 
 // encrypts those sensitive args before transporting via GRPC
-func encryptBuildArgs() error {
+func encryptBuildArgs(path string) error {
 	var hasSensiArg bool
 	for _, v := range buildOpts.buildArgs {
 		const kvNums = 2
@@ -375,11 +373,7 @@ func encryptBuildArgs() error {
 		return nil
 	}
 
-	oriKey, err := util.GenerateCryptoKey(util.CryptoKeyLen)
-	if err != nil {
-		return err
-	}
-	key, err := util.PBKDF2(oriKey, util.CryptoKeyLen, sha256.New)
+	key, err := util.ReadPublicKey(path)
 	if err != nil {
 		return err
 	}
@@ -387,7 +381,7 @@ func encryptBuildArgs() error {
 	const possibleArgCaps = 10
 	var args = make([]string, 0, possibleArgCaps)
 	for _, v := range buildOpts.buildArgs {
-		encryptedArg, encErr := util.EncryptAES(v, key)
+		encryptedArg, encErr := util.EncryptRSA(v, key, sha512.New())
 		if encErr != nil {
 			return encErr
 		}
@@ -395,7 +389,6 @@ func encryptBuildArgs() error {
 	}
 
 	buildOpts.buildArgs = args
-	buildOpts.encryptKey = key
 	return nil
 }
 

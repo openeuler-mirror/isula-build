@@ -18,17 +18,21 @@ import (
 	"reflect"
 	"testing"
 
+	"gotest.tools/assert"
 	"gotest.tools/fs"
 
 	constant "isula.org/isula-build"
 	pb "isula.org/isula-build/api/services"
 	"isula.org/isula-build/builder/dockerfile"
 	"isula.org/isula-build/store"
+	"isula.org/isula-build/util"
 )
 
 func TestNewBuilder(t *testing.T) {
 	tmpDir := fs.NewDir(t, t.Name())
 	defer tmpDir.Remove()
+	key, err := util.GenerateRSAKey(util.DefaultRSAKeySize)
+	assert.NilError(t, err)
 
 	type args struct {
 		ctx         context.Context
@@ -67,9 +71,10 @@ func TestNewBuilder(t *testing.T) {
 			wantErr: true,
 		},
 	}
+
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := NewBuilder(tt.args.ctx, tt.args.store, tt.args.req, tt.args.runtimePath, tt.args.buildDir, tt.args.runDir)
+			got, err := NewBuilder(tt.args.ctx, tt.args.store, tt.args.req, tt.args.runtimePath, tt.args.buildDir, tt.args.runDir, key)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("NewBuilder() error = %v, wantErr %v", err, tt.wantErr)
 				return

@@ -15,6 +15,7 @@ package main
 
 import (
 	"context"
+	"crypto"
 	"io/ioutil"
 	"os"
 	"path/filepath"
@@ -498,17 +499,24 @@ func TestEncryptBuildArgs(t *testing.T) {
 		},
 	}
 
+	tmpDir := fs.NewDir(t, t.Name())
+	defer tmpDir.Remove()
+	keyPath := filepath.Join(tmpDir.Path(), "isula-build.pub")
+	privateKey, err := util.GenerateRSAKey(util.DefaultRSAKeySize)
+	assert.NilError(t, err)
+	err = util.GenRSAPublicKeyFile(privateKey, keyPath)
+	assert.NilError(t, err)
+
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			buildOpts.buildArgs = tt.args
 			buildOpts.encryptKey = ""
-
-			if err := encryptBuildArgs(); (err == nil) != (!tt.err) {
+			if err := encryptBuildArgs(keyPath); (err == nil) != (!tt.err) {
 				t.FailNow()
 			}
 			if tt.encrypt {
 				for i := 0; i < len(tt.args); i++ {
-					arg, err := util.DecryptAES(buildOpts.buildArgs[i], buildOpts.encryptKey)
+					arg, err := util.DecryptRSA(buildOpts.buildArgs[i], privateKey, crypto.SHA512)
 					assert.NilError(t, err)
 					assert.Equal(t, tt.args[i], arg)
 				}

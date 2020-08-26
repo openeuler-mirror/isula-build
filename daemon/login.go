@@ -15,6 +15,7 @@ package daemon
 
 import (
 	"context"
+	"crypto"
 	"path/filepath"
 
 	"github.com/containers/image/v5/docker"
@@ -76,7 +77,7 @@ func (b *Backend) Login(ctx context.Context, req *pb.LoginRequest) (*pb.LoginRes
 	}
 
 	// use username and password from client to access
-	password, err := util.DecryptAES(req.Password, req.Key)
+	password, err := util.DecryptRSA(req.Password, b.daemon.key, crypto.SHA512)
 	if err != nil {
 		return &pb.LoginResponse{Content: err.Error()}, err
 	}
@@ -111,9 +112,6 @@ func validLoginOpts(req *pb.LoginRequest) error {
 	// we just check if there is valid auth info in auth.json later.
 	if req.Password == "" && req.Username == "" && req.Server != "" {
 		return nil
-	}
-	if req.Key == "" {
-		return errors.New(emptyKey)
 	}
 	if req.Server == "" {
 		return errors.New(emptyServer)

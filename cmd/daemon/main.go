@@ -36,6 +36,8 @@ import (
 	"isula.org/isula-build/util"
 )
 
+const lockFileName = "isula-builder.lock"
+
 var daemonOpts daemon.Options
 
 func newDaemonCommand() *cobra.Command {
@@ -87,8 +89,23 @@ func runDaemon(cmd *cobra.Command, args []string) error {
 	}
 	// cleanup the residual container store if it exists
 	store.CleanContainerStore()
-	d := daemon.NewDaemon(daemonOpts, store)
+	// Ensure we have only one daemon running at the same time
+	lock, err := util.SetDaemonLock(daemonOpts.RunRoot, lockFileName)
+	if err != nil {
+		return err
+	}
+	defer func() {
+		if uerr := lock.Unlock(); uerr != nil {
+			logrus.Errorf("Unlock file %s failed: %v", lock.Path(), uerr)
+		} else if rerr := os.RemoveAll(lock.Path()); rerr != nil {
+			logrus.Errorf("Remove lock file %s failed: %v", lock.Path(), rerr)
+		}
+	}()
 
+	d, err := daemon.NewDaemon(daemonOpts, store)
+	if err != nil {
+		return err
+	}
 	defer func() {
 		if cerr := d.Cleanup(); cerr != nil {
 			if err == nil {
