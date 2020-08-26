@@ -20,6 +20,7 @@ import (
 	"math/rand"
 	"net/http"
 	"os"
+	"path/filepath"
 	"syscall"
 	"testing"
 	"time"
@@ -27,6 +28,8 @@ import (
 	"github.com/containers/storage/pkg/idtools"
 	"github.com/containers/storage/pkg/system"
 	"gotest.tools/assert"
+
+	constant "isula.org/isula-build"
 )
 
 func TestGetIgnorePatternMatcher(t *testing.T) {
@@ -287,4 +290,28 @@ func TestValidateSignal(t *testing.T) {
 			}
 		})
 	}
+}
+func TestSetDaemonLock(t *testing.T) {
+	root := "/tmp/this_is_a_test_folder"
+	name := "test.lock"
+	lockPath := filepath.Join(root, name)
+
+	// when folder is not exist, daemon lock is not supposed to be set
+	_, err := SetDaemonLock(root, name)
+	assert.ErrorContains(t, err, "no such file or directory")
+
+	// create lockfile
+	err = os.Mkdir(root, constant.DefaultRootDirMode)
+	defer os.RemoveAll(root)
+	assert.NilError(t, err)
+	f, err := os.Create(lockPath)
+	assert.NilError(t, err)
+	defer f.Close()
+	// set daemon lock successful
+	_, err = SetDaemonLock(root, name)
+	assert.NilError(t, err)
+
+	// set daemon lock twice will fail
+	_, err = SetDaemonLock(root, name)
+	assert.ErrorContains(t, err, "check if there is another daemon running")
 }

@@ -18,10 +18,14 @@ import (
 	"context"
 	"errors"
 	"io"
+	"path/filepath"
 	"strings"
 	"testing"
 
 	"gotest.tools/assert"
+	"gotest.tools/fs"
+
+	"isula.org/isula-build/util"
 )
 
 func TestNewLoginCmd(t *testing.T) {
@@ -110,7 +114,14 @@ func TestGetPassFromStdin(t *testing.T) {
 }
 
 func TestEncryptOpts(t *testing.T) {
-	err := encryptOpts()
+	tmpDir := fs.NewDir(t, t.Name())
+	defer tmpDir.Remove()
+	keyPath := filepath.Join(tmpDir.Path(), "isula-build.pub")
+	privateKey, err := util.GenerateRSAKey(util.DefaultRSAKeySize)
+	assert.NilError(t, err)
+	err = util.GenRSAPublicKeyFile(privateKey, keyPath)
+	assert.NilError(t, err)
+	err = encryptOpts(keyPath)
 	assert.NilError(t, err)
 }
 
@@ -145,6 +156,14 @@ func TestRunLogin(t *testing.T) {
 			wantErr:  true,
 		},
 	}
+	tmpDir := fs.NewDir(t, t.Name())
+	defer tmpDir.Remove()
+	keyPath := filepath.Join(tmpDir.Path(), "isula-build.pub")
+	privateKey, err := util.GenerateRSAKey(util.DefaultRSAKeySize)
+	assert.NilError(t, err)
+	err = util.GenRSAPublicKeyFile(privateKey, keyPath)
+	assert.NilError(t, err)
+
 	for _, tc := range testcases {
 		ctx := context.Background()
 		mockD := newMockDaemon()
@@ -155,6 +174,7 @@ func TestRunLogin(t *testing.T) {
 			server:   tc.server,
 			username: tc.username,
 			password: tc.password,
+			keyPath:  keyPath,
 		}
 
 		_, err := runLogin(ctx, &cli, c)

@@ -32,6 +32,7 @@ import (
 	"github.com/containers/storage/pkg/idtools"
 	"github.com/containers/storage/pkg/system"
 	"github.com/docker/docker/pkg/signal"
+	"github.com/gofrs/flock"
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/sys/unix"
@@ -303,4 +304,18 @@ func CopyXattrs(src, dest string) error {
 	}
 
 	return nil
+}
+
+// SetDaemonLock will check if there is another daemon running and return error if any
+func SetDaemonLock(root, fileName string) (*flock.Flock, error) {
+	lockPath := filepath.Join(root, fileName)
+	lock := flock.New(lockPath)
+	locked, err := lock.TryLock()
+	if err != nil {
+		return nil, errors.Wrapf(err, "could not lock %s", lockPath)
+	}
+	if !locked {
+		return nil, errors.Errorf("lock %s failed, check if there is another daemon running", lockPath)
+	}
+	return lock, nil
 }

@@ -15,7 +15,8 @@ package dockerfile
 
 import (
 	"context"
-	"crypto/sha256"
+	"crypto/rsa"
+	"crypto/sha512"
 	"io/ioutil"
 	"os"
 	"path/filepath"
@@ -1214,6 +1215,7 @@ func TestParseRequestBuildArgs(t *testing.T) {
 	}
 
 	b := getBuilder()
+	rsaKey := b.rsaKey
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			var (
@@ -1221,19 +1223,26 @@ func TestParseRequestBuildArgs(t *testing.T) {
 				err        error
 			)
 			if tt.decrypt {
-				oriKey, _ := util.GenerateCryptoKey(util.CryptoKeyLen)
-				key, _ := util.PBKDF2(oriKey, util.CryptoKeyLen, sha256.New)
+				b.rsaKey = rsaKey
+				tmpDir := fs.NewDir(t, t.Name())
+				defer tmpDir.Remove()
+				keyPath := filepath.Join(tmpDir.Path(), "isula-build.pub")
+				assert.NilError(t, err)
+				err = util.GenRSAPublicKeyFile(b.rsaKey, keyPath)
+				assert.NilError(t, err)
+				pubKey, err := util.ReadPublicKey(keyPath)
+				assert.NilError(t, err)
 				var args = make([]string, 0, 10)
 				for _, v := range tt.buildArgs {
-					encryptedArg, encErr := util.EncryptAES(v, key)
+					encryptedArg, encErr := util.EncryptRSA(v, pubKey, sha512.New())
 					assert.NilError(t, encErr)
 					args = append(args, encryptedArg)
 				}
-				argsParsed, err = b.parseBuildArgs(args, key)
+				argsParsed, err = b.parseBuildArgs(args)
 				b.buildOpts.BuildArgs = argsParsed
-
 			} else {
-				argsParsed, err = b.parseBuildArgs(tt.buildArgs, "")
+				b.rsaKey = &rsa.PrivateKey{}
+				argsParsed, err = b.parseBuildArgs(tt.buildArgs)
 				b.buildOpts.BuildArgs = argsParsed
 			}
 
@@ -1328,6 +1337,12 @@ func TestNewBuilder(t *testing.T) {
 	}
 	defer testutil.Immutable(immutablePath, false)
 
+	keyPath := filepath.Join(tmpDir, "isula-build.pub")
+	privateKey, err := util.GenerateRSAKey(util.DefaultRSAKeySize)
+	assert.NilError(t, err)
+	err = util.GenRSAPublicKeyFile(privateKey, keyPath)
+	assert.NilError(t, err)
+
 	type args struct {
 		ctx         context.Context
 		store       store.Store
@@ -1335,6 +1350,7 @@ func TestNewBuilder(t *testing.T) {
 		runtimePath string
 		buildDir    string
 		runDir      string
+		key         *rsa.PrivateKey
 	}
 	tests := []struct {
 		name    string
@@ -1343,21 +1359,6 @@ func TestNewBuilder(t *testing.T) {
 		wantErr bool
 	}{
 		{
-			name: "NewBuilder - decrypts fail - wrong key",
-			args: args{
-				ctx:   context.Background(),
-				store: store.Store{},
-				req: &pb.BuildRequest{
-					BuildArgs:  []string{"foo=bar", "http_proxy=test"},
-					EncryptKey: "1",
-				},
-				buildDir: tmpDir,
-				runDir:   tmpDir,
-			},
-			want:    nil,
-			wantErr: true,
-		},
-		{
 			name: "NewBuilder - wrong rundir",
 			args: args{
 				ctx:      context.Background(),
@@ -1365,6 +1366,7 @@ func TestNewBuilder(t *testing.T) {
 				req:      &pb.BuildRequest{},
 				buildDir: tmpDir,
 				runDir:   "",
+				key:      privateKey,
 			},
 			want:    nil,
 			wantErr: true,
@@ -1379,6 +1381,7 @@ func TestNewBuilder(t *testing.T) {
 				},
 				buildDir: tmpDir,
 				runDir:   immutablePath,
+				key:      privateKey,
 			},
 			want:    nil,
 			wantErr: true,
@@ -1386,7 +1389,7 @@ func TestNewBuilder(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := NewBuilder(tt.args.ctx, tt.args.store, tt.args.req, tt.args.runtimePath, tt.args.buildDir, tt.args.runDir)
+			got, err := NewBuilder(tt.args.ctx, tt.args.store, tt.args.req, tt.args.runtimePath, tt.args.buildDir, tt.args.runDir, tt.args.key)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("NewBuilder() error = %v, wantErr %v", err, tt.wantErr)
 				return

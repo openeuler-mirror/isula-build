@@ -16,7 +16,7 @@ package main
 import (
 	"bufio"
 	"context"
-	"crypto/sha256"
+	"crypto/sha512"
 	"fmt"
 	"io"
 	"os"
@@ -51,9 +51,9 @@ var (
 
 type loginOptions struct {
 	server    string
-	key       string
 	username  string
 	password  string
+	keyPath   string
 	stdinPass bool
 }
 
@@ -85,6 +85,7 @@ func loginCommand(c *cobra.Command, args []string) error {
 	if err := getRegistry(args); err != nil {
 		return err
 	}
+	loginOpts.keyPath = util.DefaultRSAKeyPath
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -93,6 +94,7 @@ func loginCommand(c *cobra.Command, args []string) error {
 	if err != nil {
 		return err
 	}
+
 	msg, err := runLogin(ctx, cli, c)
 	fmt.Println(msg)
 	if err != nil {
@@ -149,7 +151,6 @@ func genLoginReq(c *cobra.Command, shouldGetAuthInfo bool) (*pb.LoginRequest, er
 			Server:   loginOpts.server,
 			Username: "",
 			Password: "",
-			Key:      "",
 		}, nil
 	}
 
@@ -160,16 +161,15 @@ func genLoginReq(c *cobra.Command, shouldGetAuthInfo bool) (*pb.LoginRequest, er
 			return nil, err
 		}
 	}
-	if err := encryptOpts(); err != nil {
+	if err := encryptOpts(loginOpts.keyPath); err != nil {
 		return nil, err
 	}
+
 	return &pb.LoginRequest{
 		Server:   loginOpts.server,
 		Username: loginOpts.username,
 		Password: loginOpts.password,
-		Key:      loginOpts.key,
 	}, nil
-
 }
 
 func getRegistry(args []string) error {
@@ -269,24 +269,17 @@ func getPassFromStdin(r io.Reader) error {
 	return nil
 }
 
-func encryptOpts() error {
-	oriKey, err := util.GenerateCryptoKey(util.CryptoKeyLen)
+func encryptOpts(path string) error {
+	key, err := util.ReadPublicKey(path)
 	if err != nil {
-		loginOpts.password = ""
 		return err
 	}
-	key, pbkErr := util.PBKDF2(oriKey, util.CryptoKeyLen, sha256.New)
-	if pbkErr != nil {
-		loginOpts.password = ""
-		return pbkErr
-	}
-	encryptedPass, enErr := util.EncryptAES(loginOpts.password, key)
+	encryptedPass, enErr := util.EncryptRSA(loginOpts.password, key, sha512.New())
 	if enErr != nil {
 		loginOpts.password = ""
 		return enErr
 	}
 
 	loginOpts.password = encryptedPass
-	loginOpts.key = key
 	return nil
 }

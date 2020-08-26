@@ -37,6 +37,7 @@ import (
 	"isula.org/isula-build/pkg/parser"
 	"isula.org/isula-build/store"
 	testUtil "isula.org/isula-build/tests/util"
+	"isula.org/isula-build/util"
 )
 
 var (
@@ -108,6 +109,8 @@ func getImageID(t *testing.T, s *store.Store) string {
 }
 
 func getBuilder() *Builder {
+	privateKey, _:= util.GenerateRSAKey(util.DefaultRSAKeySize)
+
 	return &Builder{
 		ctx:           context.Background(),
 		buildID:       "",
@@ -120,6 +123,7 @@ func getBuilder() *Builder {
 		reservedArgs:  make(map[string]string),
 		unusedArgs:    make(map[string]string),
 		stageBuilders: nil,
+		rsaKey:        privateKey,
 	}
 }
 

@@ -16,13 +16,13 @@ package daemon
 
 import (
 	"context"
+	"crypto/rsa"
 	"os"
 	"path/filepath"
 	"sync"
 	"time"
 
 	"github.com/containerd/containerd/sys/reaper"
-	"github.com/gofrs/flock"
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/sys/unix"
@@ -36,7 +36,6 @@ import (
 	"isula.org/isula-build/util"
 )
 
-const lockFileName = "isula-builder.lock"
 
 // Options carries the options configured to daemon
 type Options struct {
@@ -58,20 +57,30 @@ type Daemon struct {
 	backend    *Backend
 	grpc       *GrpcServer
 	localStore store.Store
+	key        *rsa.PrivateKey
 }
 
 // NewDaemon new a daemon instance
-func NewDaemon(opts Options, store store.Store) *Daemon {
+func NewDaemon(opts Options, store store.Store) (*Daemon, error) {
+	rsaKey, err := util.GenerateRSAKey(util.DefaultRSAKeySize)
+	if err != nil {
+		return nil, err
+	}
+	if err := util.GenRSAPublicKeyFile(rsaKey, util.DefaultRSAKeyPath); err != nil {
+		return nil, err
+	}
+
 	return &Daemon{
 		opts:       &opts,
 		builders:   make(map[string]builder.Builder),
 		entities:   make(map[string]string),
 		localStore: store,
-	}
+		key:        rsaKey,
+	}, nil
 }
 
 // Run runs the daemon process
-func (d *Daemon) Run() error {
+func (d *Daemon) Run() (err error) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	gc := gc.NewGC()
@@ -82,19 +91,6 @@ func (d *Daemon) Run() error {
 	}
 
 	logrus.Debugf("Daemon start with option %#v", d.opts)
-
-	// Ensure we have only one daemon running at the same time
-	lock, err := setDaemonLock(d.opts.RunRoot, lockFileName)
-	if err != nil {
-		return err
-	}
-	defer func() {
-		if uerr := lock.Unlock(); uerr != nil {
-			logrus.Errorf("Unlock file %s failed: %v", lock.Path(), uerr)
-		} else if rerr := os.RemoveAll(lock.Path()); rerr != nil {
-			logrus.Errorf("Remove lock file %s failed: %v", lock.Path(), rerr)
-		}
-	}()
 
 	stack.Setup(d.opts.RunRoot)
 
@@ -140,7 +136,7 @@ func (d *Daemon) NewBuilder(ctx context.Context, req *pb.BuildRequest) (b builde
 	// this key with BuildDir will be used by exporter to save blob temporary
 	// NOTE: keep it be updated before NewBuilder. ctx will be taken by Builder
 	ctx = context.WithValue(ctx, util.BuildDirKey(util.BuildDir), buildDir)
-	b, err = builder.NewBuilder(ctx, d.localStore, req, d.opts.RuntimePath, buildDir, runDir)
+	b, err = builder.NewBuilder(ctx, d.localStore, req, d.opts.RuntimePath, buildDir, runDir, d.key)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to new builder")
 	}
@@ -189,6 +185,9 @@ func (d *Daemon) Cleanup() error {
 	if d.backend != nil {
 		d.backend.deleteAllStatus()
 	}
+	if err := os.Remove(util.DefaultRSAKeyPath); err != nil {
+		logrus.Info("Delete key failed")
+	}
 	d.deleteAllBuilders()
 	d.localStore.CleanContainerStore()
 	_, err := d.localStore.Shutdown(false)
@@ -227,16 +226,3 @@ func (d *Daemon) registerSubReaper(g *gc.GarbageCollector) error {
 	return g.RegisterGC(opt)
 }
 
-// setDaemonLock will check if there is another daemon running and return error if any
-func setDaemonLock(root, fileName string) (*flock.Flock, error) {
-	lockPath := filepath.Join(root, fileName)
-	lock := flock.New(lockPath)
-	locked, err := lock.TryLock()
-	if err != nil {
-		return nil, errors.Wrapf(err, "could not lock %s", lockPath)
-	}
-	if !locked {
-		return nil, errors.Errorf("lock %s failed, check if there is another daemon running", lockPath)
-	}
-	return lock, nil
-}

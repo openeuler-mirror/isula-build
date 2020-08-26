@@ -16,6 +16,8 @@ package dockerfile
 import (
 	"bytes"
 	"context"
+	"crypto"
+	"crypto/rsa"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -78,10 +80,11 @@ type Builder struct {
 	// stageAliasMap hold the stage index which has been renamed
 	// e.g. FROM foo AS bar  ->  map[string]int{"bar":1}
 	stageAliasMap map[string]int
+	rsaKey        *rsa.PrivateKey
 }
 
 // NewBuilder init a builder
-func NewBuilder(ctx context.Context, store store.Store, req *pb.BuildRequest, runtimePath, buildDir, runDir string) (*Builder, error) {
+func NewBuilder(ctx context.Context, store store.Store, req *pb.BuildRequest, runtimePath, buildDir, runDir string, key *rsa.PrivateKey) (*Builder, error) {
 	b := &Builder{
 		ctx:          ctx,
 		buildID:      req.BuildID,
@@ -94,9 +97,10 @@ func NewBuilder(ctx context.Context, store store.Store, req *pb.BuildRequest, ru
 		runtimePath:  runtimePath,
 		dataDir:      buildDir,
 		runDir:       runDir,
+		rsaKey:       key,
 	}
 
-	args, err := b.parseBuildArgs(req.GetBuildArgs(), req.GetEncryptKey())
+	args, err := b.parseBuildArgs(req.GetBuildArgs())
 	if err != nil {
 		return nil, errors.Wrap(err, "parse build-arg failed")
 	}
@@ -189,11 +193,12 @@ func (b *Builder) Logger() *logrus.Entry {
 	return logrus.WithField(util.LogKeySessionID, b.ctx.Value(util.LogFieldKey(util.LogKeySessionID)))
 }
 
-func (b *Builder) parseBuildArgs(buildArgs []string, key string) (map[string]string, error) {
+func (b *Builder) parseBuildArgs(buildArgs []string) (map[string]string, error) {
 	args := make(map[string]string, len(buildArgs))
+	errKey := b.rsaKey.Validate()
 	for _, arg := range buildArgs {
-		if len(key) != 0 {
-			v, err := util.DecryptAES(arg, key)
+		if errKey == nil {
+			v, err := util.DecryptRSA(arg, b.rsaKey, crypto.SHA512)
 			if err != nil {
 				return nil, err
 			}

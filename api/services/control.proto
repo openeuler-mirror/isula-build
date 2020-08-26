@@ -65,14 +65,12 @@ message BuildRequest {
     string iidfile = 8;
     // buildStatic is used to hold the options for static build
     BuildStatic buildStatic = 9;
-    // encryptKey is key to encrypt items in buildArgs
-    string encryptKey = 10;
     // additionalTag is the tag applied to the built image
-    string additionalTag = 11;
+    string additionalTag = 10;
     // capAddList indicates Linux capabilities for RUN command
-    repeated string capAddList = 12;
+    repeated string capAddList = 11;
     // entityID is an id to descript a physic building
-    string entityID = 13;
+    string entityID = 12;
 }
 
 message ImportRequest {
@@ -177,8 +175,6 @@ message LoginRequest {
     string username = 2;
     // password is password to login
     string password = 3;
-    // key is aes key used for encrypt and decrypt password
-    string key = 4;
 }
 
 message LoginResponse {
@@ -271,3 +267,4 @@ message InfoResponse {
     // goRoutines is number of go routines
     int64 goRoutines = 8;
 }
+
