@@ -511,7 +511,7 @@ func TestEncryptBuildArgs(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			buildOpts.buildArgs = tt.args
 			buildOpts.encryptKey = ""
-			if err := encryptBuildArgs(keyPath); (err == nil) != (!tt.err) {
+			if _, err := encryptBuildArgs(keyPath); (err == nil) != (!tt.err) {
 				t.FailNow()
 			}
 			if tt.encrypt {

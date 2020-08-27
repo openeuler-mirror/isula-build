@@ -71,6 +71,8 @@ message BuildRequest {
     repeated string capAddList = 11;
     // entityID is an id to descript a physic building
     string entityID = 12;
+    // encrypted indicated the build args are encrypted
+    bool encrypted = 13;
 }
 
 message ImportRequest {

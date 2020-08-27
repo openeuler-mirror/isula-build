@@ -266,6 +266,7 @@ func parseStaticBuildOpts() (*pb.BuildStatic, time.Time, error) {
 func runBuild(ctx context.Context, cli Cli) (string, error) {
 	var (
 		isIsulad        bool
+		encrypted       bool
 		buildResp       *pb.BuildResponse
 		err             error
 		content         string
@@ -287,7 +288,7 @@ func runBuild(ctx context.Context, cli Cli) (string, error) {
 	if content, digest, err = readDockerfile(); err != nil {
 		return "", err
 	}
-	if err = encryptBuildArgs(util.DefaultRSAKeyPath); err != nil {
+	if encrypted, err = encryptBuildArgs(util.DefaultRSAKeyPath); err != nil {
 		return "", errors.Wrap(err, "encrypt --build-arg failed")
 	}
 	imageIDFilePath, err = getAbsPath(buildOpts.imageIDFile)
@@ -315,6 +316,7 @@ func runBuild(ctx context.Context, cli Cli) (string, error) {
 		BuildStatic:   buildStatic,
 		Iidfile:       buildOpts.imageIDFile,
 		AdditionalTag: buildOpts.additionalTag,
+		Encrypted:     encrypted,
 	})
 	if err != nil {
 		return "", err
@@ -358,7 +360,7 @@ func runBuild(ctx context.Context, cli Cli) (string, error) {
 }
 
 // encrypts those sensitive args before transporting via GRPC
-func encryptBuildArgs(path string) error {
+func encryptBuildArgs(path string) (bool, error) {
 	var hasSensiArg bool
 	for _, v := range buildOpts.buildArgs {
 		const kvNums = 2
@@ -370,12 +372,12 @@ func encryptBuildArgs(path string) error {
 		}
 	}
 	if !hasSensiArg {
-		return nil
+		return hasSensiArg, nil
 	}
 
 	key, err := util.ReadPublicKey(path)
 	if err != nil {
-		return err
+		return hasSensiArg, err
 	}
 
 	const possibleArgCaps = 10
@@ -383,13 +385,13 @@ func encryptBuildArgs(path string) error {
 	for _, v := range buildOpts.buildArgs {
 		encryptedArg, encErr := util.EncryptRSA(v, key, sha512.New())
 		if encErr != nil {
-			return encErr
+			return hasSensiArg, encErr
 		}
 		args = append(args, encryptedArg)
 	}
 
 	buildOpts.buildArgs = args
-	return nil
+	return hasSensiArg, nil
 }
 
 func runStatus(ctx context.Context, cli Cli) error {
