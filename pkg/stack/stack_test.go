@@ -33,7 +33,7 @@ import (
 	"gotest.tools/fs"
 
 	constant "isula.org/isula-build"
-	testutil "isula.org/isula-build/tests/util"
+	testutil "isula.org/isula-build/util"
 )
 
 var (

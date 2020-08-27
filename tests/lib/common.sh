@@ -11,7 +11,7 @@
 # See the Mulan PSL v2 for more details.
 # Author: Danni Xia
 # Create: 2020-03-01
-# Description: shell script for dockerfile tests
+# Description: common functions for tests
 
 # check if legacy builder exists
 function pre_check() {
@@ -43,30 +43,46 @@ function start_isula_builder() {
     fi
 }
 
+function cleanup() {
+    isula-build ctr-img rm -p > /dev/null 2>&1
+    kill -9 "${pidofbuilder}" > /dev/null 2>&1
+    rm -f /tmp/buildlog-*
+}
+
 # test build image without output
 function test_build_without_output() {
-    tmpiidfile=$(mktemp -t iid.XXX)
-    if ! isula-build ctr-img build --iidfile "$tmpiidfile" > /tmp/buildlog-client 2>&1; then
+    if ! isula-build ctr-img build --tag "$1":latest "$2" > /tmp/buildlog-client 2>&1; then
         echo "FAIL"
         echo "LOG DIR:/tmp/buildlog-client and /tmp/buildlog-daemon (build without output)"
         kill -9 "${pidofbuilder}"
         exit 1
     fi
-    image_clean
+
+    if ! isula-build ctr-img rm "$1":latest > /tmp/buildlog-client 2>&1; then
+        echo "FAIL"
+        echo "LOG DIR:/tmp/buildlog-client and /tmp/buildlog-daemon (build without output)"
+        kill -9 "${pidofbuilder}"
+        exit 1
+    fi
 }
 
 # test build image with docker-archive output
 function test_build_with_docker_archive_output() {
-    tmpiidfile=$(mktemp -t iid.XXX)
-    if ! isula-build ctr-img build --iidfile "$tmpiidfile" --output=docker-archive:/tmp/"${image_name}".tar > /tmp/buildlog-client 2>&1; then
+    if ! isula-build ctr-img build --output=docker-archive:/tmp/"$1".tar:"$1":latest "$2" > /tmp/buildlog-client 2>&1; then
         echo "FAIL"
         echo "LOG DIR:/tmp/buildlog-client and /tmp/buildlog-daemon (build with docker-archive output)"
         kill -9 "${pidofbuilder}"
         exit 1
     else
-        rm -f /tmp/"${image_name}".tar
+        rm -f /tmp/"$1".tar
     fi
-    image_clean
+
+    if ! isula-build ctr-img rm "$1":latest > /tmp/buildlog-client 2>&1; then
+        echo "FAIL"
+        echo "LOG DIR:/tmp/buildlog-client and /tmp/buildlog-daemon (build with docker-archive output)"
+        kill -9 "${pidofbuilder}"
+        exit 1
+    fi
 }
 
 # test build image with docker-daemon output
@@ -76,16 +92,21 @@ function test_build_with_docker_daemon_output() {
         return 0
     fi
 
-    tmpiidfile=$(mktemp -t iid.XXX)
-    if ! isula-build ctr-img build --iidfile "$tmpiidfile" --output=docker-daemon:isula/"${image_name}":latest > /tmp/buildlog-client 2>&1; then
+    if ! isula-build ctr-img build --output=docker-daemon:isula/"$1":latest "$2" > /tmp/buildlog-client 2>&1; then
         echo "FAIL"
         echo "LOG DIR:/tmp/buildlog-client and /tmp/buildlog-daemon (build with docker-daemon output)"
         kill -9 "${pidofbuilder}"
         exit 1
     else
-        docker rmi isula/"${image_name}" > /dev/null 2>&1
+        docker rmi isula/"$1" > /dev/null 2>&1
     fi
-    image_clean
+
+    if ! isula-build ctr-img rm isula/"$1":latest > /tmp/buildlog-client 2>&1; then
+        echo "FAIL"
+        echo "LOG DIR:/tmp/buildlog-client and /tmp/buildlog-daemon (build with docker-daemon output)"
+        kill -9 "${pidofbuilder}"
+        exit 1
+    fi
 }
 
 # test build image with isulad output
@@ -95,56 +116,19 @@ function test_build_with_isulad_output() {
         return 0
     fi
 
-    tmpiidfile=$(mktemp -t iid.XXX)
-    if ! isula-build ctr-img build --iidfile "$tmpiidfile" --output=isulad:isula/"${image_name}":latest > /tmp/buildlog-client 2>&1; then
+    if ! isula-build ctr-img build --output=isulad:isula/"$1":latest "$2" > /tmp/buildlog-client 2>&1; then
         echo "FAIL"
         echo "LOG DIR:/tmp/buildlog-client and /tmp/buildlog-daemon (build with isulad output)"
         kill -9 "${pidofbuilder}"
         exit 1
     else
-        isula rmi isula/"${image_name}" > /dev/null 2>&1
+        isula rmi isula/"$1" > /dev/null 2>&1
     fi
-    image_clean
+
+    if ! isula-build ctr-img rm isula/"$1":latest > /tmp/buildlog-client 2>&1; then
+        echo "FAIL"
+        echo "LOG DIR:/tmp/buildlog-client and /tmp/buildlog-daemon (build with isulad output)"
+        kill -9 "${pidofbuilder}"
+        exit 1
+    fi
 }
-
-function image_clean() {
-    imageID=$(cat "$tmpiidfile")
-    isula-build ctr-img rm "$imageID" > /dev/null
-    rm -f "$tmpiidfile"
-}
-
-# start build images tests
-function tests() {
-    while IFS= read -r dockerfiledir; do
-        if ! find "${dockerfiledir}" -maxdepth 1 -iname "Dockerfile" | grep . > /dev/null 2>&1; then
-            continue
-        fi
-        pushd "${dockerfiledir}" > /dev/null 2>&1 || exit 1
-        image_name=$(basename "${dockerfiledir}")
-
-        echo -e "test Dockerfile in ${dockerfiledir}:\c"
-        test_build_without_output
-        test_build_with_docker_archive_output
-        test_build_with_docker_daemon_output
-        test_build_with_isulad_output
-        echo "PASS"
-
-        popd > /dev/null 2>&1 || exit 1
-    done < <(find ./tests -maxdepth 1 -type d -print)
-}
-
-function cleanup() {
-    isula-build ctr-img rm -p > /dev/null 2>&1
-    kill -9 "${pidofbuilder}" > /dev/null 2>&1
-    rm -f /tmp/buildlog-*
-}
-
-function main() {
-    pre_check
-    start_isula_builder
-    tests
-    cleanup
-}
-
-main
-echo "SUCCESS: all tests success"
