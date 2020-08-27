@@ -132,7 +132,7 @@ func TestRunnerRun(t *testing.T) {
 	runner := NewOCIRunner(&OCIRunOpts{
 		Ctx:         context.Background(),
 		Spec:        spec,
-		RuntimePath: "",
+		RuntimePath: "/aaaaa",
 		BundlePath:  bundlePath,
 		NoPivot:     false,
 		Output:      cliLog,

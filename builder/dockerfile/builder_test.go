@@ -1238,11 +1238,11 @@ func TestParseRequestBuildArgs(t *testing.T) {
 					assert.NilError(t, encErr)
 					args = append(args, encryptedArg)
 				}
-				argsParsed, err = b.parseBuildArgs(args)
+				argsParsed, err = b.parseBuildArgs(args, tt.decrypt)
 				b.buildOpts.BuildArgs = argsParsed
 			} else {
 				b.rsaKey = &rsa.PrivateKey{}
-				argsParsed, err = b.parseBuildArgs(tt.buildArgs)
+				argsParsed, err = b.parseBuildArgs(tt.buildArgs, tt.decrypt)
 				b.buildOpts.BuildArgs = argsParsed
 			}
 

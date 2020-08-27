@@ -100,7 +100,7 @@ func NewBuilder(ctx context.Context, store store.Store, req *pb.BuildRequest, ru
 		rsaKey:       key,
 	}
 
-	args, err := b.parseBuildArgs(req.GetBuildArgs())
+	args, err := b.parseBuildArgs(req.GetBuildArgs(), req.GetEncrypted())
 	if err != nil {
 		return nil, errors.Wrap(err, "parse build-arg failed")
 	}
@@ -193,11 +193,10 @@ func (b *Builder) Logger() *logrus.Entry {
 	return logrus.WithField(util.LogKeySessionID, b.ctx.Value(util.LogFieldKey(util.LogKeySessionID)))
 }
 
-func (b *Builder) parseBuildArgs(buildArgs []string) (map[string]string, error) {
+func (b *Builder) parseBuildArgs(buildArgs []string, encrypted bool) (map[string]string, error) {
 	args := make(map[string]string, len(buildArgs))
-	errKey := b.rsaKey.Validate()
 	for _, arg := range buildArgs {
-		if errKey == nil {
+		if encrypted {
 			v, err := util.DecryptRSA(arg, b.rsaKey, crypto.SHA512)
 			if err != nil {
 				return nil, err
