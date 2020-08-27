@@ -1,17 +1,15 @@
-/******************************************************************************
- * Copyright (c) Huawei Technologies Co., Ltd. 2020. All rights reserved.
- * isula-build licensed under the Mulan PSL v2.
- * You can use this software according to the terms and conditions of the Mulan PSL v2.
- * You may obtain a copy of Mulan PSL v2 at:
- *     http://license.coscl.org.cn/MulanPSL2
- * THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER EXPRESS OR
- * IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY OR FIT FOR A PARTICULAR
- * PURPOSE.
- * See the Mulan PSL v2 for more details.
- * Author: Feiyu Yang
- * Create: 2020-07-17
- * Description: This file is used for image load command
-******************************************************************************/
+// Copyright (c) Huawei Technologies Co., Ltd. 2020. All rights reserved.
+// isula-build licensed under the Mulan PSL v2.
+// You can use this software according to the terms and conditions of the Mulan PSL v2.
+// You may obtain a copy of Mulan PSL v2 at:
+//     http://license.coscl.org.cn/MulanPSL2
+// THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER EXPRESS OR
+// IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY OR FIT FOR A PARTICULAR
+// PURPOSE.
+// See the Mulan PSL v2 for more details.
+// Author: Feiyu Yang
+// Create: 2020-07-17
+// Description: This file is used for image load command.
 
 package daemon
 
@@ -39,19 +37,9 @@ func (b *Backend) Load(req *pb.LoadRequest, stream pb.Control_LoadServer) error 
 		return err
 	}
 
-	// tmp dir will be removed after NewSourceFromFileWithContext
-	tmpDir := filepath.Join(b.daemon.opts.DataRoot, "tmp")
-	systemContext := image.GetSystemContext()
-	systemContext.BigFilesTemporaryDir = tmpDir
-
-	tarfileSource, err := tarfile.NewSourceFromFileWithContext(systemContext, req.Path)
+	repoTags, err := getRepoTagFromImageTar(b.daemon.opts.DataRoot, req.Path)
 	if err != nil {
-		return errors.Wrapf(err, "failed to get the source of loading tar file")
-	}
-
-	topLevelImageManifest, err := tarfileSource.LoadTarManifest()
-	if err != nil || len(topLevelImageManifest) == 0 {
-		return errors.Errorf("failed to get the top level image manifest: %v", err)
+		return err
 	}
 
 	log := logger.NewCliLogger(constant.CliLogBufferLen)
@@ -80,7 +68,7 @@ func (b *Backend) Load(req *pb.LoadRequest, stream pb.Control_LoadServer) error 
 			return err
 		}
 
-		if serr := b.daemon.localStore.SetNames(si.ID, topLevelImageManifest[0].RepoTags); serr != nil {
+		if serr := b.daemon.localStore.SetNames(si.ID, repoTags); serr != nil {
 			return serr
 		}
 		log.Print("Loaded image as %s\n", si.ID)
@@ -93,4 +81,23 @@ func (b *Backend) Load(req *pb.LoadRequest, stream pb.Control_LoadServer) error 
 	logrus.Infof("Loaded image as %s", si.ID)
 
 	return nil
+}
+
+func getRepoTagFromImageTar(dataRoot, path string) ([]string, error) {
+	// tmp dir will be removed after NewSourceFromFileWithContext
+	tmpDir := filepath.Join(dataRoot, "tmp")
+	systemContext := image.GetSystemContext()
+	systemContext.BigFilesTemporaryDir = tmpDir
+
+	tarfileSource, err := tarfile.NewSourceFromFileWithContext(systemContext, path)
+	if err != nil {
+		return nil, errors.Wrapf(err, "failed to get the source of loading tar file")
+	}
+
+	topLevelImageManifest, err := tarfileSource.LoadTarManifest()
+	if err != nil || len(topLevelImageManifest) == 0 {
+		return nil, errors.Errorf("failed to get the top level image manifest: %v", err)
+	}
+
+	return topLevelImageManifest[0].RepoTags, nil
 }
