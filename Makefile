@@ -72,7 +72,7 @@ tests: test-integration test-unit
 .PHONY: test-integration
 test-integration:
 	@echo "Integration test starting..."
-	@./hack/dockerfile_tests.sh
+	@./tests/test.sh
 	@echo "Integration test done!"
 
 .PHONY: test-unit

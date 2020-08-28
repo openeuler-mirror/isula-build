@@ -34,7 +34,7 @@ import (
 	"isula.org/isula-build/pkg/logger"
 	"isula.org/isula-build/pkg/parser"
 	"isula.org/isula-build/store"
-	testutil "isula.org/isula-build/tests/util"
+	testutil "isula.org/isula-build/util"
 	"isula.org/isula-build/util"
 )
 

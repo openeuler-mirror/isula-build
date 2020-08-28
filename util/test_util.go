@@ -57,6 +57,7 @@ func GetTestingArgs(t *testing.T) map[string]string {
 	return args
 }
 
+// Immutable is used to set immutable
 func Immutable(path string, set bool) error {
 	var op string
 	if set {
@@ -64,7 +65,7 @@ func Immutable(path string, set bool) error {
 	} else {
 		op = "-i" // set mutable
 	}
-	cmd := exec.Command("chattr", op, path)
+	cmd := exec.Command("chattr", op, path) // nolint:gosec
 	err := cmd.Run()
 	if err != nil {
 		return errors.Wrapf(err, "chattr %s for %s failed", op, path)
