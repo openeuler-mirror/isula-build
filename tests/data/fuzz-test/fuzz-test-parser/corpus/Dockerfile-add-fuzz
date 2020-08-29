@@ -1,0 +1,8 @@
+FROM alpine AS cho
+ADD a[[]0].txt /tmp
+COPY *b*.tar.gz .
+COPY --chown=1555:bin a ./
+ADD --chown=0:05 a?.txt /home/www
+ADD --chown=mail:05 /home/ok:bb
+COPY addchown.txt /root/${abc}/hello
+ADD ./a/../b.*c /home/ok:bbc

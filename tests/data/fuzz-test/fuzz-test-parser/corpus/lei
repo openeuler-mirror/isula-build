@@ -1,0 +1,21 @@
+# cat Dockerfile.all 
+FROM busybox:latest
+MAINTAINER "leizhongkai"
+RUN touch foo
+RUN ["touch", "bar"]
+LABEL foo=bar
+EXPOSE 8888/udp
+EXPOSE 9999/tcp
+ENV hello=my-hello
+ARG word
+ADD aaa /home/dir/
+COPY bbb /home/dir1/
+VOLUME ["var/log"]
+USER leizk:root
+WORKDIR /home/lzk
+ONBUILD RUN ps aux
+STOPSIGNAL 15
+HEALTHCHECK  --interval=5m --timeout=3s CMD ["pwd"]
+SHELL ["pwd"]
+ENTRYPOINT ["top", "-b"]
+CMD ["-c"]

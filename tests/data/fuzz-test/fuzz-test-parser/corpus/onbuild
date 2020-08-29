@@ -1,0 +1,10 @@
+FROM node:slim
+RUN mkdir /app
+WORKDIR /app
+ONBUILD COPY ./package.json /app
+ONBUILD RUN [ "npm", "install" ]
+ONBUILD COPY . /app/
+ONBUILD ENV key1=value1 key2=value2
+ONBUILD ENV key3 value3
+ONBUILD ADD --chown=1 . /app/src
+CMD [ "npm", "start" ]
