@@ -1,0 +1,50 @@
+// Copyright (c) Huawei Technologies Co., Ltd. 2020. All rights reserved.
+// isula-build licensed under the Mulan PSL v2.
+// You can use this software according to the terms and conditions of the Mulan PSL v2.
+// You may obtain a copy of Mulan PSL v2 at:
+//     http://license.coscl.org.cn/MulanPSL2
+// THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER EXPRESS OR
+// IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY OR FIT FOR A PARTICULAR
+// PURPOSE.
+// See the Mulan PSL v2 for more details.
+// Author: Xiang Li
+// Create: 2020-8-29
+// Description: Fuzz file for dockerignore
+
+package dockerfile
+
+import (
+	"io/ioutil"
+	"os"
+	"path"
+
+	"github.com/sirupsen/logrus"
+
+	"isula.org/isula-build/pkg/parser"
+)
+
+func Fuzz(data []byte) int {
+	dir, err := ioutil.TempDir("/tmp", "fuzzIgnore")
+	if err != nil {
+		logrus.Errorf("Fuzz creating TempDir failed: %v", err)
+		return 0
+	}
+	defer os.RemoveAll(dir)
+
+	if err = ioutil.WriteFile(path.Join(dir, ".dockerignore"), data, 0755); err != nil {
+		logrus.Errorf("Fuzz write .dockerignore file failed: %v", err)
+		return 0
+	}
+
+	p, err := parser.NewParser("")
+	if err != nil {
+		return 0
+	}
+
+	_, err = p.ParseIgnore(dir)
+	if err != nil {
+		return 0
+	}
+	return 1
+
+}

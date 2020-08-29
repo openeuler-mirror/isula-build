@@ -1,0 +1,83 @@
+// Copyright (c) Huawei Technologies Co., Ltd. 2020. All rights reserved.
+// isula-build licensed under the Mulan PSL v2.
+// You can use this software according to the terms and conditions of the Mulan PSL v2.
+// You may obtain a copy of Mulan PSL v2 at:
+//     http://license.coscl.org.cn/MulanPSL2
+// THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER EXPRESS OR
+// IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY OR FIT FOR A PARTICULAR
+// PURPOSE.
+// See the Mulan PSL v2 for more details.
+// Author: Xiang Li
+// Create: 2020-8-29
+// Description: Fuzz file for daemon
+
+package daemon
+
+import (
+	"bufio"
+	"bytes"
+	"context"
+	"io/ioutil"
+	"os"
+	"strings"
+
+	"github.com/containers/storage/pkg/reexec"
+	"github.com/sirupsen/logrus"
+
+	pb "isula.org/isula-build/api/services"
+	"isula.org/isula-build/store"
+)
+
+func Fuzz(data []byte) int {
+	if reexec.Init() {
+		return 0
+	}
+	logrus.SetLevel(logrus.DebugLevel)
+	data = append([]byte("FROM alpine\n"), data...)
+	logrus.Infof("===============Testing with: \n%s", data)
+	scanner := bufio.NewScanner(bytes.NewReader(data))
+	for scanner.Scan() {
+		line := scanner.Text()
+		if strings.Contains(line, "FROM scrath") {
+			return -1
+		}
+	}
+
+	dir, err := ioutil.TempDir("/tmp", "fuzzBuilder")
+	if err != nil {
+		logrus.Errorf("Fuzz creating TempDir failed: %v", err)
+		return 0
+	}
+	defer os.RemoveAll(dir)
+	req := pb.BuildRequest{
+		ContextDir:  dir,
+		FileContent: string(data),
+	}
+	daemonOpts := Options{
+		Debug:    false,
+		DataRoot: "/var/lib/isula-build",
+		RunRoot:  "/var/run/isula-build",
+	}
+
+	store, err := store.GetStore()
+	if err != nil {
+		return 0
+	}
+	daemon, err := NewDaemon(daemonOpts, store)
+	if err != nil {
+		return 0
+	}
+
+	exec, err := daemon.NewBuilder(context.Background(), &req)
+	if err != nil {
+		return 0
+	}
+
+	if _, err = exec.Build(); err != nil {
+		return -1
+	}
+	if err = daemon.Cleanup(); err != nil {
+		return 0
+	}
+	return 1
+}
