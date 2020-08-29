@@ -23,7 +23,7 @@ import (
 var (
 	// Split ${param} or $param.
 	// param should start with char
-	regParam = regexp.MustCompile(`[a-zA-Z][a-zA-Z0-9\-_]+`)
+	regParam = regexp.MustCompile(`^[a-zA-Z][a-zA-Z0-9\-_]*`)
 	// regParamSpecial use to match ${variable:-word} and ${variable:+word}
 	regParamSpecial = regexp.MustCompile(`[a-zA-Z][a-zA-Z0-9\-\+_:]+`)
 )

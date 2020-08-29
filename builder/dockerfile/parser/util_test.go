@@ -73,6 +73,11 @@ func TestRegParam(t *testing.T) {
 			param:     "1212",
 			matchFull: false,
 		},
+		{
+			name:      "name 16",
+			param:     "A",
+			matchFull: true,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -354,6 +359,22 @@ func TestResolveParam(t *testing.T) {
 				},
 			},
 			want:    `\$`,
+			wantErr: false,
+		},
+		{
+			name: "case 107",
+			args: args{
+				s:      `${A}`,
+				strict: false,
+				resolveArg: func(s string) string {
+					if s == "A" {
+						return "found"
+					} else {
+						return "fail"
+					}
+				},
+			},
+			want:    `found`,
 			wantErr: false,
 		},
 		{
