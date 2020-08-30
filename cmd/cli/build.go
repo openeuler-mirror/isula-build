@@ -200,39 +200,41 @@ func checkAndProcessOutput() (string, bool, error) {
 	transport := segments[0]
 
 	// if transport is empty, but the rest parts are not empty
-	if transport == "" && len(segments) >= outputFieldLen {
-		return "", false, errors.New("transport should not be empty")
+	if transport == "" {
+		var err error
+		if len(segments) >= outputFieldLen {
+			err = errors.New("transport should not be empty")
+		}
+		return "", false, err
 	}
 
-	if transport != "" {
-		// 1. check the destination is not empty
-		if len(segments) < outputFieldLen || strings.TrimSpace(segments[1]) == "" {
-			return "", false, errors.New("destination should not be empty")
-		}
+	// 1. check the destination is not empty
+	if len(segments) < outputFieldLen || strings.TrimSpace(segments[1]) == "" {
+		return "", false, errors.New("destination should not be empty")
+	}
 
-		// 2. check the transport is support
-		if !exporter.IsSupport(transport) {
-			return "", false, errors.Errorf("transport %q not support", transport)
-		}
+	// 2. check the transport is support
+	if !exporter.IsSupport(transport) {
+		return "", false, errors.Errorf("transport %q not support", transport)
+	}
 
-		const longestOutputLen = 512
-		if len(buildOpts.output) > longestOutputLen {
-			return "", false, errors.Errorf("output should not longer than %v", longestOutputLen)
-		}
+	const longestOutputLen = 512
+	if len(buildOpts.output) > longestOutputLen {
+		return "", false, errors.Errorf("output should not longer than %v", longestOutputLen)
+	}
 
-		if transport == "isulad" {
-			const validIsuladFiledsLen = 3
-			if len(segments) != validIsuladFiledsLen {
-				return "", true, errors.Errorf("invalid isulad output format: %v", buildOpts.output)
-			}
-			return fmt.Sprintf(tarPathFormat, buildOpts.buildID), true, nil
+	if transport == "isulad" {
+		const validIsuladFiledsLen = 3
+		if len(segments) != validIsuladFiledsLen {
+			return "", true, errors.Errorf("invalid isulad output format: %v", buildOpts.output)
 		}
+		return fmt.Sprintf(tarPathFormat, buildOpts.buildID), true, nil
+	}
 
-		// for export to local, output may contain docker-reference, e.g docker-archive:path:image:tag,
-		// the part of reference is not a path, so only return segments[1]
-		if util.IsClientExporter(transport) {
-			return segments[1], false, nil
-		}
+	// for export to local, output may contain docker-reference, e.g docker-archive:path:image:tag,
+	// the part of reference is not a path, so only return segments[1]
+	if util.IsClientExporter(transport) {
+		return segments[1], false, nil
 	}
 
 	// just build, not need to export to any destination
@@ -267,7 +269,6 @@ func runBuild(ctx context.Context, cli Cli) (string, error) {
 	var (
 		isIsulad        bool
 		encrypted       bool
-		buildResp       *pb.BuildResponse
 		err             error
 		content         string
 		dest            string
@@ -322,8 +323,9 @@ func runBuild(ctx context.Context, cli Cli) (string, error) {
 		return "", err
 	}
 	if dest == "" {
-		if buildResp, err = budStream.Recv(); err != nil {
-			return "", err
+		buildResp, rerr := budStream.Recv()
+		if rerr != nil {
+			return "", rerr
 		}
 		return buildResp.ImageID, nil
 	}
@@ -333,27 +335,24 @@ func runBuild(ctx context.Context, cli Cli) (string, error) {
 	eg.Go(func() error {
 		defer close(ch)
 		for {
-			buildResp, err = budStream.Recv()
-			if err == io.EOF {
+			buildResp, rerr := budStream.Recv()
+			if rerr == io.EOF {
 				break
 			}
-			if err != nil {
+			if rerr != nil {
 				imageID = ""
-				return err
+				return rerr
 			}
 			if buildResp != nil {
 				imageID = buildResp.ImageID
+				ch <- buildResp.Data
 			}
-			ch <- buildResp.Data
 		}
 		return nil
 	})
 
 	eg.Go(func() error {
-		if err = exporter.ArchiveRecv(ctx, dest, isIsulad, ch); err != nil {
-			return err
-		}
-		return nil
+		return exporter.ArchiveRecv(ctx, dest, isIsulad, ch)
 	})
 
 	return imageID, eg.Wait()
