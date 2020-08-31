@@ -18,7 +18,6 @@ import (
 	"context"
 	"io"
 	"io/ioutil"
-	"os"
 
 	"github.com/sirupsen/logrus"
 	"golang.org/x/sync/errgroup"
@@ -30,7 +29,7 @@ import (
 )
 
 // Build receives a build request and build an image
-func (b *Backend) Build(req *pb.BuildRequest, stream pb.Control_BuildServer) (err error) { // nolint:gocyclo
+func (b *Backend) Build(req *pb.BuildRequest, stream pb.Control_BuildServer) error { // nolint:gocyclo
 	b.wg.Add(1)
 	defer b.wg.Done()
 	logrus.WithFields(logrus.Fields{
@@ -39,9 +38,9 @@ func (b *Backend) Build(req *pb.BuildRequest, stream pb.Control_BuildServer) (er
 	}).Info("BuildRequest received")
 
 	ctx := context.WithValue(stream.Context(), util.LogFieldKey(util.LogKeySessionID), req.BuildID)
-	builder, err := b.daemon.NewBuilder(ctx, req)
-	if err != nil {
-		return err
+	builder, nerr := b.daemon.NewBuilder(ctx, req)
+	if nerr != nil {
+		return nerr
 	}
 
 	defer func() {
@@ -53,62 +52,59 @@ func (b *Backend) Build(req *pb.BuildRequest, stream pb.Control_BuildServer) (er
 	}()
 
 	var (
-		f       *os.File
-		length  int
 		imageID string
-		eg      *errgroup.Group
-		errC    = make(chan error, 1)
+		errChan = make(chan error, 1)
 	)
 
 	pipeWrapper := builder.OutputPipeWrapper()
-	eg, ctx = errgroup.WithContext(ctx)
+	eg, ctx := errgroup.WithContext(ctx)
 	eg.Go(func() error {
 		b.syncBuildStatus(req.BuildID) <- struct{}{}
 		close(b.status[req.BuildID].startBuild)
-		imageID, err = builder.Build()
+		var berr error
+		imageID, berr = builder.Build()
 
 		// in case there is error during Build stage, the backend will always waiting for content write into
 		// the pipeFile, which will cause frontend hangs forever.
 		// so if the output type is archive(pipeFile is not empty string) and any error occurred, we write the error
 		// message into the pipe to make the goroutine move on instead of hangs.
-		if err != nil && pipeWrapper != nil {
+		if berr != nil && pipeWrapper != nil {
 			pipeWrapper.Close()
-			if perr := ioutil.WriteFile(pipeWrapper.PipeFile, []byte(err.Error()), constant.DefaultRootFileMode); perr != nil {
-				logrus.WithField(util.LogKeySessionID, req.BuildID).Warnf("Write error [%v] in to pipe file failed: %v", err, perr)
+			if perr := ioutil.WriteFile(pipeWrapper.PipeFile, []byte(berr.Error()), constant.DefaultRootFileMode); perr != nil {
+				logrus.WithField(util.LogKeySessionID, req.BuildID).Warnf("Write error [%v] in to pipe file failed: %v", berr, perr)
 			}
 		}
 
-		return err
+		return berr
 	})
 
 	eg.Go(func() error {
 		if pipeWrapper == nil {
 			return nil
 		}
-		f, err = exporter.PipeArchiveStream(pipeWrapper)
+		f, perr := exporter.PipeArchiveStream(pipeWrapper)
+		if perr != nil {
+			return perr
+		}
 		defer func() {
 			if cErr := f.Close(); cErr != nil {
 				logrus.WithField(util.LogKeySessionID, req.BuildID).Warnf("Closing archive stream pipe %q failed: %v", pipeWrapper.PipeFile, cErr)
 			}
 		}()
-		if err != nil {
-			return err
-		}
 
 		reader := bufio.NewReader(f)
 		buf := make([]byte, constant.BufferSize, constant.BufferSize)
 		for {
-			length, err = reader.Read(buf)
-			if err == io.EOF || pipeWrapper.Done {
+			length, rerr := reader.Read(buf)
+			if rerr == io.EOF || pipeWrapper.Done {
 				break
 			}
-			if err != nil {
-				return err
+			if rerr != nil {
+				return rerr
 			}
-			if err = stream.Send(&pb.BuildResponse{
-				Data: buf[0:length],
-			}); err != nil {
-				return err
+
+			if serr := stream.Send(&pb.BuildResponse{Data: buf[0:length]}); serr != nil {
+				return serr
 			}
 		}
 		logrus.WithField(util.LogKeySessionID, req.BuildID).Debugf("Piping build archive stream done")
@@ -116,26 +112,26 @@ func (b *Backend) Build(req *pb.BuildRequest, stream pb.Control_BuildServer) (er
 	})
 
 	go func() {
-		errC <- eg.Wait()
+		errChan <- eg.Wait()
 	}()
 
 	select {
-	case err = <-errC:
-		close(errC)
-		if err != nil {
-			return err
+	case chErr := <-errChan:
+		close(errChan)
+		if chErr != nil {
+			return chErr
 		}
 		// export done, send client the imageID
-		if err = stream.Send(&pb.BuildResponse{
+		if serr := stream.Send(&pb.BuildResponse{
 			Data:    nil,
 			ImageID: imageID,
-		}); err != nil {
-			return err
+		}); serr != nil {
+			return serr
 		}
 	case <-stream.Context().Done():
-		err = ctx.Err()
-		if err != nil && err != context.Canceled {
-			logrus.WithField(util.LogKeySessionID, req.BuildID).Warnf("Stream closed with: %v", err)
+		ctxErr := ctx.Err()
+		if ctxErr != nil && ctxErr != context.Canceled {
+			logrus.WithField(util.LogKeySessionID, req.BuildID).Warnf("Stream closed with: %v", ctxErr)
 		}
 	}
 
