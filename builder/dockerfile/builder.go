@@ -495,6 +495,7 @@ func (b *Builder) export(imageID string) error {
 			Ctx:           b.ctx,
 			SystemContext: image.GetSystemContext(),
 			ReportWriter:  b.cliLog,
+			ExportID:      b.buildID,
 		}
 		if exErr := exporter.Export(imageID, o, exOpts, b.localStore); exErr != nil {
 			b.Logger().Errorf("Image %s output to %s failed with: %v", imageID, o, exErr)

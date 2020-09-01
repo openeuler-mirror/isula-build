@@ -14,10 +14,17 @@
 package exporter
 
 import (
+	"sync"
+
 	"github.com/containers/image/v5/types"
 )
 
-var exporters map[string]Exporter
+type exportHub struct {
+	items map[string]Exporter
+	sync.RWMutex
+}
+
+var hub exportHub
 
 // Bus is an struct for SrcRef and DestRef
 type Bus struct {
@@ -26,33 +33,43 @@ type Bus struct {
 }
 
 func init() {
-	exporters = make(map[string]Exporter)
+	hub.items = make(map[string]Exporter)
 }
 
 // Exporter is an interface
 type Exporter interface {
 	Name() string
-	Init(src, dest types.ImageReference)
-	GetSrcRef() types.ImageReference
-	GetDestRef() types.ImageReference
+	Init(exportID string, src, dest types.ImageReference)
+	GetSrcRef(exportID string) types.ImageReference
+	GetDestRef(exportID string) types.ImageReference
+	Remove(exportID string)
 }
 
-// Register register an exporter
+// Register registers an exporter
 func Register(e Exporter) {
+	hub.Lock()
+	defer hub.Unlock()
+
 	name := e.Name()
-	if _, ok := exporters[name]; ok {
+	if _, ok := hub.items[name]; ok {
 		return
 	}
-	exporters[name] = e
+	hub.items[name] = e
 }
 
-// GetAnExporter an Exporter for the given name
+// GetAnExporter returns an Exporter for the given name
 func GetAnExporter(name string) Exporter {
-	return exporters[name]
+	hub.RLock()
+	defer hub.RUnlock()
+
+	return hub.items[name]
 }
 
-// IsSupport return a bool whether a exporter is support
+// IsSupport returns true when the specific exporter is supported
 func IsSupport(name string) bool {
-	_, ok := exporters[name]
+	hub.RLock()
+	defer hub.RUnlock()
+
+	_, ok := hub.items[name]
 	return ok
 }

@@ -50,29 +50,31 @@ const (
 // ExportOptions is a struct for exporter
 type ExportOptions struct {
 	SystemContext *types.SystemContext
+	ExportID      string
+	ManifestType  string
 	Ctx           context.Context
 	ReportWriter  io.Writer
-	ManifestType  string
 }
 
 // Export export an archive to the client
-func Export(src, destSpec string, iopts ExportOptions, localStore store.Store) error {
-	eLog := logrus.WithField(util.LogKeySessionID, iopts.Ctx.Value(util.LogFieldKey(util.LogKeySessionID)))
+func Export(src, destSpec string, opts ExportOptions, localStore store.Store) error {
+	eLog := logrus.WithField(util.LogKeySessionID, opts.Ctx.Value(util.LogFieldKey(util.LogKeySessionID)))
 	if destSpec == "" {
 		return nil
 	}
-	epter, err := parseExporter(src, destSpec, localStore)
+	epter, err := parseExporter(opts.ExportID, src, destSpec, localStore)
 	if err != nil {
 		return err
 	}
+	defer epter.Remove(opts.ExportID)
 
-	options := newCopyOptions(iopts)
+	options := newCopyOptions(opts)
 
-	policyContext, err := newPolicyContext(iopts.SystemContext)
+	policyContext, err := newPolicyContext(opts.SystemContext)
 	if err != nil {
 		return err
 	}
-	ref, digest, err := export(iopts.Ctx, epter, policyContext, options)
+	ref, digest, err := export(opts, epter, policyContext, options)
 	if err != nil {
 		return errors.Errorf("export image from %s to %s failed, got error: %s", src, destSpec, err)
 	}
@@ -84,7 +86,7 @@ func Export(src, destSpec string, iopts ExportOptions, localStore store.Store) e
 	return nil
 }
 
-func export(ctx context.Context, e Exporter, policyContext *signature.PolicyContext, opts *cp.Options) (reference.Canonical, digest.Digest, error) {
+func export(exOpts ExportOptions, e Exporter, policyContext *signature.PolicyContext, cpOpts *cp.Options) (reference.Canonical, digest.Digest, error) {
 	var (
 		err            error
 		ref            reference.Canonical
@@ -100,8 +102,11 @@ func export(ctx context.Context, e Exporter, policyContext *signature.PolicyCont
 		}
 	}()
 
-	destRef, srcRef := e.GetDestRef(), e.GetSrcRef()
-	if manifestBytes, err = cp.Image(ctx, policyContext, destRef, srcRef, opts); err != nil {
+	destRef, srcRef := e.GetDestRef(exOpts.ExportID), e.GetSrcRef(exOpts.ExportID)
+	if destRef == nil || srcRef == nil {
+		return nil, "", errors.Wrapf(err, "get dest or src reference by export ID %v failed", exOpts.ExportID)
+	}
+	if manifestBytes, err = cp.Image(exOpts.Ctx, policyContext, destRef, srcRef, cpOpts); err != nil {
 		return nil, "", errors.Wrap(err, "copying layers and metadata failed")
 	}
 	if manifestDigest, err = manifest.Digest(manifestBytes); err != nil {
@@ -117,7 +122,7 @@ func export(ctx context.Context, e Exporter, policyContext *signature.PolicyCont
 }
 
 // parseExporter parses an exporter instance and inits it with the src and dest reference.
-func parseExporter(src, destSpec string, localStore store.Store) (Exporter, error) {
+func parseExporter(exportID, src, destSpec string, localStore store.Store) (Exporter, error) {
 	const partsNum = 2
 	// 1. parse exporter
 	parts := strings.SplitN(destSpec, ":", partsNum)
@@ -146,7 +151,7 @@ func parseExporter(src, destSpec string, localStore store.Store) (Exporter, erro
 	}
 
 	// 4. init exporter with src reference and dest reference
-	ept.Init(srcReference, destReference)
+	ept.Init(exportID, srcReference, destReference)
 
 	return ept, nil
 }

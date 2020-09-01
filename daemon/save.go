@@ -40,6 +40,7 @@ type saveOptions struct {
 	store       store.Store
 	imageName   string
 	imageID     string
+	saveID      string
 	runDir      string
 	output      string
 	imageInfo   string
@@ -130,6 +131,7 @@ func (b *Backend) preSave(req *pb.SaveRequest) (*saveOptions, error) {
 		pipeWrapper: pipeWrapper,
 		imageName:   imageName,
 		imageID:     imageID,
+		saveID:      req.GetSaveID(),
 		store:       localStore,
 		runDir:      runDir,
 		output:      output,
@@ -167,6 +169,7 @@ func exportHandler(ctx context.Context, opts *saveOptions, cliLogger *logger.Log
 			SystemContext: image.GetSystemContext(),
 			Ctx:           ctx,
 			ReportWriter:  cliLogger,
+			ExportID:      opts.saveID,
 		}
 
 		if err := exporter.Export(opts.imageID, opts.output, exOpts, opts.store); err != nil {
