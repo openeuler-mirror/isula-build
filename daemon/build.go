@@ -60,7 +60,7 @@ func (b *Backend) Build(req *pb.BuildRequest, stream pb.Control_BuildServer) err
 	eg, ctx := errgroup.WithContext(ctx)
 	eg.Go(func() error {
 		b.syncBuildStatus(req.BuildID) <- struct{}{}
-		close(b.status[req.BuildID].startBuild)
+		b.closeStatusChan(req.BuildID)
 		var berr error
 		imageID, berr = builder.Build()
 
