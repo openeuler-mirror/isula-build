@@ -15,6 +15,8 @@
 package isulad
 
 import (
+	"sync"
+
 	"github.com/containers/image/v5/types"
 
 	"isula.org/isula-build/exporter"
@@ -25,24 +27,51 @@ func init() {
 }
 
 type isuladExporter struct {
-	exporter.Bus
+	items map[string]exporter.Bus
+	sync.RWMutex
 }
 
-var _isuladExporter = isuladExporter{}
+var _isuladExporter = isuladExporter{
+	items: make(map[string]exporter.Bus),
+}
 
 func (d *isuladExporter) Name() string {
 	return "isulad"
 }
 
-func (d *isuladExporter) Init(src, dest types.ImageReference) {
-	d.SrcRef = src
-	d.DestRef = dest
+func (d *isuladExporter) Init(exportID string, src, dest types.ImageReference) {
+	d.Lock()
+	d.items[exportID] = exporter.Bus{
+		SrcRef:  src,
+		DestRef: dest,
+	}
+	d.Unlock()
 }
 
-func (d *isuladExporter) GetSrcRef() types.ImageReference {
-	return d.SrcRef
+func (d *isuladExporter) GetSrcRef(exportID string) types.ImageReference {
+	d.RLock()
+	defer d.RUnlock()
+
+	if _, ok := d.items[exportID]; ok {
+		return d.items[exportID].SrcRef
+	}
+
+	return nil
 }
 
-func (d *isuladExporter) GetDestRef() types.ImageReference {
-	return d.DestRef
+func (d *isuladExporter) GetDestRef(exportID string) types.ImageReference {
+	d.RLock()
+	defer d.RUnlock()
+
+	if _, ok := d.items[exportID]; ok {
+		return d.items[exportID].DestRef
+	}
+
+	return nil
+}
+
+func (d *isuladExporter) Remove(exportID string) {
+	d.Lock()
+	delete(d.items, exportID)
+	d.Unlock()
 }

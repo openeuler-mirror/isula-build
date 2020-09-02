@@ -15,6 +15,8 @@
 package daemon
 
 import (
+	"sync"
+
 	"github.com/containers/image/v5/types"
 
 	"isula.org/isula-build/exporter"
@@ -25,24 +27,51 @@ func init() {
 }
 
 type dockerDaemonExporter struct {
-	exporter.Bus
+	items map[string]exporter.Bus
+	sync.RWMutex
 }
 
-var _dockerDaemonExporter = dockerDaemonExporter{}
+var _dockerDaemonExporter = dockerDaemonExporter{
+	items: make(map[string]exporter.Bus),
+}
 
 func (d *dockerDaemonExporter) Name() string {
 	return "docker-daemon"
 }
 
-func (d *dockerDaemonExporter) Init(src, dest types.ImageReference) {
-	d.SrcRef = src
-	d.DestRef = dest
+func (d *dockerDaemonExporter) Init(exportID string, src, dest types.ImageReference) {
+	d.Lock()
+	d.items[exportID] = exporter.Bus{
+		SrcRef:  src,
+		DestRef: dest,
+	}
+	d.Unlock()
 }
 
-func (d *dockerDaemonExporter) GetSrcRef() types.ImageReference {
-	return d.SrcRef
+func (d *dockerDaemonExporter) GetSrcRef(exportID string) types.ImageReference {
+	d.RLock()
+	defer d.RUnlock()
+
+	if _, ok := d.items[exportID]; ok {
+		return d.items[exportID].SrcRef
+	}
+
+	return nil
 }
 
-func (d *dockerDaemonExporter) GetDestRef() types.ImageReference {
-	return d.DestRef
+func (d *dockerDaemonExporter) GetDestRef(exportID string) types.ImageReference {
+	d.RLock()
+	defer d.RUnlock()
+
+	if _, ok := d.items[exportID]; ok {
+		return d.items[exportID].DestRef
+	}
+
+	return nil
+}
+
+func (d *dockerDaemonExporter) Remove(exportID string) {
+	d.Lock()
+	delete(d.items, exportID)
+	d.Unlock()
 }
