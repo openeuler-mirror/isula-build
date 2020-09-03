@@ -63,3 +63,11 @@ func (b *Backend) syncBuildStatus(buildID string) chan struct{} {
 	b.Unlock()
 	return statusChan
 }
+
+func (b *Backend) closeStatusChan(buildID string) {
+	b.Lock()
+	if _, ok := b.status[buildID]; ok {
+		close(b.status[buildID].startBuild)
+	}
+	b.Unlock()
+}
