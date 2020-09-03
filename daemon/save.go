@@ -21,6 +21,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"syscall"
 
 	"github.com/sirupsen/logrus"
 	"golang.org/x/sync/errgroup"
@@ -173,7 +174,16 @@ func exportHandler(ctx context.Context, opts *saveOptions, cliLogger *logger.Log
 		}
 
 		if err := exporter.Export(opts.imageID, opts.output, exOpts, opts.store); err != nil {
-			opts.pipeWrapper.Close()
+			// in case there is error during export, the backend will always waiting for content write into
+			// the pipeFile, which will cause frontend hangs forever.
+			// so if any error occurred, we try to open and close the pipe in O_NONBLOCK flag to make the
+			// goroutine move on instead of hangs.
+			f, perr := os.OpenFile(opts.pipeWrapper.PipeFile, os.O_WRONLY|syscall.O_NONBLOCK, os.ModeNamedPipe)
+			if perr == nil && f != nil {
+				if cerr := f.Close(); cerr != nil {
+					logrus.WithField(util.LogKeySessionID, opts.saveID).Warnf("Close pipe file failed: %v", cerr)
+				}
+			}
 			logrus.Errorf("Save image %s failed: %v", opts.imageInfo, err)
 			return err
 		}
@@ -198,7 +208,7 @@ func dataHandler(req *pb.SaveRequest, stream pb.Control_SaveServer, opts *saveOp
 		buf := make([]byte, constant.BufferSize, constant.BufferSize)
 		for {
 			length, err := reader.Read(buf)
-			if err == io.EOF || opts.pipeWrapper.Done {
+			if err == io.EOF {
 				break
 			}
 			if err != nil {
