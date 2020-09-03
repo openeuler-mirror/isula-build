@@ -353,19 +353,11 @@ func (s *stageBuilder) commit(ctx context.Context) (string, error) {
 
 // delete cleans up temporary resources which are created during stage building.
 func (s *stageBuilder) delete() error {
-	var retErr error
-
-	if s.containerID != "" {
-		if _, err := s.localStore.Unmount(s.containerID, false); err != nil {
-			s.builder.Logger().Warnf("Unmount mountpoint of containerID[%q] for stage[%q] failed: %v", s.containerID, s.name, err)
-			retErr = errors.Wrapf(err, "unmount mountpoint of containerID[%q] for stage[%q] failed", s.containerID, s.name)
-		}
-		if err := s.localStore.DeleteContainer(s.containerID); err != nil {
-			s.builder.Logger().Warnf("Delete mountpoint of containerID[%q] for stage[%q] failed: %v", s.containerID, s.name, err)
-			retErr = errors.Wrapf(err, "delete mountpoint of containerID[%q] for stage[%q] failed", s.containerID, s.name)
-		}
-		s.mountpoint = ""
+	if s.containerID == "" {
+		return nil
 	}
 
-	return retErr
+	s.mountpoint = ""
+
+	return s.localStore.CleanContainer(s.containerID)
 }

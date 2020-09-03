@@ -158,11 +158,8 @@ func (c *cmdBuilder) getCopyContextDir(from string) (string, func(), error) {
 	}
 
 	cleanup := func() {
-		if _, uerr := c.stage.localStore.Unmount(imgDesc.ContainerDesc.ContainerID, false); uerr != nil {
-			logrus.Warnf("Unmount layer[%s] for COPY from[%s] failed: %v", imgDesc.ContainerDesc.ContainerID, from, uerr)
-		}
-		if derr := c.stage.localStore.DeleteContainer(imgDesc.ContainerDesc.ContainerID); derr != nil {
-			logrus.Warnf("Delete layer[%s] for COPY from[%s] failed: %v", imgDesc.ContainerDesc.ContainerID, from, derr)
+		if cerr := c.stage.localStore.CleanContainer(imgDesc.ContainerDesc.ContainerID); cerr != nil {
+			logrus.Warnf("Clean layer[%s] for COPY from[%s] failed: %v", imgDesc.ContainerDesc.ContainerID, from, cerr)
 		}
 	}
 

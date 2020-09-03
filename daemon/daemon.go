@@ -36,7 +36,6 @@ import (
 	"isula.org/isula-build/util"
 )
 
-
 // Options carries the options configured to daemon
 type Options struct {
 	Debug         bool
@@ -86,8 +85,8 @@ func (d *Daemon) Run() (err error) {
 	gc := gc.NewGC()
 	gc.StartGC(ctx)
 
-	if err := d.registerSubReaper(gc); err != nil {
-		return err
+	if rerr := d.registerSubReaper(gc); rerr != nil {
+		return rerr
 	}
 
 	logrus.Debugf("Daemon start with option %#v", d.opts)
@@ -189,7 +188,7 @@ func (d *Daemon) Cleanup() error {
 		logrus.Info("Delete key failed")
 	}
 	d.deleteAllBuilders()
-	d.localStore.CleanContainerStore()
+	d.localStore.CleanContainers()
 	_, err := d.localStore.Shutdown(false)
 	return err
 }
@@ -225,4 +224,3 @@ func (d *Daemon) registerSubReaper(g *gc.GarbageCollector) error {
 
 	return g.RegisterGC(opt)
 }
-

@@ -88,7 +88,7 @@ func runDaemon(cmd *cobra.Command, args []string) error {
 		return err
 	}
 	// cleanup the residual container store if it exists
-	store.CleanContainerStore()
+	store.CleanContainers()
 	// Ensure we have only one daemon running at the same time
 	lock, err := util.SetDaemonLock(daemonOpts.RunRoot, lockFileName)
 	if err != nil {
