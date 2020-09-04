@@ -17,7 +17,8 @@ import (
 	"bufio"
 	"context"
 	"io"
-	"io/ioutil"
+	"os"
+	"syscall"
 
 	"github.com/sirupsen/logrus"
 	"golang.org/x/sync/errgroup"
@@ -64,14 +65,16 @@ func (b *Backend) Build(req *pb.BuildRequest, stream pb.Control_BuildServer) err
 		var berr error
 		imageID, berr = builder.Build()
 
-		// in case there is error during Build stage, the backend will always waiting for content write into
-		// the pipeFile, which will cause frontend hangs forever.
-		// so if the output type is archive(pipeFile is not empty string) and any error occurred, we write the error
-		// message into the pipe to make the goroutine move on instead of hangs.
 		if berr != nil && pipeWrapper != nil {
-			pipeWrapper.Close()
-			if perr := ioutil.WriteFile(pipeWrapper.PipeFile, []byte(berr.Error()), constant.DefaultRootFileMode); perr != nil {
-				logrus.WithField(util.LogKeySessionID, req.BuildID).Warnf("Write error [%v] in to pipe file failed: %v", berr, perr)
+			// in case there is error during Build stage, the backend will always waiting for content write into
+			// the pipeFile, which will cause frontend hangs forever.
+			// so if the output type is archive(pipeWrapper is not nil) and any error occurred, we try to open and close
+			// the pipe in O_NONBLOCK flag to make the goroutine move on instead of hangs.
+			f, perr := os.OpenFile(pipeWrapper.PipeFile, os.O_WRONLY|syscall.O_NONBLOCK, os.ModeNamedPipe)
+			if perr == nil && f != nil {
+				if cerr := f.Close(); cerr != nil {
+					logrus.WithField(util.LogKeySessionID, req.BuildID).Warnf("Close pipe file failed: %v", cerr)
+				}
 			}
 		}
 
@@ -96,7 +99,7 @@ func (b *Backend) Build(req *pb.BuildRequest, stream pb.Control_BuildServer) err
 		buf := make([]byte, constant.BufferSize, constant.BufferSize)
 		for {
 			length, rerr := reader.Read(buf)
-			if rerr == io.EOF || pipeWrapper.Done {
+			if rerr == io.EOF {
 				break
 			}
 			if rerr != nil {
