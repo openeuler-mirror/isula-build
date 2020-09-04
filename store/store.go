@@ -15,6 +15,8 @@
 package store
 
 import (
+	"sync"
+
 	is "github.com/containers/image/v5/storage"
 	"github.com/containers/storage"
 	"github.com/sirupsen/logrus"
@@ -36,6 +38,7 @@ var (
 type Store struct {
 	// storage.Store wraps up the various types of file-based stores
 	storage.Store
+	sync.RWMutex
 }
 
 // GetDefaultStoreOptions returns default store options.
@@ -103,11 +106,11 @@ func GetStore() (Store, error) {
 
 	is.Transport.SetStore(store)
 
-	return Store{store}, nil
+	return Store{Store: store}, nil
 }
 
-// CleanContainerStore unmount the containers and delete them
-func (s *Store) CleanContainerStore() {
+// CleanContainers unmount the containers and delete them
+func (s *Store) CleanContainers() {
 	containers, err := s.Containers()
 	if err != nil {
 		logrus.Warn("Failed to get containers while cleaning the container store")
@@ -115,11 +118,28 @@ func (s *Store) CleanContainerStore() {
 	}
 
 	for _, container := range containers {
-		if _, err := s.Unmount(container.ID, false); err != nil {
-			logrus.Warnf("Unmount container store failed while cleaning %q", container.ID)
-		}
-		if err := s.DeleteContainer(container.ID); err != nil {
-			logrus.Warnf("Delete container store failed while cleaning %q", container.ID)
+		if cerr := s.CleanContainer(container.ID); cerr != nil {
+			logrus.Warnf("Clean container %q failed", container.ID)
 		}
 	}
+}
+
+// CleanContainer cleans the container in store
+func (s *Store) CleanContainer(id string) error {
+	s.Lock()
+	defer s.Unlock()
+
+	// Do not care about all the errors whiling cleaning the container,
+	// just return one if the error occurs.
+	var err error
+	if _, uerr := s.Unmount(id, false); uerr != nil {
+		err = uerr
+		logrus.Warnf("Unmount container store failed while cleaning %q", id)
+	}
+	if derr := s.DeleteContainer(id); derr != nil {
+		err = derr
+		logrus.Warnf("Delete container store failed while cleaning %q", id)
+	}
+
+	return err
 }
