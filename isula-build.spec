@@ -2,11 +2,11 @@
 
 Name: isula-build
 Version: 0.9.2
-Release: 2
+Release: 3
 Summary: A tool to build container images
 License: Mulan PSL V2
 URL: https://gitee.com/openeuler/isula-build
-Source0: isula-build-v0.9.2.tar.gz
+Source0: https://gitee.com/openeuler/isula-build/repository/archive/v%{version}.tar.gz
 Source1: git-commit 
 BuildRequires: make btrfs-progs-devel device-mapper-devel glib2-devel gpgme-devel
 BuildRequires: libassuan-devel libseccomp-devel git bzip2 go-md2man systemd-devel
@@ -50,21 +50,6 @@ install -p -m 600 __isula-build %{buildroot}/usr/share/bash-completion/completio
 %clean
 rm -rf %{buildroot}
 
-%post
-%if 0%{?is_systemd}
-systemctl start isula-build
-%endif
-
-%preun
-%if 0%{?is_systemd}
-%systemd_preun isula-build
-%endif
-
-%postun
-%if 0%{?is_systemd}
-%systemd_postun_with_restart isula-build
-%endif
-
 %files
 # default perm for files and folder
 %defattr(0640,root,root,0550)
@@ -80,6 +65,9 @@ systemctl start isula-build
 /usr/share/bash-completion/completions/isula-build
 
 %changelog
+* Fri Sep 04 2020 lixiang <lixiang172@huawei.com> - 0.9.2-3
+- Fix Source0 and do not startup after install by default
+
 * Sat Aug 15 2020 lixiang <lixiang172@huawei.com> - 0.9.2-2
 - Add bash completion script in rpm
 
