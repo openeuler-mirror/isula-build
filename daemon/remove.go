@@ -36,6 +36,7 @@ func (b *Backend) Remove(req *pb.RemoveRequest, stream pb.Control_RemoveServer) 
 	var (
 		rmImageIDs []string
 		err        error
+		rmFailed   bool
 	)
 	s := b.daemon.localStore
 
@@ -50,6 +51,7 @@ func (b *Backend) Remove(req *pb.RemoveRequest, stream pb.Control_RemoveServer) 
 	for _, imageID := range rmImageIDs {
 		_, img, err := image.FindImage(s, imageID)
 		if err != nil {
+			rmFailed = true
 			errMsg := fmt.Sprintf("Find local image %s error: %v", imageID, err.Error())
 			logrus.Error(errMsg)
 			if err = stream.Send(&pb.RemoveResponse{LayerMessage: errMsg}); err != nil {
@@ -62,6 +64,7 @@ func (b *Backend) Remove(req *pb.RemoveRequest, stream pb.Control_RemoveServer) 
 		if len(img.Names) > 1 {
 			removed, uerr := untagImage(imageID, s, img)
 			if uerr != nil {
+				rmFailed = true
 				errMsg := fmt.Sprintf("Untag image %s error: %v", imageID, uerr.Error())
 				logrus.Error(errMsg)
 				if err = stream.Send(&pb.RemoveResponse{LayerMessage: errMsg}); err != nil {
@@ -83,6 +86,7 @@ func (b *Backend) Remove(req *pb.RemoveRequest, stream pb.Control_RemoveServer) 
 		layers, err := s.DeleteImage(img.ID, true)
 		if err != nil {
 			// if delete failed, print out message and continue deleting the rest images
+			rmFailed = true
 			errMsg := fmt.Sprintf("Remove image %s failed: %v", imageID, err.Error())
 			logrus.Error(errMsg)
 			if err = stream.Send(&pb.RemoveResponse{LayerMessage: errMsg}); err != nil {
@@ -107,6 +111,9 @@ func (b *Backend) Remove(req *pb.RemoveRequest, stream pb.Control_RemoveServer) 
 		}
 	}
 
+	if rmFailed {
+		return errors.New("remove one or more images failed")
+	}
 	return nil
 }
 
