@@ -34,8 +34,8 @@ import (
 	"isula.org/isula-build/pkg/logger"
 	"isula.org/isula-build/pkg/parser"
 	"isula.org/isula-build/store"
-	testutil "isula.org/isula-build/util"
 	"isula.org/isula-build/util"
+	testutil "isula.org/isula-build/util"
 )
 
 func TestParseFiles(t *testing.T) {
@@ -168,8 +168,9 @@ temp?`
 						Flags:   map[string]string{"from": "date"},
 					},
 				},
-				Begin: 9,
-				End:   11,
+				Begin:      9,
+				NeedCommit: true,
+				End:        11,
 			},
 		},
 		Warnings: nil,
