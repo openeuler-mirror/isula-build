@@ -1,13 +1,18 @@
 %global is_systemd 1
 
 Name: isula-build
-Version: 0.9.2
-Release: 3
+Version: 0.9.3
+Release: 1
 Summary: A tool to build container images
 License: Mulan PSL V2
 URL: https://gitee.com/openeuler/isula-build
 Source0: https://gitee.com/openeuler/isula-build/repository/archive/v%{version}.tar.gz
-Source1: git-commit 
+Source1: git-commit
+Source2: VERSION-openeuler
+Source3: apply-patches
+Source4: gen-version.sh
+Source5: series.conf
+Source6: patch.tar.gz
 BuildRequires: make btrfs-progs-devel device-mapper-devel glib2-devel gpgme-devel
 BuildRequires: libassuan-devel libseccomp-devel git bzip2 go-md2man systemd-devel
 BuildRequires: golang >= 1.13
@@ -20,10 +25,16 @@ Requires: systemd-units
 isula-build is a tool used for container images building.
 
 %prep
-%autosetup -n %{name}
+cp %{SOURCE0} .
+cp %{SOURCE1} .
+cp %{SOURCE2} .
+cp %{SOURCE3} .
+cp %{SOURCE4} .
+cp %{SOURCE5} .
+cp %{SOURCE6} .
 
 %build
-cp %{SOURCE1} .
+sh ./apply-patches
 %{make_build} safe
 ./bin/isula-build completion > __isula-build
 
@@ -42,7 +53,7 @@ install -d %{buildroot}%{_sysconfdir}/isula-build
 install -p -m 600 ./cmd/daemon/config/configuration.toml %{buildroot}%{_sysconfdir}/isula-build/configuration.toml
 install -p -m 600 ./cmd/daemon/config/storage.toml %{buildroot}%{_sysconfdir}/isula-build/storage.toml
 install -p -m 600 ./cmd/daemon/config/registries.toml %{buildroot}%{_sysconfdir}/isula-build/registries.toml
-install -p -m 600 ./cmd/daemon/config/policy.json %{buildroot}%{_sysconfdir}/isula-build/policy.json
+install -p -m 400 ./cmd/daemon/config/policy.json %{buildroot}%{_sysconfdir}/isula-build/policy.json
 # install bash completion script
 install -d %{buildroot}/usr/share/bash-completion/completions
 install -p -m 600 __isula-build %{buildroot}/usr/share/bash-completion/completions/isula-build
@@ -65,6 +76,9 @@ rm -rf %{buildroot}
 /usr/share/bash-completion/completions/isula-build
 
 %changelog
+* Thu Sep 10 2020 lixiang <lixiang172@huawei.com> - 0.9.3-1
+- Bump version to 0.9.3
+
 * Fri Sep 04 2020 lixiang <lixiang172@huawei.com> - 0.9.2-3
 - Fix Source0 and do not startup after install by default
 
