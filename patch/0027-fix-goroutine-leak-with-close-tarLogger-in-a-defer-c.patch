@@ -1,0 +1,34 @@
+From 241e0fdd31cf5f5905ab41b2bab1d0f247274bc3 Mon Sep 17 00:00:00 2001
+From: liuzekun <liuzekun@huawei.com>
+Date: Wed, 2 Sep 2020 06:10:55 -0400
+Subject: [PATCH] isula-build:fix goroutine leak with close tatLogger in a
+ defer clause
+
+Signed-off-by: liuzekun <liuzekun@huawei.com>
+---
+ vendor/github.com/containers/storage/layers.go | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/vendor/github.com/containers/storage/layers.go b/vendor/github.com/containers/storage/layers.go
+index dc21f75..1fc25ba 100644
+--- a/vendor/github.com/containers/storage/layers.go
++++ b/vendor/github.com/containers/storage/layers.go
+@@ -1346,6 +1346,7 @@ func (r *layerStore) ApplyDiff(to string, diff io.Reader) (size int64, err error
+ 	if err != nil {
+ 		return -1, err
+ 	}
++	defer idLogger.Close()
+ 	options := drivers.ApplyDiffOpts{
+ 		Diff:       payload,
+ 		Mappings:   r.layerMappings(layer),
+@@ -1356,7 +1357,6 @@ func (r *layerStore) ApplyDiff(to string, diff io.Reader) (size int64, err error
+ 		return -1, err
+ 	}
+ 	compressor.Close()
+-	idLogger.Close()
+ 	if err == nil {
+ 		if err := os.MkdirAll(filepath.Dir(r.tspath(layer.ID)), 0700); err != nil {
+ 			return -1, err
+-- 
+2.19.1
+
