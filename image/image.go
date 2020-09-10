@@ -464,9 +464,39 @@ func FindImage(store store.Store, image string) (types.ImageReference, *storage.
 		return nil, nil, errors.Wrapf(err, "error parsing name %q", image)
 	}
 
+	ref, img := parseImagesToReference(&store, names)
+	if ref == nil || img == nil {
+		return nil, nil, errors.Errorf("locating image %q with name: %v failed", image, names)
+	}
+	return ref, img, nil
+}
+
+// FindImageLocally get the image from local storage by image describe
+func FindImageLocally(store *store.Store, image string) (types.ImageReference, *storage.Image, error) {
+	// 1. check name valid
+	if image == "" {
+		return nil, nil, errors.Errorf("image name %q cannot be empty string", image)
+	}
+
+	// 2. try to find image with name or id in local store
+	localName := tryResolveNameInStore(image, store)
+	if localName == "" {
+		return nil, nil, errors.Errorf("no image %q in local store", image)
+	}
+
+	// 3. parse to image reference
+	ref, img := parseImagesToReference(store, []string{localName})
+	if ref == nil || img == nil {
+		return nil, nil, errors.Errorf("locating image %q locally with name: %v failed", image, localName)
+	}
+	return ref, img, nil
+}
+
+func parseImagesToReference(store *store.Store, names []string) (types.ImageReference, *storage.Image) {
 	var (
 		ref types.ImageReference
 		img *storage.Image
+		err error
 	)
 	for _, name := range names {
 		ref, err = is.Transport.ParseStoreReference(store, name)
@@ -485,10 +515,7 @@ func FindImage(store store.Store, image string) (types.ImageReference, *storage.
 		}
 		break
 	}
-	if ref == nil || img == nil {
-		return nil, nil, errors.Errorf("locating image %q with name: %v failed", image, names)
-	}
-	return ref, img, nil
+	return ref, img
 }
 
 // ResolveName checks whether the image name is valid, if the name does not include a domain,
@@ -500,7 +527,7 @@ func ResolveName(name string, sc *types.SystemContext, store store.Store) ([]str
 	}
 
 	// 2. try to find image with name or id in local store
-	if imageID := tryResolveNameInStore(name, store); imageID != "" {
+	if imageID := tryResolveNameInStore(name, &store); imageID != "" {
 		return []string{imageID}, "", nil
 	}
 
@@ -526,7 +553,7 @@ func ResolveName(name string, sc *types.SystemContext, store store.Store) ([]str
 	return candidates, transport, nil
 }
 
-func tryResolveNameInStore(name string, store store.Store) string {
+func tryResolveNameInStore(name string, store *store.Store) string {
 	logrus.Infof("Try to find image: %s in local storage", name)
 	img, err := store.Image(name)
 	if err != nil {
