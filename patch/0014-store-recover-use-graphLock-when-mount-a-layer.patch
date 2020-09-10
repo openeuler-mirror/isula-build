@@ -1,0 +1,26 @@
+From 3703d88fbb74b216d8aaa2237d18c373fefa8f6e Mon Sep 17 00:00:00 2001
+From: liuzekun <liuzekun@huawei.com>
+Date: Fri, 21 Aug 2020 06:24:42 -0400
+Subject: [PATCH] store: recover use graphLock when mount a layer
+
+Signed-off-by: liuzekun <liuzekun@huawei.com>
+---
+ vendor/github.com/containers/storage/store.go | 2 ++
+ 1 file changed, 2 insertions(+)
+
+diff --git a/vendor/github.com/containers/storage/store.go b/vendor/github.com/containers/storage/store.go
+index 937bf8c..8f84412 100644
+--- a/vendor/github.com/containers/storage/store.go
++++ b/vendor/github.com/containers/storage/store.go
+@@ -2630,6 +2630,8 @@ func (s *store) mount(id string, options drivers.MountOpts) (string, error) {
+ 	if err != nil {
+ 		return "", err
+ 	}
++	s.graphLock.Lock()
++	defer s.graphLock.Unlock()
+ 	rlstore.Lock()
+ 	defer rlstore.Unlock()
+ 	if modified, err := rlstore.Modified(); modified || err != nil {
+-- 
+2.19.1
+

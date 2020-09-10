@@ -1,0 +1,93 @@
+From b179511d671e84c83d895444f1d0bc45152dc3ba Mon Sep 17 00:00:00 2001
+From: yangfeiyu <yangfeiyu2@huawei.com>
+Date: Sat, 22 Aug 2020 16:44:16 +0800
+Subject: [PATCH] xattr: support ima and evm
+
+reason: support ima and evm
+
+Signed-off-by: yangfeiyu <yangfeiyu2@huawei.com>
+---
+ .../containers/storage/pkg/archive/archive.go | 50 +++++++++----------
+ 1 file changed, 25 insertions(+), 25 deletions(-)
+ mode change 100644 => 100755 vendor/github.com/containers/storage/pkg/archive/archive.go
+
+diff --git a/vendor/github.com/containers/storage/pkg/archive/archive.go b/vendor/github.com/containers/storage/pkg/archive/archive.go
+old mode 100644
+new mode 100755
+index 78744e0..dd3b750
+--- a/vendor/github.com/containers/storage/pkg/archive/archive.go
++++ b/vendor/github.com/containers/storage/pkg/archive/archive.go
+@@ -396,7 +396,7 @@ func ReadSecurityXattrToTarHeader(path string, hdr *tar.Header) error {
+ 	if hdr.Xattrs == nil {
+ 		hdr.Xattrs = make(map[string]string)
+ 	}
+-	for _, xattr := range []string{"security.capability", "security.ima"} {
++	for _, xattr := range []string{"security.capability", "security.ima", "security.evm"} {
+ 		capability, err := system.Lgetxattr(path, xattr)
+ 		if err != nil && err != system.EOPNOTSUPP && err != system.ErrNotSupportedPlatform {
+ 			return errors.Wrapf(err, "failed to read %q attribute from %q", xattr, path)
+@@ -693,30 +693,7 @@ func createTarFile(path, extractDir string, hdr *tar.Header, reader io.Reader, L
+ 			}
+ 		}
+ 	}
+-
+-	var errors []string
+-	for key, value := range hdr.Xattrs {
+-		if err := system.Lsetxattr(path, key, []byte(value), 0); err != nil {
+-			if err == syscall.ENOTSUP || (err == syscall.EPERM && inUserns) {
+-				// We ignore errors here because not all graphdrivers support
+-				// xattrs *cough* old versions of AUFS *cough*. However only
+-				// ENOTSUP should be emitted in that case, otherwise we still
+-				// bail.  We also ignore EPERM errors if we are running in a
+-				// user namespace.
+-				errors = append(errors, err.Error())
+-				continue
+-			}
+-			return err
+-		}
+-
+-	}
+-
+-	if len(errors) > 0 {
+-		logrus.WithFields(logrus.Fields{
+-			"errors": errors,
+-		}).Warn("ignored xattrs in archive: underlying filesystem doesn't support them")
+-	}
+-
++	
+ 	// There is no LChmod, so ignore mode for symlink. Also, this
+ 	// must happen after chown, as that can modify the file mode
+ 	if err := handleLChmod(hdr, path, hdrInfo); err != nil {
+@@ -746,6 +723,29 @@ func createTarFile(path, extractDir string, hdr *tar.Header, reader io.Reader, L
+ 			return err
+ 		}
+ 	}
++
++	var errors []string
++	for key, value := range hdr.Xattrs {
++		if err := system.Lsetxattr(path, key, []byte(value), 0); err != nil {
++			if err == syscall.ENOTSUP || (err == syscall.EPERM && inUserns) {
++				// We ignore errors here because not all graphdrivers support
++				// xattrs *cough* old versions of AUFS *cough*. However only
++				// ENOTSUP should be emitted in that case, otherwise we still
++				// bail.  We also ignore EPERM errors if we are running in a
++				// user namespace.
++				errors = append(errors, err.Error())
++				continue
++			}
++			return err
++		}
++
++	}
++
++	if len(errors) > 0 {
++		logrus.WithFields(logrus.Fields{
++			"errors": errors,
++		}).Warn("ignored xattrs in archive: underlying filesystem doesn't support them")
++	}
+ 	return nil
+ }
+ 
+-- 
+2.23.0
+
