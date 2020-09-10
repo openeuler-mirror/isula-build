@@ -1,0 +1,39 @@
+#!/bin/bash
+# Copyright (c) Huawei Technologies Co., Ltd. 2019-2020. All rights reserved.
+# Description: This shell script is used to apply patches for the project
+# Author: lixiang172@huawei.com
+# Create: 2020-08-21
+
+set -ex
+
+pkg=isula-build
+cwd=${PWD}
+src=${cwd}/${pkg}
+tar_file=v"$(awk -F"-" '{print $1}' < VERSION-openeuler)".tar.gz
+
+tar -zxvf "${tar_file}"
+if [ ! -d patch ]; then
+    tar -zxvf patch.tar.gz
+fi
+
+cd "${src}"
+git init
+git add .
+git config user.name 'build'
+git config user.email 'build@obs.com'
+git commit -m 'init build'
+cd "${cwd}"
+
+series=${cwd}/series.conf
+while IPF= read -r line; do
+    if [[ "${line}" =~ ^patch* ]]; then
+        echo "git apply ${cwd}/${line}"
+        cd "${src}" && git apply "${cwd}/${line}"
+    fi
+done <"${series}"
+
+cd "${cwd}"
+
+cp -rf "${src}"/* .
+cp -f VERSION-openeuler VERSION
+rm -rf "${src}"
