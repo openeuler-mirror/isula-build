@@ -79,7 +79,25 @@ install -p -m 600 ./cmd/daemon/config/policy.json /etc/isula-build/policy.json
 
 #### Install as RPM package
 
-`isula-build` is integrated with `openeuler/isula-kits`, for details on how to compile and install `isula-build` as RPM package, please refer to `isula-kits`.
+`isula-build` is now released with update pack of openEuler 20.03 LTS, you can install it by the help of yum or rpm.
+
+##### With `yum`
+
+```sh
+sudo yum install -y isula-build
+```
+
+**NOTE**: Please make sure "update" part of your yum configuration is enabled.
+
+##### With `rpm`
+
+you can download it from [openEuler's yum repo of update](https://repo.openeuler.org/openEuler-20.03-LTS/update/) to your local machine, and intall it with such:
+
+```sh
+sudo rpm -ivh isula-build-*.rpm
+```
+
+
 
 
 ### Run the daemon server
