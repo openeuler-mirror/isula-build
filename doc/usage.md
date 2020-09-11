@@ -261,6 +261,15 @@ Usage:
 
 `isula-build ctr-img save [REPOSITORY:TAG]|imageID -o xx.tar`
 
+Currently, these flags are supporting:
+
+```
+Flags:
+  -o, --output string   Path to save the tarball
+```
+
+Examples:
+
 ```bash
 $ sudo isula-build ctr-img save busybox:latest -o busybox.tar
 Save success with image: busybox:latest
@@ -275,7 +284,13 @@ Save success with image: 21c3e96ac411
 
 We can run the `rm` command to delete the image stored locally.
 
-Currently, the following flags are supported:
+Usage:
+
+`isula-build ctr-img rm IMAGE [IMAGE...] [FLAGS]`
+
+Please note, we do not permit removing image without tag, such as image name "foo" will not match with "foo:latest". 
+
+Currently, these flags are supporting:
 
 ```bash
 Flags:
@@ -286,15 +301,11 @@ Flags:
 
 #### -a, --all
 
-Deleting All Images Stored Locally and Persistently
+Deleting all images stored locally and persistently
 
 #### -p, --prune
 
-Deleting All Images That Do Not Have Tags and Are Stored Locally and Persistently
-
-Usage:
-
-`isula-build ctr-img rm -p`
+Deleting all images that do not have tags and are stored locally and persistently.
 
 ```bash
 $ sudo isula-build ctr-img rm -p

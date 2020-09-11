@@ -38,7 +38,7 @@ func (b *Backend) Remove(req *pb.RemoveRequest, stream pb.Control_RemoveServer) 
 		err        error
 		rmFailed   bool
 	)
-	s := b.daemon.localStore
+	s := &b.daemon.localStore
 
 	rmImageIDs = req.ImageID
 	if req.All || req.Prune {
@@ -49,10 +49,10 @@ func (b *Backend) Remove(req *pb.RemoveRequest, stream pb.Control_RemoveServer) 
 	}
 
 	for _, imageID := range rmImageIDs {
-		_, img, err := image.FindImage(s, imageID)
+		_, img, err := image.FindImageLocally(s, imageID)
 		if err != nil {
 			rmFailed = true
-			errMsg := fmt.Sprintf("Find local image %s error: %v", imageID, err.Error())
+			errMsg := fmt.Sprintf("Find local image %q failed: %v", imageID, err)
 			logrus.Error(errMsg)
 			if err = stream.Send(&pb.RemoveResponse{LayerMessage: errMsg}); err != nil {
 				return err
@@ -65,7 +65,7 @@ func (b *Backend) Remove(req *pb.RemoveRequest, stream pb.Control_RemoveServer) 
 			removed, uerr := untagImage(imageID, s, img)
 			if uerr != nil {
 				rmFailed = true
-				errMsg := fmt.Sprintf("Untag image %s error: %v", imageID, uerr.Error())
+				errMsg := fmt.Sprintf("Untag image %q failed: %v", imageID, uerr)
 				logrus.Error(errMsg)
 				if err = stream.Send(&pb.RemoveResponse{LayerMessage: errMsg}); err != nil {
 					return err
@@ -87,7 +87,7 @@ func (b *Backend) Remove(req *pb.RemoveRequest, stream pb.Control_RemoveServer) 
 		if err != nil {
 			// if delete failed, print out message and continue deleting the rest images
 			rmFailed = true
-			errMsg := fmt.Sprintf("Remove image %s failed: %v", imageID, err.Error())
+			errMsg := fmt.Sprintf("Remove image %q failed: %v", imageID, err)
 			logrus.Error(errMsg)
 			if err = stream.Send(&pb.RemoveResponse{LayerMessage: errMsg}); err != nil {
 				return err
@@ -137,7 +137,7 @@ func untagImage(imageID string, store storage.Store, image *storage.Image) (bool
 	return removed, nil
 }
 
-func getImageIDs(s store.Store, prune bool) ([]string, error) {
+func getImageIDs(s *store.Store, prune bool) ([]string, error) {
 	images, err := s.Images()
 	if err != nil {
 		return nil, err
