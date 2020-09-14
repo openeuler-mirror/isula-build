@@ -28,7 +28,7 @@ touch "${testlog}"
 for path in $(go list ./...); do
     echo "Start to test: ${path}"
     # TEST_ARGS is " -args SKIP_REG=foo", so no double quote for it
-    go test -mod=vendor -cover -count=1 -timeout 300s -v "${path}" ${TEST_ARGS} >> "${testlog}"
+    go test -race -mod=vendor -cover -count=1 -timeout 300s -v "${path}" ${TEST_ARGS} >> "${testlog}"
     cat "${testlog}" | grep -E -- "--- FAIL:|^FAIL"
     if [ $? -eq 0 ]; then
         echo "Testing failed... Please check ${testlog}"
