@@ -29,7 +29,7 @@ import (
 
 // Builder is an interface for building an image
 type Builder interface {
-	Build() (imageID string, err error)
+	Build(chan struct{}) (imageID string, err error)
 	StatusChan() <-chan string
 	CleanResources() error
 	OutputPipeWrapper() *exporter.PipeWrapper

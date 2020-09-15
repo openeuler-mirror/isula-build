@@ -41,10 +41,16 @@ func (b *Backend) Status(req *pb.StatusRequest, stream pb.Control_StatusServer) 
 
 	builder, err := b.daemon.Builder(req.BuildID)
 	if err != nil {
+		logrus.WithFields(logrus.Fields{
+			"BuildID": req.GetBuildID(),
+		}).Error(err)
 		return err
 	}
 	for value := range builder.StatusChan() {
 		if err := stream.Send(&pb.StatusResponse{Content: value}); err != nil {
+			logrus.WithFields(logrus.Fields{
+				"BuildID": req.GetBuildID(),
+			}).Error(err)
 			return err
 		}
 	}
