@@ -1,0 +1,29 @@
+From bde19bc4f9fce45ea09974fdd138cad111b9269c Mon Sep 17 00:00:00 2001
+From: lixiang <lixiang172@huawei.com>
+Date: Mon, 24 Aug 2020 10:17:20 +0800
+Subject: [PATCH] vendor:change auth.json file mode from 0700 to 0600
+
+reason: change auth.json file mode from 0700 to 0600
+See details in https://github.com/containers/image/issues/974
+
+Signed-off-by: lixiang <lixiang172@huawei.com>
+---
+ .../github.com/containers/image/v5/pkg/docker/config/config.go  | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/vendor/github.com/containers/image/v5/pkg/docker/config/config.go b/vendor/github.com/containers/image/v5/pkg/docker/config/config.go
+index ce85af18..e0b8b9b1 100644
+--- a/vendor/github.com/containers/image/v5/pkg/docker/config/config.go
++++ b/vendor/github.com/containers/image/v5/pkg/docker/config/config.go
+@@ -326,7 +326,7 @@ func modifyJSON(sys *types.SystemContext, editor func(auths *dockerConfigFile) (
+ 	}
+ 
+ 	dir := filepath.Dir(path)
+-	if err = os.MkdirAll(dir, 0700); err != nil {
++	if err = os.MkdirAll(dir, 0600); err != nil {
+ 		return err
+ 	}
+ 
+-- 
+2.19.1
+
