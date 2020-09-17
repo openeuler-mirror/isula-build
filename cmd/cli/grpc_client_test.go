@@ -42,13 +42,13 @@ func TestGetStartTimeout(t *testing.T) {
 		},
 		{
 			name:    "TC3 - abnormal case with larger than max start timeout",
-			args:    args{timeout: "21s"},
+			args:    args{timeout: "121s"},
 			want:    -1,
 			wantErr: true,
 		},
 		{
 			name:    "TC4 - abnormal case with less than min start timeout",
-			args:    args{timeout: "19ms"},
+			args:    args{timeout: "99ms"},
 			want:    -1,
 			wantErr: true,
 		},

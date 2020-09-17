@@ -45,7 +45,7 @@ function start_isula_builder() {
 
 function cleanup() {
     isula-build ctr-img rm -p > /dev/null 2>&1
-    kill -9 "${pidofbuilder}" > /dev/null 2>&1
+    kill -15 "${pidofbuilder}" > /dev/null 2>&1
     rm -f /tmp/buildlog-*
 }
 
@@ -54,14 +54,14 @@ function test_build_without_output() {
     if ! isula-build ctr-img build --tag "$1":latest "$2" > /tmp/buildlog-client 2>&1; then
         echo "FAIL"
         echo "LOG DIR:/tmp/buildlog-client and /tmp/buildlog-daemon (build without output)"
-        kill -9 "${pidofbuilder}"
+        kill -15 "${pidofbuilder}"
         exit 1
     fi
 
     if ! isula-build ctr-img rm "$1":latest > /tmp/buildlog-client 2>&1; then
         echo "FAIL"
         echo "LOG DIR:/tmp/buildlog-client and /tmp/buildlog-daemon (build without output)"
-        kill -9 "${pidofbuilder}"
+        kill -15 "${pidofbuilder}"
         exit 1
     fi
 }
@@ -71,7 +71,7 @@ function test_build_with_docker_archive_output() {
     if ! isula-build ctr-img build --output=docker-archive:/tmp/"$1".tar:"$1":latest "$2" > /tmp/buildlog-client 2>&1; then
         echo "FAIL"
         echo "LOG DIR:/tmp/buildlog-client and /tmp/buildlog-daemon (build with docker-archive output)"
-        kill -9 "${pidofbuilder}"
+        kill -15 "${pidofbuilder}"
         exit 1
     else
         rm -f /tmp/"$1".tar
@@ -80,7 +80,7 @@ function test_build_with_docker_archive_output() {
     if ! isula-build ctr-img rm "$1":latest > /tmp/buildlog-client 2>&1; then
         echo "FAIL"
         echo "LOG DIR:/tmp/buildlog-client and /tmp/buildlog-daemon (build with docker-archive output)"
-        kill -9 "${pidofbuilder}"
+        kill -15 "${pidofbuilder}"
         exit 1
     fi
 }
@@ -95,7 +95,7 @@ function test_build_with_docker_daemon_output() {
     if ! isula-build ctr-img build --output=docker-daemon:isula/"$1":latest "$2" > /tmp/buildlog-client 2>&1; then
         echo "FAIL"
         echo "LOG DIR:/tmp/buildlog-client and /tmp/buildlog-daemon (build with docker-daemon output)"
-        kill -9 "${pidofbuilder}"
+        kill -15 "${pidofbuilder}"
         exit 1
     else
         docker rmi isula/"$1" > /dev/null 2>&1
@@ -104,7 +104,7 @@ function test_build_with_docker_daemon_output() {
     if ! isula-build ctr-img rm isula/"$1":latest > /tmp/buildlog-client 2>&1; then
         echo "FAIL"
         echo "LOG DIR:/tmp/buildlog-client and /tmp/buildlog-daemon (build with docker-daemon output)"
-        kill -9 "${pidofbuilder}"
+        kill -15 "${pidofbuilder}"
         exit 1
     fi
 }
@@ -119,7 +119,7 @@ function test_build_with_isulad_output() {
     if ! isula-build ctr-img build --output=isulad:isula/"$1":latest "$2" > /tmp/buildlog-client 2>&1; then
         echo "FAIL"
         echo "LOG DIR:/tmp/buildlog-client and /tmp/buildlog-daemon (build with isulad output)"
-        kill -9 "${pidofbuilder}"
+        kill -15 "${pidofbuilder}"
         exit 1
     else
         isula rmi isula/"$1" > /dev/null 2>&1
@@ -128,7 +128,7 @@ function test_build_with_isulad_output() {
     if ! isula-build ctr-img rm isula/"$1":latest > /tmp/buildlog-client 2>&1; then
         echo "FAIL"
         echo "LOG DIR:/tmp/buildlog-client and /tmp/buildlog-daemon (build with isulad output)"
-        kill -9 "${pidofbuilder}"
+        kill -15 "${pidofbuilder}"
         exit 1
     fi
 }
