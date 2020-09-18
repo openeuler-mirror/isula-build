@@ -209,13 +209,12 @@ func (s *stageBuilder) stageBuild(ctx context.Context) (string, error) {
 		}
 	}
 
-	// 3. commit for new image
-	s.imageID, err = s.commit(ctx)
-	if err != nil {
-		return "", errors.Wrapf(err, "commit image for stage %s failed", s.name)
+	// 3. commit for new image if needed
+	if s.rawStage.NeedCommit {
+		s.imageID, err = s.commit(ctx)
 	}
 
-	return s.imageID, nil
+	return s.imageID, errors.Wrapf(err, "commit image for stage %s failed", s.name)
 }
 
 func prepareImage(opt *image.PrepareImageOptions) (*image.Describe, error) {

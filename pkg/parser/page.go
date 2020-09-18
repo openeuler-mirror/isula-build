@@ -21,10 +21,11 @@ import (
 
 // Page is a Dockerfile stage
 type Page struct {
-	Lines []*Line // all lines which the page contains
-	Name  string  // page name
-	Begin int     // the begin line number of the page in the physical Dockerfile
-	End   int     // the end line number of the page in the physical Dockerfile
+	Lines      []*Line // all lines which the page contains
+	Name       string  // page name
+	Begin      int     // the begin line number of the page in the physical Dockerfile
+	End        int     // the end line number of the page in the physical Dockerfile
+	NeedCommit bool    // mark the page whether need to commit
 }
 
 func (p *Page) dump() string {

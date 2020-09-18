@@ -188,6 +188,7 @@ func constructPages(lines []*parser.Line, onbuild bool) ([]*parser.Page, error) 
 	}
 
 	var (
+		pageMap     = make(map[string]*parser.Page)
 		pages       = make([]*parser.Page, 0, 0)
 		currentPage *parser.Page
 		pageNum     int
@@ -237,6 +238,12 @@ func constructPages(lines []*parser.Line, onbuild bool) ([]*parser.Page, error) 
 			} else {
 				page.Name = strconv.Itoa(len(pages))
 			}
+			pageMap[page.Name] = page
+			// if the base image for current stage is from the previous stage,
+			// mark the previous stage need to commit
+			if from, ok := pageMap[line.Cells[0].Value]; ok {
+				from.NeedCommit = true
+			}
 			currentPage = page
 		}
 		// because a valid dockerfile is always start with 'FROM' command here, so no need
@@ -247,6 +254,8 @@ func constructPages(lines []*parser.Line, onbuild bool) ([]*parser.Page, error) 
 	if !onbuild && len(currentPage.Lines) < minLinesPerPage {
 		return nil, errors.Errorf("stage %s should have at least one command", currentPage.Name)
 	}
+	// the last stage always need to commit
+	currentPage.NeedCommit = true
 	pages = append(pages, currentPage)
 
 	if len(pages) == 0 {
