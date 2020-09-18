@@ -150,7 +150,9 @@ func buildCommand(c *cobra.Command, args []string) error {
 			logrus.Debugf("Status get failed: %v", err2)
 			cancel()
 		}
-		return errors.Wrap(err2, "error runStatus")
+		// user should not pay attention on runStatus error
+		// the errors were already printed to daemon log if any
+		return nil
 	})
 
 	return eg.Wait()

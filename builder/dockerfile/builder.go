@@ -407,7 +407,7 @@ func getFlagsAndArgs(line *parser.Line, allowFlags map[string]bool) (map[string]
 }
 
 // Build makes the image
-func (b *Builder) Build() (string, error) {
+func (b *Builder) Build(syncChan chan struct{}) (string, error) {
 	var (
 		executeTimer = b.cliLog.StartTimer("\nTotal")
 		err          error
@@ -446,6 +446,7 @@ func (b *Builder) Build() (string, error) {
 		}
 	}
 
+	close(syncChan)
 	// 4. export images
 	if err = b.export(imageID); err != nil {
 		return "", errors.Wrapf(err, "exporting images failed")

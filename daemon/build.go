@@ -59,11 +59,12 @@ func (b *Backend) Build(req *pb.BuildRequest, stream pb.Control_BuildServer) err
 
 	pipeWrapper := builder.OutputPipeWrapper()
 	eg, ctx := errgroup.WithContext(ctx)
+	syncPipeChan := make(chan struct{})
 	eg.Go(func() error {
 		b.syncBuildStatus(req.BuildID) <- struct{}{}
 		b.closeStatusChan(req.BuildID)
 		var berr error
-		imageID, berr = builder.Build()
+		imageID, berr = builder.Build(syncPipeChan)
 
 		if berr != nil && pipeWrapper != nil {
 			// in case there is error during Build stage, the backend will always waiting for content write into
@@ -83,6 +84,11 @@ func (b *Backend) Build(req *pb.BuildRequest, stream pb.Control_BuildServer) err
 
 	eg.Go(func() error {
 		if pipeWrapper == nil {
+			return nil
+		}
+		select {
+		case <-syncPipeChan:
+		case <-ctx.Done():
 			return nil
 		}
 		f, perr := exporter.PipeArchiveStream(pipeWrapper)
