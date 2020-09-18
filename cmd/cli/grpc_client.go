@@ -30,9 +30,9 @@ import (
 )
 
 const (
-	defaultStartTimeout = 500 * time.Millisecond
-	minStartTimeout     = 30 * time.Millisecond
-	maxStartTimeout     = 20 * time.Second
+	defaultStartTimeout = 20 * time.Second
+	minStartTimeout     = 100 * time.Millisecond
+	maxStartTimeout     = 120 * time.Second
 	defaultGrpcMaxDelay = 3 * time.Second
 )
 
