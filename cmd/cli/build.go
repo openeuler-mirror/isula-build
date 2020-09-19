@@ -114,7 +114,7 @@ func NewBuildCmd() *cobra.Command {
 	buildCmd.PersistentFlags().StringArrayVar(&buildOpts.buildArgs, "build-arg", []string{}, "Arguments used during build time")
 	buildCmd.PersistentFlags().StringArrayVar(&buildOpts.capAddList, "cap-add", []string{}, "Add Linux capabilities for RUN command")
 	buildCmd.PersistentFlags().StringVar(&buildOpts.imageIDFile, "iidfile", "", "Write image ID to the file")
-	buildCmd.PersistentFlags().StringVarP(&buildOpts.additionalTag, "tag", "", "", "Add tag to the built image")
+	buildCmd.PersistentFlags().StringVarP(&buildOpts.additionalTag, "tag", "t", "", "Add tag to the built image")
 
 	return buildCmd
 }
