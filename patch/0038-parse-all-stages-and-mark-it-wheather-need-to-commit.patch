@@ -1,0 +1,118 @@
+From f585c435806bbb927553b5b956274d4c80469696 Mon Sep 17 00:00:00 2001
+From: Jeff Zvier <zvier20@gmail.com>
+Date: Wed, 9 Sep 2020 14:30:10 +0800
+Subject: [PATCH] parse all stages and mark it wheather need to commit
+
+Signed-off-by: Jeff Zvier <zvier20@gmail.com>
+---
+ builder/dockerfile/builder_test.go  | 7 ++++---
+ builder/dockerfile/parser/parser.go | 9 +++++++++
+ builder/dockerfile/stage_builder.go | 9 ++++-----
+ pkg/parser/page.go                  | 9 +++++----
+ 4 files changed, 22 insertions(+), 12 deletions(-)
+
+diff --git a/builder/dockerfile/builder_test.go b/builder/dockerfile/builder_test.go
+index cc1904d9..61172748 100644
+--- a/builder/dockerfile/builder_test.go
++++ b/builder/dockerfile/builder_test.go
+@@ -34,8 +34,8 @@ import (
+ 	"isula.org/isula-build/pkg/logger"
+ 	"isula.org/isula-build/pkg/parser"
+ 	"isula.org/isula-build/store"
+-	testutil "isula.org/isula-build/util"
+ 	"isula.org/isula-build/util"
++	testutil "isula.org/isula-build/util"
+ )
+ 
+ func TestParseFiles(t *testing.T) {
+@@ -168,8 +168,9 @@ temp?`
+ 						Flags:   map[string]string{"from": "date"},
+ 					},
+ 				},
+-				Begin: 9,
+-				End:   11,
++				Begin:      9,
++				NeedCommit: true,
++				End:        11,
+ 			},
+ 		},
+ 		Warnings: nil,
+diff --git a/builder/dockerfile/parser/parser.go b/builder/dockerfile/parser/parser.go
+index 3041f9ba..a5b079d8 100644
+--- a/builder/dockerfile/parser/parser.go
++++ b/builder/dockerfile/parser/parser.go
+@@ -188,6 +188,7 @@ func constructPages(lines []*parser.Line, onbuild bool) ([]*parser.Page, error)
+ 	}
+ 
+ 	var (
++		pageMap     = make(map[string]*parser.Page)
+ 		pages       = make([]*parser.Page, 0, 0)
+ 		currentPage *parser.Page
+ 		pageNum     int
+@@ -237,6 +238,12 @@ func constructPages(lines []*parser.Line, onbuild bool) ([]*parser.Page, error)
+ 			} else {
+ 				page.Name = strconv.Itoa(len(pages))
+ 			}
++			pageMap[page.Name] = page
++			// if the base image for current stage is from the previous stage,
++			// mark the previous stage need to commit
++			if from, ok := pageMap[line.Cells[0].Value]; ok {
++				from.NeedCommit = true
++			}
+ 			currentPage = page
+ 		}
+ 		// because a valid dockerfile is always start with 'FROM' command here, so no need
+@@ -247,6 +254,8 @@ func constructPages(lines []*parser.Line, onbuild bool) ([]*parser.Page, error)
+ 	if !onbuild && len(currentPage.Lines) < minLinesPerPage {
+ 		return nil, errors.Errorf("stage %s should have at least one command", currentPage.Name)
+ 	}
++	// the last stage always need to commit
++	currentPage.NeedCommit = true
+ 	pages = append(pages, currentPage)
+ 
+ 	if len(pages) == 0 {
+diff --git a/builder/dockerfile/stage_builder.go b/builder/dockerfile/stage_builder.go
+index ad77ecea..32397bd7 100644
+--- a/builder/dockerfile/stage_builder.go
++++ b/builder/dockerfile/stage_builder.go
+@@ -209,13 +209,12 @@ func (s *stageBuilder) stageBuild(ctx context.Context) (string, error) {
+ 		}
+ 	}
+ 
+-	// 3. commit for new image
+-	s.imageID, err = s.commit(ctx)
+-	if err != nil {
+-		return "", errors.Wrapf(err, "commit image for stage %s failed", s.name)
++	// 3. commit for new image if needed
++	if s.rawStage.NeedCommit {
++		s.imageID, err = s.commit(ctx)
+ 	}
+ 
+-	return s.imageID, nil
++	return s.imageID, errors.Wrapf(err, "commit image for stage %s failed", s.name)
+ }
+ 
+ func prepareImage(opt *image.PrepareImageOptions) (*image.Describe, error) {
+diff --git a/pkg/parser/page.go b/pkg/parser/page.go
+index b7f746cd..320c9daf 100644
+--- a/pkg/parser/page.go
++++ b/pkg/parser/page.go
+@@ -21,10 +21,11 @@ import (
+ 
+ // Page is a Dockerfile stage
+ type Page struct {
+-	Lines []*Line // all lines which the page contains
+-	Name  string  // page name
+-	Begin int     // the begin line number of the page in the physical Dockerfile
+-	End   int     // the end line number of the page in the physical Dockerfile
++	Lines      []*Line // all lines which the page contains
++	Name       string  // page name
++	Begin      int     // the begin line number of the page in the physical Dockerfile
++	End        int     // the end line number of the page in the physical Dockerfile
++	NeedCommit bool    // mark the page whether need to commit
+ }
+ 
+ func (p *Page) dump() string {
+-- 
+2.19.1
+
