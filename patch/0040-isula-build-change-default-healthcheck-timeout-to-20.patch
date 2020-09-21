@@ -1,0 +1,158 @@
+From 855fb35fe16a2a5177e6978da0c896ea96621078 Mon Sep 17 00:00:00 2001
+From: Lu Jingxiao <lujingxiao@huawei.com>
+Date: Thu, 17 Sep 2020 08:51:39 +0800
+Subject: [PATCH] isula-build: change default healthcheck timeout to 20s
+
+Currently we have a healthcheck before GRPC requesting
+from Client to Server, and the default timeout is 500ms,
+which could be very sensitive to running environment.
+After discussion, 20s as a default timeout value should be much
+more reasonable.
+
+Fixes: #I1VK61
+
+Signed-off-by: Lu Jingxiao <lujingxiao@huawei.com>
+---
+ cmd/cli/grpc_client.go      |  6 +++---
+ cmd/cli/grpc_client_test.go |  4 ++--
+ cmd/cli/main.go             |  2 +-
+ tests/lib/common.sh         | 18 +++++++++---------
+ 4 files changed, 15 insertions(+), 15 deletions(-)
+
+diff --git a/cmd/cli/grpc_client.go b/cmd/cli/grpc_client.go
+index 581e7f89..5f10fb01 100644
+--- a/cmd/cli/grpc_client.go
++++ b/cmd/cli/grpc_client.go
+@@ -30,9 +30,9 @@ import (
+ )
+ 
+ const (
+-	defaultStartTimeout = 500 * time.Millisecond
+-	minStartTimeout     = 30 * time.Millisecond
+-	maxStartTimeout     = 20 * time.Second
++	defaultStartTimeout = 20 * time.Second
++	minStartTimeout     = 100 * time.Millisecond
++	maxStartTimeout     = 120 * time.Second
+ 	defaultGrpcMaxDelay = 3 * time.Second
+ )
+ 
+diff --git a/cmd/cli/grpc_client_test.go b/cmd/cli/grpc_client_test.go
+index e1db130c..e1e14935 100644
+--- a/cmd/cli/grpc_client_test.go
++++ b/cmd/cli/grpc_client_test.go
+@@ -42,13 +42,13 @@ func TestGetStartTimeout(t *testing.T) {
+ 		},
+ 		{
+ 			name:    "TC3 - abnormal case with larger than max start timeout",
+-			args:    args{timeout: "21s"},
++			args:    args{timeout: "121s"},
+ 			want:    -1,
+ 			wantErr: true,
+ 		},
+ 		{
+ 			name:    "TC4 - abnormal case with less than min start timeout",
+-			args:    args{timeout: "19ms"},
++			args:    args{timeout: "99ms"},
+ 			want:    -1,
+ 			wantErr: true,
+ 		},
+diff --git a/cmd/cli/main.go b/cmd/cli/main.go
+index 53e7af99..18bbb965 100644
+--- a/cmd/cli/main.go
++++ b/cmd/cli/main.go
+@@ -95,7 +95,7 @@ func setupRootCmd(rootCmd *cobra.Command) {
+ 	rootCmd.SetFlagErrorFunc(util.FlagErrorFunc)
+ 	rootCmd.PersistentFlags().StringVar(&cliOpts.LogLevel, "log-level", "error", "Log level to be used. Either \"debug\", \"info\", \"warn\" or \"error\"")
+ 	rootCmd.PersistentFlags().BoolVarP(&cliOpts.Debug, "debug", "D", false, "Open debug mode")
+-	rootCmd.PersistentFlags().StringVarP(&cliOpts.Timeout, "timeout", "t", "500ms", "Timeout for connecting to daemon")
++	rootCmd.PersistentFlags().StringVarP(&cliOpts.Timeout, "timeout", "t", "", "Timeout for connecting to daemon")
+ 	rootCmd.PersistentFlags().BoolP("help", "h", false, "Print usage")
+ 	rootCmd.PersistentFlags().BoolP("version", "v", false, "Version for isula-build client")
+ }
+diff --git a/tests/lib/common.sh b/tests/lib/common.sh
+index 4d2d9141..7c4052bf 100755
+--- a/tests/lib/common.sh
++++ b/tests/lib/common.sh
+@@ -45,7 +45,7 @@ function start_isula_builder() {
+ 
+ function cleanup() {
+     isula-build ctr-img rm -p > /dev/null 2>&1
+-    kill -9 "${pidofbuilder}" > /dev/null 2>&1
++    kill -15 "${pidofbuilder}" > /dev/null 2>&1
+     rm -f /tmp/buildlog-*
+ }
+ 
+@@ -54,14 +54,14 @@ function test_build_without_output() {
+     if ! isula-build ctr-img build --tag "$1":latest "$2" > /tmp/buildlog-client 2>&1; then
+         echo "FAIL"
+         echo "LOG DIR:/tmp/buildlog-client and /tmp/buildlog-daemon (build without output)"
+-        kill -9 "${pidofbuilder}"
++        kill -15 "${pidofbuilder}"
+         exit 1
+     fi
+ 
+     if ! isula-build ctr-img rm "$1":latest > /tmp/buildlog-client 2>&1; then
+         echo "FAIL"
+         echo "LOG DIR:/tmp/buildlog-client and /tmp/buildlog-daemon (build without output)"
+-        kill -9 "${pidofbuilder}"
++        kill -15 "${pidofbuilder}"
+         exit 1
+     fi
+ }
+@@ -71,7 +71,7 @@ function test_build_with_docker_archive_output() {
+     if ! isula-build ctr-img build --output=docker-archive:/tmp/"$1".tar:"$1":latest "$2" > /tmp/buildlog-client 2>&1; then
+         echo "FAIL"
+         echo "LOG DIR:/tmp/buildlog-client and /tmp/buildlog-daemon (build with docker-archive output)"
+-        kill -9 "${pidofbuilder}"
++        kill -15 "${pidofbuilder}"
+         exit 1
+     else
+         rm -f /tmp/"$1".tar
+@@ -80,7 +80,7 @@ function test_build_with_docker_archive_output() {
+     if ! isula-build ctr-img rm "$1":latest > /tmp/buildlog-client 2>&1; then
+         echo "FAIL"
+         echo "LOG DIR:/tmp/buildlog-client and /tmp/buildlog-daemon (build with docker-archive output)"
+-        kill -9 "${pidofbuilder}"
++        kill -15 "${pidofbuilder}"
+         exit 1
+     fi
+ }
+@@ -95,7 +95,7 @@ function test_build_with_docker_daemon_output() {
+     if ! isula-build ctr-img build --output=docker-daemon:isula/"$1":latest "$2" > /tmp/buildlog-client 2>&1; then
+         echo "FAIL"
+         echo "LOG DIR:/tmp/buildlog-client and /tmp/buildlog-daemon (build with docker-daemon output)"
+-        kill -9 "${pidofbuilder}"
++        kill -15 "${pidofbuilder}"
+         exit 1
+     else
+         docker rmi isula/"$1" > /dev/null 2>&1
+@@ -104,7 +104,7 @@ function test_build_with_docker_daemon_output() {
+     if ! isula-build ctr-img rm isula/"$1":latest > /tmp/buildlog-client 2>&1; then
+         echo "FAIL"
+         echo "LOG DIR:/tmp/buildlog-client and /tmp/buildlog-daemon (build with docker-daemon output)"
+-        kill -9 "${pidofbuilder}"
++        kill -15 "${pidofbuilder}"
+         exit 1
+     fi
+ }
+@@ -119,7 +119,7 @@ function test_build_with_isulad_output() {
+     if ! isula-build ctr-img build --output=isulad:isula/"$1":latest "$2" > /tmp/buildlog-client 2>&1; then
+         echo "FAIL"
+         echo "LOG DIR:/tmp/buildlog-client and /tmp/buildlog-daemon (build with isulad output)"
+-        kill -9 "${pidofbuilder}"
++        kill -15 "${pidofbuilder}"
+         exit 1
+     else
+         isula rmi isula/"$1" > /dev/null 2>&1
+@@ -128,7 +128,7 @@ function test_build_with_isulad_output() {
+     if ! isula-build ctr-img rm isula/"$1":latest > /tmp/buildlog-client 2>&1; then
+         echo "FAIL"
+         echo "LOG DIR:/tmp/buildlog-client and /tmp/buildlog-daemon (build with isulad output)"
+-        kill -9 "${pidofbuilder}"
++        kill -15 "${pidofbuilder}"
+         exit 1
+     fi
+ }
+-- 
+2.19.1
+
