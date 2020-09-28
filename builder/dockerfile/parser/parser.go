@@ -152,9 +152,13 @@ func format(rows []*rowLine, d *directive) ([]*parser.Line, error) {
 			trimLine = strings.TrimSpace(text)
 		}
 
-		logicLine += rows[i].content
+		if i <= len(rows)-1 {
+			logicLine += rows[i].content
+			line.End = rows[i].lineNum
+		} else {
+			line.End = rows[i-1].lineNum
+		}
 		logicLine = strings.TrimSpace(logicLine)
-		line.End = rows[i].lineNum
 		fields := strings.SplitN(logicLine, " ", 2)
 		const validLineLen = 2
 		if len(fields) < validLineLen {
