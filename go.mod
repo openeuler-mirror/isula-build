@@ -10,10 +10,10 @@ require (
 	github.com/containerd/containerd v1.4.0-rc.0
 	github.com/containerd/continuity v0.0.0-20200710164510-efbc4488d8fe // indirect
 	github.com/containerd/go-runc v0.0.0-20200707131846-23d84c510c41
-	github.com/containers/image/v5 v5.5.1
+	github.com/containers/image/v5 v5.6.0
 	github.com/containers/libtrust v0.0.0-20200511145503-9c3a6c22cd9a // indirect
 	github.com/containers/ocicrypt v1.0.3 // indirect
-	github.com/containers/storage v1.22.0
+	github.com/containers/storage v1.23.5
 	github.com/coreos/go-systemd v0.0.0-20191104093116-d3cd4ed1dbcf
 	github.com/cyphar/filepath-securejoin v0.2.2
 	github.com/docker/distribution v2.7.1+incompatible
@@ -22,7 +22,6 @@ require (
 	github.com/gofrs/flock v0.7.1
 	github.com/gogo/protobuf v1.3.1
 	github.com/golang/groupcache v0.0.0-20200121045136-8c9f03a8e57e // indirect
-	github.com/imdario/mergo v0.3.10 // indirect
 	github.com/ishidawataru/sctp v0.0.0-20191218070446-00ab2ac2db07 // indirect
 	github.com/opencontainers/go-digest v1.0.0
 	github.com/opencontainers/image-spec v1.0.2-0.20190823105129-775207bd45b6
@@ -34,7 +33,7 @@ require (
 	github.com/sirupsen/logrus v1.6.0
 	github.com/spf13/cobra v1.0.0
 	github.com/spf13/pflag v1.0.5 // indirect
-	github.com/vbauerster/mpb/v5 v5.2.4 // indirect
+	github.com/syndtr/gocapability v0.0.0-20180916011248-d98352740cb2
 	github.com/xeipuuv/gojsonpointer v0.0.0-20190905194746-02993c407bfb // indirect
 	go.etcd.io/bbolt v1.3.5 // indirect
 	go.opencensus.io v0.22.4 // indirect
