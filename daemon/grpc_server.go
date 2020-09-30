@@ -28,6 +28,7 @@ import (
 	"google.golang.org/grpc"
 
 	constant "isula.org/isula-build"
+	"isula.org/isula-build/util"
 )
 
 // GrpcServer struct carries the main contents in GRPC server
@@ -39,7 +40,7 @@ type GrpcServer struct {
 
 // NewGrpcServer creates a new GRPC socket with default GRPC socket address
 func (d *Daemon) NewGrpcServer() error {
-	socket, path, err := newSocket()
+	socket, path, err := newSocket(d.opts.Group)
 	if err != nil {
 		return errors.Errorf("create new GRPC socket failed: %v", err)
 	}
@@ -90,7 +91,7 @@ func (g *GrpcServer) Run(ctx context.Context, ch chan error, cancelFunc context.
 	return nil
 }
 
-func newSocket() (net.Listener, string, error) {
+func newSocket(group string) (net.Listener, string, error) {
 	if !strings.HasPrefix(constant.DefaultGRPCAddress, constant.UnixPrefix) {
 		return nil, "", errors.Errorf("listen address %s not supported", constant.DefaultGRPCAddress)
 	}
@@ -107,8 +108,13 @@ func newSocket() (net.Listener, string, error) {
 		return nil, "", err
 	}
 
-	if err = os.Chmod(path, constant.DefaultRootFileMode); err != nil {
+	if err = os.Chmod(path, constant.DefaultGroupFileMode); err != nil {
 		logrus.Errorf("Chmod for %s failed: %v", path, err)
+		return nil, "", err
+	}
+
+	if err = util.ChangeGroup(path, group); err != nil {
+		logrus.Errorf("Chown for %s failed: %v", path, err)
 		return nil, "", err
 	}
 
