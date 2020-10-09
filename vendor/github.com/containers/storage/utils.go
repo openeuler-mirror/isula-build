@@ -6,7 +6,6 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"regexp"
 	"strconv"
 	"strings"
 
@@ -199,7 +198,7 @@ func getRootlessDirInfo(rootlessUID int) (string, string, error) {
 }
 
 // getRootlessStorageOpts returns the storage opts for containers running as non root
-func getRootlessStorageOpts(rootlessUID int) (StoreOptions, error) {
+func getRootlessStorageOpts(rootlessUID int, systemOpts StoreOptions) (StoreOptions, error) {
 	var opts StoreOptions
 
 	dataDir, rootlessRuntime, err := getRootlessDirInfo(rootlessUID)
@@ -208,10 +207,20 @@ func getRootlessStorageOpts(rootlessUID int) (StoreOptions, error) {
 	}
 	opts.RunRoot = rootlessRuntime
 	opts.GraphRoot = filepath.Join(dataDir, "containers", "storage")
-	opts.RootlessStoragePath = opts.GraphRoot
+	if systemOpts.RootlessStoragePath != "" {
+		opts.RootlessStoragePath = systemOpts.RootlessStoragePath
+	} else {
+		opts.RootlessStoragePath = opts.GraphRoot
+	}
 	if path, err := exec.LookPath("fuse-overlayfs"); err == nil {
 		opts.GraphDriverName = "overlay"
 		opts.GraphDriverOptions = []string{fmt.Sprintf("overlay.mount_program=%s", path)}
+		for _, o := range systemOpts.GraphDriverOptions {
+			if strings.Contains(o, "ignore_chown_errors") {
+				opts.GraphDriverOptions = append(opts.GraphDriverOptions, o)
+				break
+			}
+		}
 	} else {
 		opts.GraphDriverName = "vfs"
 	}
@@ -233,8 +242,9 @@ func DefaultStoreOptionsAutoDetectUID() (StoreOptions, error) {
 	return DefaultStoreOptions(uid != 0, uid)
 }
 
-// DefaultStoreOptions returns the default storage ops for containers
-func DefaultStoreOptions(rootless bool, rootlessUID int) (StoreOptions, error) {
+// defaultStoreOptionsIsolated is an internal implementation detail of DefaultStoreOptions to allow testing.
+// Everyone but the tests this is intended for should only call DefaultStoreOptions, never this function.
+func defaultStoreOptionsIsolated(rootless bool, rootlessUID int, storageConf string) (StoreOptions, error) {
 	var (
 		defaultRootlessRunRoot   string
 		defaultRootlessGraphRoot string
@@ -242,15 +252,10 @@ func DefaultStoreOptions(rootless bool, rootlessUID int) (StoreOptions, error) {
 	)
 	storageOpts := defaultStoreOptions
 	if rootless && rootlessUID != 0 {
-		storageOpts, err = getRootlessStorageOpts(rootlessUID)
+		storageOpts, err = getRootlessStorageOpts(rootlessUID, storageOpts)
 		if err != nil {
 			return storageOpts, err
 		}
-	}
-
-	storageConf, err := DefaultConfigFile(rootless && rootlessUID != 0)
-	if err != nil {
-		return storageOpts, err
 	}
 	_, err = os.Stat(storageConf)
 	if err != nil && !os.IsNotExist(err) {
@@ -262,6 +267,20 @@ func DefaultStoreOptions(rootless bool, rootlessUID int) (StoreOptions, error) {
 		storageOpts = StoreOptions{}
 		reloadConfigurationFileIfNeeded(storageConf, &storageOpts)
 	}
+	if storageOpts.RunRoot != "" {
+		runRoot, err := expandEnvPath(storageOpts.RunRoot, rootlessUID)
+		if err != nil {
+			return storageOpts, err
+		}
+		storageOpts.RunRoot = runRoot
+	}
+	if storageOpts.GraphRoot != "" {
+		graphRoot, err := expandEnvPath(storageOpts.GraphRoot, rootlessUID)
+		if err != nil {
+			return storageOpts, err
+		}
+		storageOpts.GraphRoot = graphRoot
+	}
 
 	if rootless && rootlessUID != 0 {
 		if err == nil {
@@ -270,21 +289,9 @@ func DefaultStoreOptions(rootless bool, rootlessUID int) (StoreOptions, error) {
 			// directories
 			if storageOpts.RunRoot == "" {
 				storageOpts.RunRoot = defaultRootlessRunRoot
-			} else {
-				rootlessRunRoot, err := expandEnvPath(storageOpts.RunRoot, rootlessUID)
-				if err != nil {
-					return storageOpts, err
-				}
-				storageOpts.RunRoot = rootlessRunRoot
 			}
 			if storageOpts.GraphRoot == "" {
 				storageOpts.GraphRoot = defaultRootlessGraphRoot
-			} else {
-				rootlessGraphRoot, err := expandEnvPath(storageOpts.GraphRoot, rootlessUID)
-				if err != nil {
-					return storageOpts, err
-				}
-				storageOpts.GraphRoot = rootlessGraphRoot
 			}
 			if storageOpts.RootlessStoragePath != "" {
 				rootlessStoragePath, err := expandEnvPath(storageOpts.RootlessStoragePath, rootlessUID)
@@ -297,31 +304,20 @@ func DefaultStoreOptions(rootless bool, rootlessUID int) (StoreOptions, error) {
 	}
 	return storageOpts, nil
 }
-func expandEnvPath(path string, rootlessUID int) (string, error) {
-	if err := validEnvPathFormat(path); err != nil {
-		return path, err
+
+// DefaultStoreOptions returns the default storage ops for containers
+func DefaultStoreOptions(rootless bool, rootlessUID int) (StoreOptions, error) {
+	storageConf, err := DefaultConfigFile(rootless && rootlessUID != 0)
+	if err != nil {
+		return defaultStoreOptions, err
 	}
+	return defaultStoreOptionsIsolated(rootless, rootlessUID, storageConf)
+}
+
+func expandEnvPath(path string, rootlessUID int) (string, error) {
 	path = strings.Replace(path, "$UID", strconv.Itoa(rootlessUID), -1)
 	path = os.ExpandEnv(path)
 	return path, nil
-}
-
-// validEnvPathFormat checks if the environments contained in the path are accepted
-func validEnvPathFormat(path string) error {
-	if !strings.Contains(path, "$") {
-		return nil
-	}
-
-	splitPaths := strings.SplitAfter(path, "$")
-	validEnv := regexp.MustCompile(`^(HOME|USER|UID)([^a-zA-Z]|$)`).MatchString
-	if len(splitPaths) > 1 {
-		for _, p := range splitPaths[1:] {
-			if !validEnv(p) {
-				return errors.Errorf("Unrecognized environment variable")
-			}
-		}
-	}
-	return nil
 }
 
 func validateMountOptions(mountOptions []string) error {
