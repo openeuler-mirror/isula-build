@@ -39,6 +39,7 @@ import (
 // Options carries the options configured to daemon
 type Options struct {
 	Debug         bool
+	Group         string
 	LogLevel      string
 	DataRoot      string
 	RunRoot       string

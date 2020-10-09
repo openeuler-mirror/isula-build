@@ -319,3 +319,15 @@ func SetDaemonLock(root, fileName string) (*flock.Flock, error) {
 	}
 	return lock, nil
 }
+
+// ChangeGroup take group and file path as input and acts like chown command
+func ChangeGroup(path, g string) error {
+	group, err := idtools.LookupGroup(g)
+	if err != nil {
+		return err
+	}
+	if err = os.Chown(path, 0, group.Gid); err != nil {
+		return err
+	}
+	return nil
+}

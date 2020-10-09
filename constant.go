@@ -17,18 +17,20 @@ package constant
 import "time"
 
 const (
+	// ConfigRoot is isula-build configuration root path
+	ConfigRoot = "/etc/isula-build/"
 	// ConfigurationPath is isula-build configuration path
-	ConfigurationPath = "/etc/isula-build/configuration.toml"
+	ConfigurationPath = ConfigRoot + "configuration.toml"
 	// RegistryConfigPath describes the config path of registries
-	RegistryConfigPath = "/etc/isula-build/registries.toml"
+	RegistryConfigPath = ConfigRoot + "registries.toml"
 	// SignaturePolicyPath describes the policy path
-	SignaturePolicyPath = "/etc/isula-build/policy.json"
+	SignaturePolicyPath = ConfigRoot + "policy.json"
 	// StorageConfigPath describes the storage path
-	StorageConfigPath = "/etc/isula-build/storage.toml"
+	StorageConfigPath = ConfigRoot + "storage.toml"
 	// RegistryDirPath is the dir to store registry configs
-	RegistryDirPath = "/etc/isula-build/registries.d"
+	RegistryDirPath = ConfigRoot + "registries.d"
 	// AuthFilePath is authentication file used for registry connection
-	AuthFilePath = "/etc/isula-build/auth.json"
+	AuthFilePath = ConfigRoot + "auth.json"
 	// DefaultGRPCAddress is the local unix socket used by isula-builder
 	DefaultGRPCAddress = "unix:///var/run/isula_build.sock"
 	// UnixPrefix is the prefix used on defined an unix sock
@@ -43,10 +45,12 @@ const (
 	DefaultSharedFileMode = 0644
 	// DefaultRootFileMode is the default root file mode
 	DefaultRootFileMode = 0600
+	// DefaultGroupFileMode is the default root file mode for group usage
+	DefaultGroupFileMode = 0660
 	// DefaultRootDirMode is the default root dir mode
 	DefaultRootDirMode = 0700
 	// DefaultReadOnlyFileMode is the default root read only file mode
-	DefaultReadOnlyFileMode = 0400
+	DefaultReadOnlyFileMode = 0444
 	// DefaultUmask is the working umask in isula-builder
 	DefaultUmask = 0027
 	// CliLogBufferLen is log channel buffer size
@@ -64,7 +68,7 @@ const (
 	// DefaultIDLen is the ID length for image ID and build ID
 	DefaultIDLen = 12
 	// DefaultCertRoot is path of certification used for registry connection
-	DefaultCertRoot = "/etc/isula-build/certs.d"
+	DefaultCertRoot = ConfigRoot + "certs.d"
 	// LayoutTime is the time format used to parse time from a string
 	LayoutTime = "2006-01-02 15:04:05"
 	// BuildContainerImageType is the default build type
