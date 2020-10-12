@@ -181,6 +181,7 @@ func pullAndGetImageInfo(opt *PrepareImageOptions) (types.ImageReference, *stora
 			dstName:  destImage,
 		})
 		if err != nil {
+			errPull = err
 			pLog.Debugf("Failed to pull image %q: %v", transport+strImage, err)
 			continue
 		}
