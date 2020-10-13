@@ -16,8 +16,9 @@ package main
 import (
 	"context"
 	"fmt"
+	"strconv"
 
-	"github.com/gogo/protobuf/types"
+	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
 
 	pb "isula.org/isula-build/api/services"
@@ -25,11 +26,31 @@ import (
 )
 
 const (
-	infoExample = `isula-build info`
+	infoExample = `isula-build info
+isula-build info -V -H`
+	binaryPrefixBase = 1024
+	formatBase       = 10
 )
 
 type infoOptions struct {
 	humanReadable bool
+	verbose       bool
+}
+
+type sysMemInfo struct {
+	memTotal  string
+	memFree   string
+	swapTotal string
+	swapFree  string
+}
+
+type runtimeMemInfo struct {
+	memSys          string
+	memHeapSys      string
+	memHeapAlloc    string
+	memHeapInUse    string
+	memHeapIdle     string
+	memHeapReleased string
 }
 
 var infoOpts infoOptions
@@ -46,55 +67,92 @@ func NewInfoCmd() *cobra.Command {
 	}
 
 	infoCmd.PersistentFlags().BoolVarP(&infoOpts.humanReadable, "human-readable", "H", false,
-		"print memory info in human readable format, use powers of 1000")
+		"Print memory info in human readable format, use powers of 1000")
+	infoCmd.PersistentFlags().BoolVarP(&infoOpts.verbose, "verbose", "V", false,
+		"Print runtime memory info")
 
 	return infoCmd
 }
 
 func infoCommand(c *cobra.Command, args []string) error {
+	if len(args) > 1 {
+		return errors.New("invalid args for info command")
+	}
+	if c.Flag("verbose").Changed {
+		infoOpts.verbose = true
+	}
+	if c.Flag("human-readable").Changed {
+		infoOpts.humanReadable = true
+	}
+
 	ctx := context.Background()
 	cli, err := NewClient(ctx)
 	if err != nil {
 		return err
 	}
 
-	infoData, err := getInfo(ctx, cli)
+	return runInfo(ctx, cli)
+}
+
+func runInfo(ctx context.Context, cli Cli) error {
+	req := &pb.InfoRequest{
+		Verbose: infoOpts.verbose,
+	}
+	resp, err := cli.Client().Info(ctx, req)
 	if err != nil {
 		return err
 	}
-
-	printInfo(infoData)
+	printInfo(resp)
 
 	return nil
 }
 
-func getInfo(ctx context.Context, cli Cli) (*pb.InfoResponse, error) {
-	return cli.Client().Info(ctx, &types.Empty{})
-}
-
 func printInfo(infoData *pb.InfoResponse) {
-	fmt.Println("General:")
+	var (
+		sysMem     sysMemInfo
+		runtimeMem runtimeMemInfo
+	)
+
 	if infoOpts.humanReadable {
-		fmt.Println("  MemTotal:    ", util.FormatSize(float64(infoData.MemInfo.MemTotal)))
-		fmt.Println("  MemFree:     ", util.FormatSize(float64(infoData.MemInfo.MemFree)))
-		fmt.Println("  SwapTotal:   ", util.FormatSize(float64(infoData.MemInfo.SwapTotal)))
-		fmt.Println("  SwapFree:    ", util.FormatSize(float64(infoData.MemInfo.SwapFree)))
+		sysMem.memTotal = util.FormatSize(float64(infoData.MemInfo.MemTotal), binaryPrefixBase)
+		sysMem.memFree = util.FormatSize(float64(infoData.MemInfo.MemFree), binaryPrefixBase)
+		sysMem.swapTotal = util.FormatSize(float64(infoData.MemInfo.SwapTotal), binaryPrefixBase)
+		sysMem.swapFree = util.FormatSize(float64(infoData.MemInfo.SwapFree), binaryPrefixBase)
+		if infoOpts.verbose {
+			runtimeMem.memSys = util.FormatSize(float64(infoData.MemStat.MemSys), binaryPrefixBase)
+			runtimeMem.memHeapSys = util.FormatSize(float64(infoData.MemStat.HeapSys), binaryPrefixBase)
+			runtimeMem.memHeapAlloc = util.FormatSize(float64(infoData.MemStat.HeapAlloc), binaryPrefixBase)
+			runtimeMem.memHeapInUse = util.FormatSize(float64(infoData.MemStat.HeapInUse), binaryPrefixBase)
+			runtimeMem.memHeapIdle = util.FormatSize(float64(infoData.MemStat.HeapIdle), binaryPrefixBase)
+			runtimeMem.memHeapReleased = util.FormatSize(float64(infoData.MemStat.HeapReleased), binaryPrefixBase)
+		}
 	} else {
-		fmt.Println("  MemTotal:    ", infoData.MemInfo.MemTotal)
-		fmt.Println("  MemFree:     ", infoData.MemInfo.MemFree)
-		fmt.Println("  SwapTotal:   ", infoData.MemInfo.SwapTotal)
-		fmt.Println("  SwapFree:    ", infoData.MemInfo.SwapFree)
+		sysMem.memTotal = strconv.FormatInt(infoData.MemInfo.MemTotal, formatBase)
+		sysMem.memFree = strconv.FormatInt(infoData.MemInfo.MemFree, formatBase)
+		sysMem.swapTotal = strconv.FormatInt(infoData.MemInfo.SwapTotal, formatBase)
+		sysMem.swapFree = strconv.FormatInt(infoData.MemInfo.SwapFree, formatBase)
+		if infoOpts.verbose {
+			runtimeMem.memSys = strconv.FormatUint(infoData.MemStat.MemSys, formatBase)
+			runtimeMem.memHeapSys = strconv.FormatUint(infoData.MemStat.HeapSys, formatBase)
+			runtimeMem.memHeapAlloc = strconv.FormatUint(infoData.MemStat.HeapAlloc, formatBase)
+			runtimeMem.memHeapInUse = strconv.FormatUint(infoData.MemStat.HeapInUse, formatBase)
+			runtimeMem.memHeapIdle = strconv.FormatUint(infoData.MemStat.HeapIdle, formatBase)
+			runtimeMem.memHeapReleased = strconv.FormatUint(infoData.MemStat.HeapReleased, formatBase)
+		}
 	}
+	fmt.Println("General:")
+	fmt.Println("  MemTotal:    ", sysMem.memTotal)
+	fmt.Println("  MemFree:     ", sysMem.memFree)
+	fmt.Println("  SwapTotal:   ", sysMem.swapTotal)
+	fmt.Println("  SwapFree:    ", sysMem.swapFree)
 	fmt.Println("  OCI Runtime: ", infoData.OCIRuntime)
 	fmt.Println("  DataRoot:    ", infoData.DataRoot)
 	fmt.Println("  RunRoot:     ", infoData.RunRoot)
 	fmt.Println("  Builders:    ", infoData.BuilderNum)
 	fmt.Println("  Goroutines:  ", infoData.GoRoutines)
-
 	fmt.Println("Store:")
 	fmt.Println("  Storage Driver:    ", infoData.StorageInfo.StorageDriver)
 	fmt.Println("  Backing Filesystem:", infoData.StorageInfo.StorageBackingFs)
-
 	fmt.Println("Registry:")
 	fmt.Println("  Search Registries:")
 	for _, registry := range infoData.RegistryInfo.RegistriesSearch {
@@ -103,5 +161,14 @@ func printInfo(infoData *pb.InfoResponse) {
 	fmt.Println("  Insecure Registries:")
 	for _, registry := range infoData.RegistryInfo.RegistriesInsecure {
 		fmt.Println("   ", registry)
+	}
+	if infoOpts.verbose {
+		fmt.Println("Runtime:")
+		fmt.Println("  MemSys:          ", runtimeMem.memSys)
+		fmt.Println("  HeapSys:         ", runtimeMem.memHeapSys)
+		fmt.Println("  HeapAlloc:       ", runtimeMem.memHeapAlloc)
+		fmt.Println("  MemHeapInUse:    ", runtimeMem.memHeapInUse)
+		fmt.Println("  MemHeapIdle:     ", runtimeMem.memHeapIdle)
+		fmt.Println("  MemHeapReleased: ", runtimeMem.memHeapReleased)
 	}
 }

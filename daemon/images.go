@@ -29,7 +29,8 @@ import (
 )
 
 const (
-	none = "<none>"
+	none              = "<none>"
+	decimalPrefixBase = 1000
 )
 
 // List lists all images
@@ -107,5 +108,5 @@ func getImageSize(store *store.Store, id string) string {
 	if err != nil {
 		imgSize = -1
 	}
-	return util.FormatSize(float64(imgSize))
+	return util.FormatSize(float64(imgSize), decimalPrefixBase)
 }

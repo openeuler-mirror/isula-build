@@ -30,7 +30,6 @@ import (
 const (
 	maxServerNameLength = 255
 	maxLoadFileSize     = 50 * 1024 * 1024 * 1024
-	decimalPrefixBase   = 1000
 )
 
 // CopyMapStringString copies all KVs in a map[string]string to a new map
@@ -156,12 +155,12 @@ func ParseServer(server string) (string, error) {
 	return fields[0], nil
 }
 
-// FormatSize formats size using powers of 1000
-func FormatSize(size float64) string {
+// FormatSize formats size using powers of base(1000 or 1024)
+func FormatSize(size, base float64) string {
 	suffixes := [5]string{"B", "KB", "MB", "GB", "TB"}
 	cnt := 0
-	for size >= decimalPrefixBase && cnt < len(suffixes)-1 {
-		size /= decimalPrefixBase
+	for size >= base && cnt < len(suffixes)-1 {
+		size /= base
 		cnt++
 	}
 

@@ -43,7 +43,7 @@ service Control {
     // Save saves the image to tarball
     rpc Save(SaveRequest) returns (stream SaveResponse);
     // Info requests isula-build system information
-    rpc Info(google.protobuf.Empty) returns (InfoResponse);
+    rpc Info(InfoRequest) returns (InfoResponse);
 }
 
 message BuildRequest {
@@ -235,6 +235,21 @@ message MemData {
     int64 swapFree = 4;
 }
 
+message MemStat {
+    // memSys is memory taken from system
+    uint64 memSys = 1;
+    // heapSys is memory hold by heap
+    uint64 heapSys = 2;
+    // heapAlloc is bytes of allocated heap objects
+    uint64 heapAlloc = 3;
+    // heapInuse is bytes in in-use spans
+    uint64 heapInUse = 4;
+    // heapIdle is bytes in idle (unused) spans
+    uint64 heapIdle = 5;
+    // heapReleased is bytes of physical memory returned to the OS
+    uint64 heapReleased = 6;
+}
+
 message StorageData {
     // storageDriver is storage driver for isula-build
     string storageDriver = 1;
@@ -249,6 +264,10 @@ message RegistryData {
     repeated string registriesInsecure = 2;
     // registriesBlock is registries.block registries
     repeated string registriesBlock = 3;
+}
+
+message InfoRequest {
+    bool verbose = 1;
 }
 
 message InfoResponse {
@@ -268,5 +287,7 @@ message InfoResponse {
     int64 builderNum = 7;
     // goRoutines is number of go routines
     int64 goRoutines = 8;
+    // memstat is memory information counted by runtime
+    MemStat memStat = 9;
 }
 
