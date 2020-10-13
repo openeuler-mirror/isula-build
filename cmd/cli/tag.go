@@ -32,7 +32,7 @@ func NewTagCmd() *cobra.Command {
 	// tagCmd represents the "tag" command
 	tagCmd := &cobra.Command{
 		Use:     "tag SOURCE_IMAGE[:TAG] TARGET_IMAGE[:TAG]",
-		Short:   "create a tag for source image",
+		Short:   "Create a tag for source image",
 		RunE:    tagCommand,
 		Example: tagExample,
 	}

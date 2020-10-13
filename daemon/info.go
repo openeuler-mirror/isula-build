@@ -19,7 +19,6 @@ import (
 
 	"github.com/containers/image/v5/pkg/sysregistriesv2"
 	"github.com/containers/storage/pkg/system"
-	gogotypes "github.com/gogo/protobuf/types"
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
 
@@ -28,11 +27,11 @@ import (
 )
 
 // Info to get isula-build system information
-func (b *Backend) Info(ctx context.Context, req *gogotypes.Empty) (*pb.InfoResponse, error) {
+func (b *Backend) Info(ctx context.Context, req *pb.InfoRequest) (*pb.InfoResponse, error) {
 	logrus.Info("InfoRequest received")
 
 	// get memory information
-	memInfo, err := system.ReadMemInfo()
+	sysMemInfo, err := system.ReadMemInfo()
 	if err != nil {
 		return nil, errors.Wrapf(err, "get memory information err")
 	}
@@ -55,32 +54,52 @@ func (b *Backend) Info(ctx context.Context, req *gogotypes.Empty) (*pb.InfoRespo
 		return nil, errors.Wrapf(err, "get registries info err")
 	}
 
+	memInfo := &pb.MemData{
+		MemTotal:  sysMemInfo.MemTotal,
+		MemFree:   sysMemInfo.MemFree,
+		SwapTotal: sysMemInfo.SwapTotal,
+		SwapFree:  sysMemInfo.SwapFree,
+	}
+	storageInfo := &pb.StorageData{
+		StorageDriver:    b.daemon.localStore.GraphDriverName(),
+		StorageBackingFs: storageBackingFs,
+	}
+	registryInfo := &pb.RegistryData{
+		RegistriesSearch:   registriesSearch,
+		RegistriesInsecure: registriesInsecure,
+		RegistriesBlock:    registriesBlock,
+	}
+
 	// generate info response
 	infoResponse := &pb.InfoResponse{
-		MemInfo: &pb.MemData{
-			MemTotal:  memInfo.MemTotal,
-			MemFree:   memInfo.MemFree,
-			SwapTotal: memInfo.SwapTotal,
-			SwapFree:  memInfo.SwapFree,
-		},
-		StorageInfo: &pb.StorageData{
-			StorageDriver:    b.daemon.localStore.GraphDriverName(),
-			StorageBackingFs: storageBackingFs,
-		},
-		RegistryInfo: &pb.RegistryData{
-			RegistriesSearch:   registriesSearch,
-			RegistriesInsecure: registriesInsecure,
-			RegistriesBlock:    registriesBlock,
-		},
-		DataRoot:   b.daemon.opts.DataRoot,
-		RunRoot:    b.daemon.opts.RunRoot,
-		OCIRuntime: b.daemon.opts.RuntimePath,
-		BuilderNum: int64(len(b.daemon.builders)),
-		GoRoutines: int64(runtime.NumGoroutine()),
+		MemInfo:      memInfo,
+		MemStat:      nil,
+		StorageInfo:  storageInfo,
+		RegistryInfo: registryInfo,
+		DataRoot:     b.daemon.opts.DataRoot,
+		RunRoot:      b.daemon.opts.RunRoot,
+		OCIRuntime:   b.daemon.opts.RuntimePath,
+		BuilderNum:   int64(len(b.daemon.builders)),
+		GoRoutines:   int64(runtime.NumGoroutine()),
+	}
+
+	if req.Verbose {
+		var rms runtime.MemStats
+		// get runtime mem stats
+		runtime.ReadMemStats(&rms)
+		memStat := &pb.MemStat{
+			MemSys:       rms.Sys,
+			HeapSys:      rms.HeapSys,
+			HeapAlloc:    rms.HeapAlloc,
+			HeapInUse:    rms.HeapInuse,
+			HeapIdle:     rms.HeapIdle,
+			HeapReleased: rms.HeapReleased,
+		}
+		infoResponse.MemStat = memStat
 	}
 
 	// default OCI runtime is "runc"
-	if infoResponse.OCIRuntime == "" {
+	if b.daemon.opts.RuntimePath == "" {
 		infoResponse.OCIRuntime = "runc"
 	}
 

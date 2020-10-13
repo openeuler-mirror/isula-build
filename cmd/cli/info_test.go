@@ -31,7 +31,7 @@ func TestInfoCommand(t *testing.T) {
 func TestGetInfoFromDaemon(t *testing.T) {
 	ctx := context.Background()
 	cli := newMockClient(&mockGrpcClient{})
-	_, err := getInfo(ctx, &cli)
+	err := runInfo(ctx, &cli)
 	assert.NilError(t, err)
 }
 

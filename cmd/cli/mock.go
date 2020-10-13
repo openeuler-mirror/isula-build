@@ -145,8 +145,30 @@ func (gcli *mockGrpcClient) Version(ctx context.Context, in *types.Empty, opts .
 	}, nil
 }
 
-func (gcli *mockGrpcClient) Info(ctx context.Context, in *types.Empty, opts ...grpc.CallOption) (*pb.InfoResponse, error) {
-	return &pb.InfoResponse{}, nil
+func (gcli *mockGrpcClient) Info(ctx context.Context, in *pb.InfoRequest, opts ...grpc.CallOption) (*pb.InfoResponse, error) {
+	return &pb.InfoResponse{
+		MemInfo: &pb.MemData{
+			MemTotal:  123,
+			MemFree:   123,
+			SwapTotal: 123,
+			SwapFree:  123,
+		},
+		StorageInfo: &pb.StorageData{
+			StorageDriver:    "mockDriver",
+			StorageBackingFs: "mockBackingFs",
+		},
+		RegistryInfo: &pb.RegistryData{
+			RegistriesSearch:   []string{"mockSearch"},
+			RegistriesInsecure: []string{"mockInsecure"},
+			RegistriesBlock:    nil,
+		},
+		DataRoot:   "/mock/data/root",
+		RunRoot:    "/mock/run/root",
+		OCIRuntime: "mockRuntime",
+		BuilderNum: 0,
+		GoRoutines: 0,
+		MemStat:    nil,
+	}, nil
 }
 
 func (gcli *mockGrpcClient) Tag(ctx context.Context, in *pb.TagRequest, opts ...grpc.CallOption) (*types.Empty, error) {
