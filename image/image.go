@@ -53,7 +53,7 @@ type PrepareImageOptions struct {
 	SystemContext *types.SystemContext
 	Ctx           context.Context
 	FromImage     string
-	Store         store.Store
+	Store         *store.Store
 	Reporter      io.Writer
 }
 
@@ -373,7 +373,7 @@ func ResolveFromImage(opt *PrepareImageOptions) (types.Image, *storage.Image, er
 }
 
 // GetRWLayerByImageID get the RW layer by image ID
-func GetRWLayerByImageID(imgID string, store store.Store) (*ContainerDescribe, error) {
+func GetRWLayerByImageID(imgID string, store *store.Store) (*ContainerDescribe, error) {
 	var (
 		container     *storage.Container
 		err           error
@@ -459,13 +459,13 @@ func ResolveImageName(s string, resolveArg func(string) string) (string, error) 
 }
 
 // FindImage get the image from storage by image describe
-func FindImage(store store.Store, image string) (types.ImageReference, *storage.Image, error) {
+func FindImage(store *store.Store, image string) (types.ImageReference, *storage.Image, error) {
 	names, _, err := ResolveName(image, nil, store)
 	if err != nil {
 		return nil, nil, errors.Wrapf(err, "error parsing name %q", image)
 	}
 
-	ref, img := parseImagesToReference(&store, names)
+	ref, img := parseImagesToReference(store, names)
 	if ref == nil || img == nil {
 		return nil, nil, errors.Errorf("locating image %q with name: %v failed", image, names)
 	}
@@ -521,14 +521,14 @@ func parseImagesToReference(store *store.Store, names []string) (types.ImageRefe
 
 // ResolveName checks whether the image name is valid, if the name does not include a domain,
 // returns a list of candidates it might be
-func ResolveName(name string, sc *types.SystemContext, store store.Store) ([]string, string, error) {
+func ResolveName(name string, sc *types.SystemContext, store *store.Store) ([]string, string, error) {
 	// 1. check name valid
 	if name == "" {
 		return nil, "", nil
 	}
 
 	// 2. try to find image with name or id in local store
-	if imageID := tryResolveNameInStore(name, &store); imageID != "" {
+	if imageID := tryResolveNameInStore(name, store); imageID != "" {
 		return []string{imageID}, "", nil
 	}
 

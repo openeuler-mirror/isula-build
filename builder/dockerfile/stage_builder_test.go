@@ -36,8 +36,8 @@ import (
 	"isula.org/isula-build/pkg/logger"
 	"isula.org/isula-build/pkg/parser"
 	"isula.org/isula-build/store"
-	testUtil "isula.org/isula-build/util"
 	"isula.org/isula-build/util"
+	testUtil "isula.org/isula-build/util"
 )
 
 var (
@@ -79,6 +79,7 @@ func cleanAndSetDefaultStoreOpt(t *testing.T) {
 		DataRoot: fmt.Sprintf("/tmp/isula-build/storage-data-%d/", rand.Int()),
 		RunRoot:  fmt.Sprintf("/tmp/isula-build/storage-run-%d/", rand.Int()),
 	})
+	localStore, _ = store.GetStore()
 }
 
 func cleanDefaultStoreOpt(t *testing.T) {
@@ -104,17 +105,17 @@ func getImageID(t *testing.T, s *store.Store) string {
 	if len(img) > 0 {
 		return img[0].ID
 	}
-	fmt.Printf("get img failed.err:%v\n", err)
+	fmt.Printf("get img failed: %v\n", err)
 	return ""
 }
 
 func getBuilder() *Builder {
-	privateKey, _:= util.GenerateRSAKey(util.DefaultRSAKeySize)
+	privateKey, _ := util.GenerateRSAKey(util.DefaultRSAKeySize)
 
 	return &Builder{
 		ctx:           context.Background(),
 		buildID:       "",
-		localStore:    store.Store{},
+		localStore:    &localStore,
 		buildOpts:     BuildOptions{},
 		cliLog:        logger.NewCliLogger(constant.CliLogBufferLen),
 		playbook:      nil,
@@ -167,7 +168,7 @@ CMD ["sh"]`
 	type fields struct {
 		buildOpt   *stageBuilderOption
 		builder    *Builder
-		localStore store.Store
+		localStore *store.Store
 		rawStage   *parser.Page
 
 		name       string
@@ -347,25 +348,22 @@ CMD ["sh"]`
 				imageID:     tt.fields.imageID,
 				rawStage:    tt.fields.rawStage,
 				env:         tt.fields.env,
+				localStore:  &localStore,
 			}
 			if !tt.depLast {
 				cleanAndSetDefaultStoreOpt(t)
 			}
 
-			var err error
-			s.localStore, err = store.GetStore()
-			assert.NilError(t, err)
-
 			if tt.depLast && tt.resetID {
-				s.fromImage = getImageID(t, &s.localStore)
+				s.fromImage = getImageID(t, s.localStore)
 			}
 			s.env = make(map[string]string)
-			err = s.prepare(tt.args.ctx)
+			err := s.prepare(tt.args.ctx)
 			if s.mountpoint != "" {
 				_, err := s.localStore.Unmount(s.containerID, false)
 				assert.NilError(t, err)
 			}
-			logrus.Infof("get mountpoint %q", s.mountpoint)
+			logrus.Infof("get mount point %q", s.mountpoint)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("StageBuild() error = %v, wantErr %v", err, tt.wantErr)
 				return
@@ -378,7 +376,7 @@ CMD ["sh"]`
 func TestUpdateStageBuilder(t *testing.T) {
 	type fields struct {
 		builder     *Builder
-		localStore  store.Store
+		localStore  *store.Store
 		buildOpt    *stageBuilderOption
 		name        string
 		imageID     string

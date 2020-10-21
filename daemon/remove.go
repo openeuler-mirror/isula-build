@@ -38,7 +38,7 @@ func (b *Backend) Remove(req *pb.RemoveRequest, stream pb.Control_RemoveServer) 
 		err        error
 		rmFailed   bool
 	)
-	s := &b.daemon.localStore
+	s := b.daemon.localStore
 
 	rmImageIDs = req.ImageID
 	if req.All || req.Prune {

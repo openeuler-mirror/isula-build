@@ -110,7 +110,7 @@ func prepareForLoad(t *testing.T) *fs.Dir {
 
 	daemon = &Daemon{
 		opts:       opt,
-		localStore: localStore,
+		localStore: &localStore,
 	}
 	daemon.NewBackend()
 

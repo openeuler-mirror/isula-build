@@ -57,7 +57,7 @@ type ExportOptions struct {
 }
 
 // Export export an archive to the client
-func Export(src, destSpec string, opts ExportOptions, localStore store.Store) error {
+func Export(src, destSpec string, opts ExportOptions, localStore *store.Store) error {
 	eLog := logrus.WithField(util.LogKeySessionID, opts.Ctx.Value(util.LogFieldKey(util.LogKeySessionID)))
 	if destSpec == "" {
 		return nil
@@ -128,7 +128,7 @@ func export(exOpts ExportOptions, e Exporter, policyContext *signature.PolicyCon
 }
 
 // parseExporter parses an exporter instance and inits it with the src and dest reference.
-func parseExporter(exportID, src, destSpec string, localStore store.Store) (Exporter, error) {
+func parseExporter(exportID, src, destSpec string, localStore *store.Store) (Exporter, error) {
 	const partsNum = 2
 	// 1. parse exporter
 	parts := strings.SplitN(destSpec, ":", partsNum)

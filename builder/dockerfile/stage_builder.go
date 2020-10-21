@@ -45,7 +45,7 @@ type stageBuilder struct {
 	position     int
 	fromStageIdx int
 
-	localStore store.Store
+	localStore *store.Store
 
 	name       string
 	imageID    string

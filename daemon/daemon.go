@@ -56,12 +56,12 @@ type Daemon struct {
 	entities   map[string]string
 	backend    *Backend
 	grpc       *GrpcServer
-	localStore store.Store
+	localStore *store.Store
 	key        *rsa.PrivateKey
 }
 
 // NewDaemon new a daemon instance
-func NewDaemon(opts Options, store store.Store) (*Daemon, error) {
+func NewDaemon(opts Options, store *store.Store) (*Daemon, error) {
 	rsaKey, err := util.GenerateRSAKey(util.DefaultRSAKeySize)
 	if err != nil {
 		return nil, err

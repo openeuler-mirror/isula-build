@@ -222,7 +222,7 @@ func TestCmdBuilderCommit(t *testing.T) {
 	ctx := context.WithValue(context.Background(), util.LogFieldKey(util.LogKeySessionID), "0123456789")
 	ctx = context.WithValue(ctx, util.BuildDirKey(util.BuildDir), "/tmp/isula-build-test")
 	s := &stageBuilder{
-		localStore: localStore,
+		localStore: &localStore,
 		builder: &Builder{
 			cliLog: logger.NewCliLogger(constant.CliLogBufferLen),
 			ctx:    ctx,
@@ -230,7 +230,7 @@ func TestCmdBuilderCommit(t *testing.T) {
 	}
 
 	cb := newCmdBuilder(context.Background(), line, &stageBuilder{
-		localStore: localStore,
+		localStore: &localStore,
 		builder:    &Builder{cliLog: logger.NewCliLogger(constant.CliLogBufferLen), ctx: ctx},
 	}, nil, nil)
 	assert.Assert(t, cb != nil)

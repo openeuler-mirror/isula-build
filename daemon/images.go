@@ -58,7 +58,7 @@ func (b *Backend) List(ctx context.Context, req *pb.ListRequest) (*pb.ListRespon
 			Tag:        reqTag,
 			Id:         img.ID,
 			Created:    img.Created.Format(constant.LayoutTime),
-			Size_:      getImageSize(&b.daemon.localStore, img.ID),
+			Size_:      getImageSize(b.daemon.localStore, img.ID),
 		}
 
 		return &pb.ListResponse{Images: []*pb.ListResponse_ImageInfo{imageInfo}}, nil
@@ -95,7 +95,7 @@ func (b *Backend) List(ctx context.Context, req *pb.ListRequest) (*pb.ListRespon
 				Tag:        tag,
 				Id:         image.ID,
 				Created:    image.Created.Format(constant.LayoutTime),
-				Size_:      getImageSize(&b.daemon.localStore, image.ID),
+				Size_:      getImageSize(b.daemon.localStore, image.ID),
 			}
 			result = append(result, imageInfo)
 		}

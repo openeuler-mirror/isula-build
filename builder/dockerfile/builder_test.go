@@ -1344,6 +1344,9 @@ func TestNewBuilder(t *testing.T) {
 	err = util.GenRSAPublicKeyFile(privateKey, keyPath)
 	assert.NilError(t, err)
 
+	localStore, err := store.GetStore()
+	assert.NilError(t, err)
+
 	type args struct {
 		ctx         context.Context
 		store       store.Store
@@ -1363,7 +1366,7 @@ func TestNewBuilder(t *testing.T) {
 			name: "NewBuilder - wrong rundir",
 			args: args{
 				ctx:      context.Background(),
-				store:    store.Store{},
+				store:    localStore,
 				req:      &pb.BuildRequest{},
 				buildDir: tmpDir,
 				runDir:   "",
@@ -1376,7 +1379,7 @@ func TestNewBuilder(t *testing.T) {
 			name: "NewBuilder - parseOutput fail",
 			args: args{
 				ctx:   context.Background(),
-				store: store.Store{},
+				store: localStore,
 				req: &pb.BuildRequest{
 					Output: "docker-archive:/home/test/aa.tar",
 				},
@@ -1390,7 +1393,7 @@ func TestNewBuilder(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := NewBuilder(tt.args.ctx, tt.args.store, tt.args.req, tt.args.runtimePath, tt.args.buildDir, tt.args.runDir, tt.args.key)
+			got, err := NewBuilder(tt.args.ctx, &tt.args.store, tt.args.req, tt.args.runtimePath, tt.args.buildDir, tt.args.runDir, tt.args.key)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("NewBuilder() error = %v, wantErr %v", err, tt.wantErr)
 				return

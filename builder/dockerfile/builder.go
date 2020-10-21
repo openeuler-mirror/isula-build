@@ -64,7 +64,7 @@ type Builder struct {
 	buildID          string
 	entityID         string
 	ctx              context.Context
-	localStore       store.Store
+	localStore       *store.Store
 	buildOpts        BuildOptions
 	runtimePath      string
 	dataDir          string
@@ -84,7 +84,7 @@ type Builder struct {
 }
 
 // NewBuilder init a builder
-func NewBuilder(ctx context.Context, store store.Store, req *pb.BuildRequest, runtimePath, buildDir, runDir string, key *rsa.PrivateKey) (*Builder, error) {
+func NewBuilder(ctx context.Context, store *store.Store, req *pb.BuildRequest, runtimePath, buildDir, runDir string, key *rsa.PrivateKey) (*Builder, error) {
 	b := &Builder{
 		ctx:          ctx,
 		buildID:      req.BuildID,
