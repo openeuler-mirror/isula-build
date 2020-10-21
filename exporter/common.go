@@ -68,6 +68,12 @@ func Export(src, destSpec string, opts ExportOptions, localStore store.Store) er
 	}
 	defer epter.Remove(opts.ExportID)
 
+	registry, err := util.ParseServer(destSpec)
+	if err != nil {
+		return err
+	}
+	opts.SystemContext.DockerCertPath = filepath.Join(constant.DefaultCertRoot, registry)
+
 	options := newCopyOptions(opts)
 
 	policyContext, err := newPolicyContext(opts.SystemContext)
