@@ -15,9 +15,13 @@ package builder
 
 import (
 	"context"
+	"fmt"
+	"os"
 	"reflect"
 	"testing"
 
+	"github.com/containers/storage/pkg/reexec"
+	"golang.org/x/sys/unix"
 	"gotest.tools/assert"
 	"gotest.tools/fs"
 
@@ -28,6 +32,32 @@ import (
 	"isula.org/isula-build/util"
 )
 
+var (
+	localStore store.Store
+	rootDir    = "/tmp/isula-build/builder"
+)
+
+func init() {
+	reexec.Init()
+	dataRoot := rootDir + "/data"
+	runRoot := rootDir + "/run"
+	store.SetDefaultStoreOptions(store.DaemonStoreOptions{
+		DataRoot: dataRoot,
+		RunRoot:  runRoot,
+	})
+	localStore, _ = store.GetStore()
+}
+
+func clean() {
+	if err := unix.Unmount(rootDir+"/data/overlay", 0); err != nil {
+		fmt.Printf("umount dir %s failed: %v\n", rootDir+"/data/overlay", err)
+	}
+
+	if err := os.RemoveAll(rootDir); err != nil {
+		fmt.Printf("remove test root dir %s failed: %v\n", rootDir, err)
+	}
+}
+
 func TestNewBuilder(t *testing.T) {
 	tmpDir := fs.NewDir(t, t.Name())
 	defer tmpDir.Remove()
@@ -36,7 +66,7 @@ func TestNewBuilder(t *testing.T) {
 
 	type args struct {
 		ctx         context.Context
-		store       store.Store
+		store       *store.Store
 		req         *pb.BuildRequest
 		runtimePath string
 		buildDir    string
@@ -52,7 +82,7 @@ func TestNewBuilder(t *testing.T) {
 			name: "ctr-img",
 			args: args{
 				ctx:      context.Background(),
-				store:    store.Store{},
+				store:    &localStore,
 				req:      &pb.BuildRequest{BuildType: constant.BuildContainerImageType},
 				buildDir: tmpDir.Path(),
 				runDir:   tmpDir.Path(),
@@ -64,7 +94,7 @@ func TestNewBuilder(t *testing.T) {
 			name: "No supported type",
 			args: args{
 				ctx:   context.Background(),
-				store: store.Store{},
+				store: &localStore,
 				req:   &pb.BuildRequest{BuildType: "Unknown"},
 			},
 			want:    nil,
@@ -84,4 +114,5 @@ func TestNewBuilder(t *testing.T) {
 			}
 		})
 	}
+	clean()
 }

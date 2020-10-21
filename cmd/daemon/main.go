@@ -103,7 +103,7 @@ func runDaemon(cmd *cobra.Command, args []string) error {
 		}
 	}()
 
-	d, err := daemon.NewDaemon(daemonOpts, store)
+	d, err := daemon.NewDaemon(daemonOpts, &store)
 	if err != nil {
 		return err
 	}

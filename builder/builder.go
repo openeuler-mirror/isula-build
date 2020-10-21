@@ -37,7 +37,7 @@ type Builder interface {
 }
 
 // NewBuilder init a builder
-func NewBuilder(ctx context.Context, store store.Store, req *pb.BuildRequest, runtimePath, buildDir, runDir string, key *rsa.PrivateKey) (Builder, error) {
+func NewBuilder(ctx context.Context, store *store.Store, req *pb.BuildRequest, runtimePath, buildDir, runDir string, key *rsa.PrivateKey) (Builder, error) {
 	switch req.GetBuildType() {
 	case constant.BuildContainerImageType:
 		return dockerfile.NewBuilder(ctx, store, req, runtimePath, buildDir, runDir, key)

@@ -35,7 +35,6 @@ const (
 	loginFailed              = "Login Failed"
 	loginUnauthorized        = "Unauthorized login attempt"
 	loginSetAuthFailed       = "Set Auth Failed"
-	emptyKey                 = "empty key found"
 	emptyServer              = "empty server address"
 	emptyAuth                = "empty auth info"
 	errTryToUseAuth          = "Failed to authenticate existing credentials, try to use auth directly"

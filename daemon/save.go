@@ -38,7 +38,7 @@ import (
 
 type saveOptions struct {
 	pipeWrapper *exporter.PipeWrapper
-	store       store.Store
+	store       *store.Store
 	imageName   string
 	imageID     string
 	saveID      string

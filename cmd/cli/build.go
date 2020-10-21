@@ -46,7 +46,6 @@ type buildOptions struct {
 	output        string
 	buildArgs     []string
 	capAddList    []string
-	encryptKey    string
 	contextDir    string
 	buildID       string
 	proxyFlag     bool
