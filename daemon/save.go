@@ -14,14 +14,9 @@
 package daemon
 
 import (
-	"bufio"
 	"context"
 	"fmt"
-	"io"
-	"os"
-	"path/filepath"
 	"strings"
-	"syscall"
 
 	"github.com/sirupsen/logrus"
 	"golang.org/x/sync/errgroup"
@@ -37,36 +32,24 @@ import (
 )
 
 type saveOptions struct {
-	pipeWrapper *exporter.PipeWrapper
-	store       *store.Store
-	imageName   string
-	imageID     string
-	saveID      string
-	runDir      string
-	output      string
-	imageInfo   string
+	store     *store.Store
+	imageName string
+	imageID   string
+	saveID    string
+	output    string
+	imageInfo string
 }
 
 // Save receives a save request and save the image into tarball
 func (b *Backend) Save(req *pb.SaveRequest, stream pb.Control_SaveServer) error {
 	var (
-		opts   *saveOptions
-		err    error
-		runDir = filepath.Join(b.daemon.opts.RunRoot, "save", req.GetSaveID())
+		opts *saveOptions
+		err  error
 	)
 
 	logrus.WithFields(logrus.Fields{
 		"SaveID": req.GetSaveID(),
 	}).Info("SaveRequest received")
-
-	if err = os.MkdirAll(runDir, constant.DefaultRootDirMode); err != nil {
-		return err
-	}
-	defer func() {
-		if rErr := os.RemoveAll(runDir); rErr != nil {
-			logrus.Errorf("Remove saving dir %q failed: %v", runDir, rErr)
-		}
-	}()
 
 	if opts, err = b.preSave(req); err != nil {
 		return err
@@ -100,11 +83,9 @@ func (b *Backend) Save(req *pb.SaveRequest, stream pb.Control_SaveServer) error 
 func (b *Backend) preSave(req *pb.SaveRequest) (*saveOptions, error) {
 	const exportType = "docker-archive"
 	var (
-		pipeWrapper *exporter.PipeWrapper
-		imageName   string
-		err         error
-		runDir      = filepath.Join(b.daemon.opts.RunRoot, "save", req.GetSaveID())
-		localStore  = b.daemon.localStore
+		imageName  string
+		err        error
+		localStore = b.daemon.localStore
 	)
 
 	_, img, err := image.FindImage(localStore, req.GetImage())
@@ -113,11 +94,7 @@ func (b *Backend) preSave(req *pb.SaveRequest) (*saveOptions, error) {
 		return nil, err
 	}
 
-	pipeWrapper, err = exporter.NewPipeWrapper(runDir, exportType)
-	if err != nil {
-		return nil, err
-	}
-	output := fmt.Sprintf("%s:%s", exportType, pipeWrapper.PipeFile)
+	output := fmt.Sprintf("%s:%s", exportType, req.GetPath())
 	imageID := img.ID
 	imageName, err = checkTag(req.GetImage(), imageID)
 	if err != nil {
@@ -125,18 +102,16 @@ func (b *Backend) preSave(req *pb.SaveRequest) (*saveOptions, error) {
 	}
 	// if image has tag with it
 	if imageName != "" {
-		output = fmt.Sprintf("%s:%s:%s", exportType, pipeWrapper.PipeFile, imageName)
+		output = fmt.Sprintf("%s:%s:%s", exportType, req.GetPath(), imageName)
 	}
 
 	opts := &saveOptions{
-		pipeWrapper: pipeWrapper,
-		imageName:   imageName,
-		imageID:     imageID,
-		saveID:      req.GetSaveID(),
-		store:       localStore,
-		runDir:      runDir,
-		output:      output,
-		imageInfo:   req.GetImage(),
+		imageName: imageName,
+		imageID:   imageID,
+		saveID:    req.GetSaveID(),
+		store:     localStore,
+		output:    output,
+		imageInfo: req.GetImage(),
 	}
 	return opts, nil
 }
@@ -150,7 +125,6 @@ func (b *Backend) doSave(req *pb.SaveRequest, stream pb.Control_SaveServer, opt 
 	ctx := context.WithValue(stream.Context(), util.LogFieldKey(util.LogKeySessionID), req.GetSaveID())
 	eg, egCtx := errgroup.WithContext(ctx)
 
-	eg.Go(dataHandler(req, stream, opt))
 	eg.Go(exportHandler(ctx, opt, cliLogger))
 	eg.Go(messageHandler(stream, cliLogger))
 
@@ -174,53 +148,10 @@ func exportHandler(ctx context.Context, opts *saveOptions, cliLogger *logger.Log
 		}
 
 		if err := exporter.Export(opts.imageID, opts.output, exOpts, opts.store); err != nil {
-			// in case there is error during export, the backend will always waiting for content write into
-			// the pipeFile, which will cause frontend hangs forever.
-			// so if any error occurred, we try to open and close the pipe in O_NONBLOCK flag to make the
-			// goroutine move on instead of hangs.
-			f, perr := os.OpenFile(opts.pipeWrapper.PipeFile, os.O_WRONLY|syscall.O_NONBLOCK, os.ModeNamedPipe)
-			if perr == nil && f != nil {
-				if cerr := f.Close(); cerr != nil {
-					logrus.WithField(util.LogKeySessionID, opts.saveID).Warnf("Close pipe file failed: %v", cerr)
-				}
-			}
 			logrus.Errorf("Save image %s failed: %v", opts.imageInfo, err)
 			return err
 		}
 
-		return nil
-	}
-}
-
-func dataHandler(req *pb.SaveRequest, stream pb.Control_SaveServer, opts *saveOptions) func() error {
-	return func() error {
-		f, err := exporter.PipeArchiveStream(opts.pipeWrapper)
-		if err != nil {
-			return err
-		}
-		defer func() {
-			if cErr := f.Close(); cErr != nil {
-				logrus.WithField(util.LogKeySessionID, req.GetSaveID()).Infof("Closing save archive stream pipe %q failed: %v", opts.pipeWrapper.PipeFile, cErr)
-			}
-		}()
-
-		reader := bufio.NewReader(f)
-		buf := make([]byte, constant.BufferSize, constant.BufferSize)
-		for {
-			length, err := reader.Read(buf)
-			if err == io.EOF {
-				break
-			}
-			if err != nil {
-				return err
-			}
-			if err = stream.Send(&pb.SaveResponse{
-				Data: buf[0:length],
-			}); err != nil {
-				return err
-			}
-		}
-		logrus.WithField(util.LogKeySessionID, req.GetSaveID()).Debugf("Piping save archive stream done")
 		return nil
 	}
 }

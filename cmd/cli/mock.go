@@ -258,10 +258,7 @@ func (lcli *mockLoadClient) Recv() (*pb.LoadResponse, error) {
 }
 
 func (scli *mockSaveClient) Recv() (*pb.SaveResponse, error) {
-	resp := &pb.SaveResponse{
-		Data: nil,
-	}
-	return resp, io.EOF
+	return &pb.SaveResponse{}, io.EOF
 }
 
 func (cli *mockClient) Client() pb.ControlClient {

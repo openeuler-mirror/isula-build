@@ -24,11 +24,9 @@ import (
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
-	"golang.org/x/sync/errgroup"
 
 	constant "isula.org/isula-build"
 	pb "isula.org/isula-build/api/services"
-	"isula.org/isula-build/exporter"
 	"isula.org/isula-build/util"
 )
 
@@ -91,6 +89,9 @@ func runSave(ctx context.Context, cli Cli, args []string) error {
 	}
 
 	saveOpts.image = args[0]
+	if util.IsExist(saveOpts.path) {
+		return errors.Errorf("output file already exist, try to remove existing tarball or rename output file")
+	}
 
 	saveStream, err := cli.Client().Save(ctx, &pb.SaveRequest{
 		Image:  saveOpts.image,
@@ -101,38 +102,21 @@ func runSave(ctx context.Context, cli Cli, args []string) error {
 		return err
 	}
 
-	fileChan := make(chan []byte, constant.BufferSize)
-	eg, _ := errgroup.WithContext(ctx)
-	eg.Go(func() error {
-		defer close(fileChan)
-		for {
-			msg, err := saveStream.Recv()
-			if err == io.EOF {
-				break
-			}
-			if err != nil {
-				return err
-			}
-			fileChan <- msg.Data
+	for {
+		msg, err := saveStream.Recv()
+		if msg != nil {
 			fmt.Print(msg.Log)
 		}
-		return nil
-	})
 
-	eg.Go(func() error {
-		if err := exporter.ArchiveRecv(ctx, saveOpts.path, false, fileChan); err != nil {
-			return err
+		if err != nil {
+			if err == io.EOF {
+				fmt.Printf("Save success with image: %s\n", saveOpts.image)
+				return nil
+			}
+			if rErr := os.Remove(saveOpts.path); rErr != nil {
+				logrus.Warnf("Removing save output tarball %q failed: %v", saveOpts.path, rErr)
+			}
+			return errors.Errorf("save image failed: %v", err)
 		}
-		return nil
-	})
-
-	if err := eg.Wait(); err != nil {
-		if rErr := os.Remove(saveOpts.path); rErr != nil {
-			logrus.Warnf("Removing save output tarball %q failed: %v", saveOpts.path, rErr)
-		}
-		return errors.Errorf("save image failed: %v", err)
 	}
-
-	fmt.Printf("Save success with image: %s\n", saveOpts.image)
-	return nil
 }
