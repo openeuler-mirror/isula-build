@@ -15,9 +15,16 @@ package daemon
 
 import (
 	"context"
-	"fmt"
+	"os"
 	"strings"
 
+	cp "github.com/containers/image/v5/copy"
+	"github.com/containers/image/v5/docker/archive"
+	"github.com/containers/image/v5/docker/reference"
+	is "github.com/containers/image/v5/storage"
+	"github.com/containers/image/v5/types"
+	"github.com/containers/storage"
+	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/sync/errgroup"
 
@@ -25,42 +32,78 @@ import (
 	pb "isula.org/isula-build/api/services"
 	"isula.org/isula-build/builder/dockerfile"
 	"isula.org/isula-build/exporter"
-	"isula.org/isula-build/image"
+	im "isula.org/isula-build/image"
 	"isula.org/isula-build/pkg/logger"
 	"isula.org/isula-build/store"
 	"isula.org/isula-build/util"
 )
 
-type saveOptions struct {
-	store     *store.Store
-	imageName string
-	imageID   string
-	saveID    string
-	output    string
-	imageInfo string
+type imageInfo struct {
+	image   *storage.Image
+	tags    []reference.NamedTagged
+	oriName string
 }
 
-// Save receives a save request and save the image into tarball
-func (b *Backend) Save(req *pb.SaveRequest, stream pb.Control_SaveServer) error {
-	var (
-		opts *saveOptions
-		err  error
-	)
+type saveOptions struct {
+	writer     *archive.Writer
+	sysCtx     *types.SystemContext
+	logger     *logger.Logger
+	localStore *store.Store
+	images     map[string]*imageInfo
+	saveID     string
+	outputPath string
+	oriImgList []string
+}
 
+func (b *Backend) getSaveOption(req *pb.SaveRequest) saveOptions {
+	return saveOptions{
+		writer:     nil,
+		sysCtx:     im.GetSystemContext(),
+		logger:     logger.NewCliLogger(constant.CliLogBufferLen),
+		localStore: b.daemon.localStore,
+		images:     make(map[string]*imageInfo),
+		saveID:     req.GetSaveID(),
+		outputPath: req.GetPath(),
+		oriImgList: req.GetImages(),
+	}
+}
+
+// Save receives a save request and save the image(s) into tarball
+func (b *Backend) Save(req *pb.SaveRequest, stream pb.Control_SaveServer) error {
 	logrus.WithFields(logrus.Fields{
 		"SaveID": req.GetSaveID(),
 	}).Info("SaveRequest received")
 
-	if opts, err = b.preSave(req); err != nil {
+	opt := b.getSaveOption(req)
+	archWriter, err := archive.NewWriter(opt.sysCtx, opt.outputPath)
+	if err != nil {
+		return errors.Errorf("create archive writer failed: %v", err)
+	}
+	defer func() {
+		if err = archWriter.Close(); err != nil {
+			logrus.Errorf("Close archive writer failed: %v", err)
+		}
+	}()
+	opt.writer = archWriter
+	opt.images, err = getImagesFromLocal(opt.oriImgList, opt.localStore)
+	if err != nil {
 		return err
 	}
 
-	egCtx, errC := b.doSave(req, stream, opts)
+	ctx := context.WithValue(stream.Context(), util.LogFieldKey(util.LogKeySessionID), opt.saveID)
+	eg, egCtx := errgroup.WithContext(ctx)
+
+	eg.Go(exportHandler(ctx, stream, opt))
+	eg.Go(messageHandler(stream, opt.logger))
+	errC := make(chan error, 1)
+
+	go func() { errC <- eg.Wait() }()
 	defer close(errC)
+
 	select {
 	case err2, ok := <-errC:
 		if !ok {
-			logrus.WithField(util.LogKeySessionID, req.GetSaveID()).Info("Channel errC closed")
+			logrus.WithField(util.LogKeySessionID, opt.saveID).Info("Channel errC closed")
 			return nil
 		}
 		if err2 != nil {
@@ -68,88 +111,89 @@ func (b *Backend) Save(req *pb.SaveRequest, stream pb.Control_SaveServer) error 
 		}
 	case _, ok := <-stream.Context().Done():
 		if !ok {
-			logrus.WithField(util.LogKeySessionID, req.GetSaveID()).Info("Channel stream done closed")
+			logrus.WithField(util.LogKeySessionID, opt.saveID).Info("Channel stream done closed")
 			return nil
 		}
 		err = egCtx.Err()
 		if err != nil && err != context.Canceled {
-			logrus.WithField(util.LogKeySessionID, req.GetSaveID()).Infof("Stream closed with: %v", err)
+			logrus.WithField(util.LogKeySessionID, opt.saveID).Infof("Stream closed with: %v", err)
 		}
 	}
 
 	return nil
 }
 
-func (b *Backend) preSave(req *pb.SaveRequest) (*saveOptions, error) {
-	const exportType = "docker-archive"
-	var (
-		imageName  string
-		err        error
-		localStore = b.daemon.localStore
-	)
-
-	_, img, err := image.FindImage(localStore, req.GetImage())
-	if err != nil {
-		logrus.Errorf("Lookup image %s failed: %v", req.GetImage(), err)
-		return nil, err
-	}
-
-	output := fmt.Sprintf("%s:%s", exportType, req.GetPath())
-	imageID := img.ID
-	imageName, err = checkTag(req.GetImage(), imageID)
-	if err != nil {
-		return nil, err
-	}
-	// if image has tag with it
-	if imageName != "" {
-		output = fmt.Sprintf("%s:%s:%s", exportType, req.GetPath(), imageName)
-	}
-
-	opts := &saveOptions{
-		imageName: imageName,
-		imageID:   imageID,
-		saveID:    req.GetSaveID(),
-		store:     localStore,
-		output:    output,
-		imageInfo: req.GetImage(),
-	}
-	return opts, nil
-}
-
-func (b *Backend) doSave(req *pb.SaveRequest, stream pb.Control_SaveServer, opt *saveOptions) (context.Context, chan error) {
-	var (
-		errC      = make(chan error, 1)
-		cliLogger = logger.NewCliLogger(constant.CliLogBufferLen)
-	)
-
-	ctx := context.WithValue(stream.Context(), util.LogFieldKey(util.LogKeySessionID), req.GetSaveID())
-	eg, egCtx := errgroup.WithContext(ctx)
-
-	eg.Go(exportHandler(ctx, opt, cliLogger))
-	eg.Go(messageHandler(stream, cliLogger))
-
-	go func() {
-		errC <- eg.Wait()
-	}()
-
-	return egCtx, errC
-}
-
-func exportHandler(ctx context.Context, opts *saveOptions, cliLogger *logger.Logger) func() error {
-	return func() error {
-		defer func() {
-			cliLogger.CloseContent()
-		}()
-		exOpts := exporter.ExportOptions{
-			SystemContext: image.GetSystemContext(),
-			Ctx:           ctx,
-			ReportWriter:  cliLogger,
-			ExportID:      opts.saveID,
+func getImagesFromLocal(imageList []string, localStore *store.Store) (map[string]*imageInfo, error) {
+	var images = make(map[string]*imageInfo)
+	for _, image := range imageList {
+		_, localImg, err := im.FindImageLocally(localStore, image)
+		if err != nil {
+			logrus.Errorf("Lookup local image %s failed: %v", image, err)
+			return nil, err
+		}
+		id := localImg.ID
+		imgInfo, exists := images[id]
+		if !exists {
+			imgInfo = &imageInfo{image: localImg, oriName: image}
+			images[id] = imgInfo
 		}
 
-		if err := exporter.Export(opts.imageID, opts.output, exOpts, opts.store); err != nil {
-			logrus.Errorf("Save image %s failed: %v", opts.imageInfo, err)
-			return err
+		if ref, tag, err := checkTag(image, id); err == nil && tag != "" {
+			refTag, ok := ref.(reference.NamedTagged)
+			if !ok {
+				return nil, errors.Errorf("invalid tag %s (%s): dose not contain a tag", tag, ref.String())
+			}
+			imgInfo.tags = append(imgInfo.tags, refTag)
+		}
+	}
+
+	return images, nil
+}
+
+func exportHandler(ctx context.Context, stream pb.Control_SaveServer, options saveOptions) func() error {
+	return func() error {
+		var finalErr error
+		defer func() {
+			options.logger.CloseContent()
+			if finalErr != nil {
+				if rErr := os.Remove(options.outputPath); rErr != nil && !os.IsNotExist(rErr) {
+					logrus.Warnf("Removing save output tarball %q failed: %v", options.outputPath, rErr)
+				}
+			}
+		}()
+		for id, img := range options.images {
+			exOpts := exporter.ExportOptions{
+				Ctx:           ctx,
+				SystemContext: options.sysCtx,
+				ExportID:      options.saveID,
+				ReportWriter:  options.logger,
+			}
+			policyContext, err := exporter.NewPolicyContext(exOpts.SystemContext)
+			if err != nil {
+				finalErr = err
+				logrus.Errorf("Getting policy failed: %v", err)
+				return errors.Wrap(err, "error getting policy")
+			}
+			src, err := is.Transport.NewStoreReference(options.localStore, nil, id)
+			if err != nil {
+				finalErr = err
+				logrus.Errorf("Getting source image %s failed: %v", img.oriName, err)
+				return errors.Wrapf(err, "error getting source image ref for %q", img.oriName)
+			}
+			dest, errW := options.writer.NewReference(nil)
+			if errW != nil {
+				finalErr = errW
+				return errW
+			}
+			copyOptions := exporter.NewCopyOptions(exOpts)
+			copyOptions.DestinationCtx.DockerArchiveAdditionalTags = img.tags
+			copyOptions.SourceCtx.DockerArchiveAdditionalTags = img.tags
+			_, err = cp.Image(stream.Context(), policyContext, dest, src, copyOptions)
+			if err != nil {
+				finalErr = err
+				logrus.Errorf("Copying source image %s failed: %v", img.oriName, err)
+				return errors.Wrapf(err, "copying source image %s failed", img.oriName)
+			}
 		}
 
 		return nil
@@ -168,18 +212,19 @@ func messageHandler(stream pb.Control_SaveServer, cliLogger *logger.Logger) func
 				return err
 			}
 		}
+
 		return nil
 	}
 }
 
-func checkTag(oriImg, imageID string) (string, error) {
+func checkTag(oriImg, imageID string) (reference.Named, string, error) {
 	// no tag found
 	if strings.HasPrefix(imageID, oriImg) {
-		return "", nil
+		return nil, "", nil
 	}
-	tag, err := dockerfile.CheckAndExpandTag(oriImg)
+	ref, tag, err := dockerfile.CheckAndExpandTag(oriImg)
 	if err != nil {
-		return "", err
+		return nil, "", err
 	}
-	return tag, nil
+	return ref, tag, nil
 }
