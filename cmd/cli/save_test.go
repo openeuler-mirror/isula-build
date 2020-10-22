@@ -58,9 +58,6 @@ func TestRunSave(t *testing.T) {
 			name: "TC3 - normal case with relative path",
 			path: fmt.Sprintf("./%s", tmpDir.Path()),
 			args: []string{"testImage"},
-			// err here because cli will try to remove saved tar and it found there is no file to remove
-			wantErr:   true,
-			errString: "save image failed",
 		},
 		{
 			name:    "TC4 - abnormal case with empty path",

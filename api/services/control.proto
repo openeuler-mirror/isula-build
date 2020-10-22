@@ -218,10 +218,8 @@ message SaveRequest {
 }
 
 message SaveResponse {
-    // data is the tarball of the saved image
-    bytes data = 1;
     // log is log send to cli
-    string log = 2;
+    string log = 1;
 }
 
 message MemData {
