@@ -109,6 +109,40 @@ func TestFormat(t *testing.T) {
 	}
 }
 
+func TestFormatWithSpacesAfterEscapeToken(t *testing.T) {
+	type testcase struct {
+		name   string
+		expect []int
+	}
+	var testcases = []testcase{
+		{
+			name:   "busybox_line_with_spaces",
+			expect: []int{12, 20, 96, 87, 10},
+		},
+
+	}
+
+	for _, tc := range testcases {
+		t.Run(tc.name, func(t *testing.T) {
+			file := filepath.Join("testfiles", "preprocess", tc.name)
+			r, err := os.Open(file)
+			assert.NilError(t, err)
+			defer r.Close()
+			var buf bytes.Buffer
+			tee := io.TeeReader(r, &buf)
+			rows := preProcess(tee)
+			d, err := newDirective(bytes.NewReader(buf.Bytes()))
+			assert.NilError(t, err)
+			lines, err := format(rows, d)
+			assert.NilError(t, err)
+			for i, v := range tc.expect {
+				assert.Equal(t, 1 + len(lines[i].Command + lines[i].Raw), v)
+			}
+
+		})
+	}
+}
+
 func TestParse(t *testing.T) {
 	type testcase struct {
 		name   string
