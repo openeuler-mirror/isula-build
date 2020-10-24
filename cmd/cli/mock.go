@@ -305,6 +305,14 @@ func (f *mockDaemon) remove(_ context.Context, in *pb.RemoveRequest, opts ...grp
 
 func (f *mockDaemon) save(_ context.Context, in *pb.SaveRequest, opts ...grpc.CallOption) (pb.Control_SaveClient, error) {
 	f.saveReq = in
+	imageList := f.saveReq.Images
+	// construct failed env when trying to save image id "38b993607bcabe01df1dffdf01b329005c6a10a36d557f9d073fc25943840c66"
+	for _, id := range imageList {
+		if id == imageID {
+			return &mockSaveClient{}, errors.Errorf("failed to save image %s", imageID)
+		}
+	}
+
 	return &mockSaveClient{}, nil
 }
 

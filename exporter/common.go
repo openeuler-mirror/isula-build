@@ -74,9 +74,9 @@ func Export(src, destSpec string, opts ExportOptions, localStore *store.Store) e
 	}
 	opts.SystemContext.DockerCertPath = filepath.Join(constant.DefaultCertRoot, registry)
 
-	options := newCopyOptions(opts)
+	options := NewCopyOptions(opts)
 
-	policyContext, err := newPolicyContext(opts.SystemContext)
+	policyContext, err := NewPolicyContext(opts.SystemContext)
 	if err != nil {
 		return err
 	}
@@ -162,7 +162,8 @@ func parseExporter(exportID, src, destSpec string, localStore *store.Store) (Exp
 	return ept, nil
 }
 
-func newCopyOptions(opts ExportOptions) *cp.Options {
+// NewCopyOptions will return copy options
+func NewCopyOptions(opts ExportOptions) *cp.Options {
 	cpOpts := &cp.Options{}
 	cpOpts.SourceCtx = opts.SystemContext
 	cpOpts.DestinationCtx = opts.SystemContext
@@ -171,7 +172,8 @@ func newCopyOptions(opts ExportOptions) *cp.Options {
 	return cpOpts
 }
 
-func newPolicyContext(sc *types.SystemContext) (*signature.PolicyContext, error) {
+// NewPolicyContext return policy context from system context
+func NewPolicyContext(sc *types.SystemContext) (*signature.PolicyContext, error) {
 	pushPolicy, err := signature.DefaultPolicy(sc)
 	if err != nil {
 		return nil, errors.Wrap(err, "error reading the policy file")

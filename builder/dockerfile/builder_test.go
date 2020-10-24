@@ -1481,7 +1481,7 @@ func TestCheckAndExpandTag(t *testing.T) {
 		},
 	}
 	for _, tc := range testcases {
-		tag, err := CheckAndExpandTag(tc.tag)
+		_, tag, err := CheckAndExpandTag(tc.tag)
 		assert.Equal(t, tag, tc.output, tc.name)
 		if (err != nil) != tc.wantErr {
 			t.Errorf("getCheckAndExpandTag() error = %v, wantErr %v", err, tc.wantErr)

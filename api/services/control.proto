@@ -207,8 +207,8 @@ message LoadResponse {
 }
 
 message SaveRequest {
-    // image is the image to save
-    string image = 1;
+    // images are images in local storage to save
+    repeated string images = 1;
     // path is location for output tarball
     string path = 2;
     // saveID is the unique ID for each time save

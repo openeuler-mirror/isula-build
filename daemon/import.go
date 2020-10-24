@@ -57,7 +57,7 @@ func (b *Backend) Import(serv pb.Control_ImportServer) error {
 		buf = append(buf, msg.Data...)
 	}
 
-	reference, err := dockerfile.CheckAndExpandTag(reference)
+	_, reference, err := dockerfile.CheckAndExpandTag(reference)
 	if err != nil {
 		return err
 	}

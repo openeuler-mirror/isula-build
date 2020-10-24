@@ -32,6 +32,8 @@ func TestSaveCommand(t *testing.T) {
 func TestRunSave(t *testing.T) {
 	tmpDir := fs.NewDir(t, t.Name())
 	defer tmpDir.Remove()
+	alreadyExistFile := fs.NewFile(t, tmpDir.Join("alreadyExist.tar"))
+	defer alreadyExistFile.Remove()
 
 	type testcase struct {
 		name      string
@@ -50,7 +52,7 @@ func TestRunSave(t *testing.T) {
 		},
 		{
 			name:    "TC2 - abnormal case with empty args",
-			path:    tmpDir.Join("test1"),
+			path:    tmpDir.Join("test2"),
 			args:    []string{},
 			wantErr: true,
 		},
@@ -64,6 +66,25 @@ func TestRunSave(t *testing.T) {
 			path:    "",
 			args:    []string{"testImage"},
 			wantErr: true,
+		},
+		{
+			name:    "TC5 - abnormal case with already file exist",
+			path:    alreadyExistFile.Path(),
+			args:    []string{"testImage"},
+			wantErr: true,
+		},
+		{
+			name: "TC6 - normal case with multiple image",
+			path: tmpDir.Join("test6"),
+			args: []string{"testImage1:test", "testImage2:test"},
+		},
+		{
+			name:      "TC7 - normal case with save failed",
+			path:      tmpDir.Join("test7"),
+			args:      []string{imageID, "testImage1:test"},
+			// construct failed env when trying to save image id "38b993607bcabe01df1dffdf01b329005c6a10a36d557f9d073fc25943840c66"
+			wantErr:   true,
+			errString: "failed to save image 38b993607bcabe01df1dffdf01b329005c6a10a36d5",
 		},
 	}
 

@@ -150,13 +150,13 @@ func NewBuilder(ctx context.Context, store *store.Store, req *pb.BuildRequest, r
 func (b *Builder) parseTag(output, additionalTag string) error {
 	var err error
 	if tag := parseOutputTag(output); tag != "" {
-		if b.buildOpts.Tag, err = CheckAndExpandTag(tag); err != nil {
+		if _, b.buildOpts.Tag, err = CheckAndExpandTag(tag); err != nil {
 			return err
 		}
 	}
 
 	if additionalTag != "" {
-		if b.buildOpts.AdditionalTag, err = CheckAndExpandTag(additionalTag); err != nil {
+		if _, b.buildOpts.AdditionalTag, err = CheckAndExpandTag(additionalTag); err != nil {
 			return err
 		}
 	}
@@ -592,34 +592,40 @@ func parseOutputTag(output string) string {
 }
 
 // CheckAndExpandTag checks tag name. If it not include a tag, "latest" will be added.
-func CheckAndExpandTag(tag string) (string, error) {
+func CheckAndExpandTag(tag string) (reference.Named, string, error) {
 	if tag == "" {
-		return "<none>:<none>", nil
+		return nil, "<none>:<none>", nil
 	}
 
-	slashLastIndex := strings.LastIndex(tag, "/")
-	sepLastIndex := strings.LastIndex(tag, ":")
+	newTag := tag
+	slashLastIndex := strings.LastIndex(newTag, "/")
+	sepLastIndex := strings.LastIndex(newTag, ":")
 	if sepLastIndex == -1 || (sepLastIndex < slashLastIndex) {
 		// isula
 		// localhost:5000/isula
-		tag += ":latest"
+		newTag += ":latest"
 	}
 
 	const longestTagFieldsLen = 3
-	if len(strings.Split(tag, ":")) > longestTagFieldsLen {
+	if len(strings.Split(newTag, ":")) > longestTagFieldsLen {
 		// localhost:5000:5000/isula:latest
-		return "", errors.Errorf("invalid tag: %v", tag)
+		return nil, "", errors.Errorf("invalid tag: %v", newTag)
 	}
 
-	tagWithoutRepo := tag[slashLastIndex+1:]
-	_, err := reference.ParseNormalizedNamed(tagWithoutRepo)
+	oriRef, err := reference.ParseNormalizedNamed(newTag)
+	if err != nil {
+		return nil, "", errors.Wrapf(err, "parse tag err, invalid tag: %v", newTag)
+	}
+
+	tagWithoutRepo := newTag[slashLastIndex+1:]
+	_, err = reference.ParseNormalizedNamed(tagWithoutRepo)
 	if err != nil {
 		// isula:latest:latest
 		// localhost/isula:latest:latest
 		// isula!@#:latest
 		// isula :latest
-		return "", errors.Wrapf(err, "parse tag err, invalid tag: %v", tag)
+		return nil, "", errors.Wrapf(err, "parse tag err, invalid tag: %v", newTag)
 	}
 
-	return tag, nil
+	return oriRef, newTag, nil
 }

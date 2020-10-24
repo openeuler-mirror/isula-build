@@ -112,7 +112,7 @@ func TestCheckTag(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := checkTag(tt.args.oriImg, tt.args.imageID)
+			_, got, err := checkTag(tt.args.oriImg, tt.args.imageID)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("checkTag() error = %v, wantErr %v", err, tt.wantErr)
 				return

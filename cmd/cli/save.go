@@ -22,7 +22,6 @@ import (
 
 	"github.com/containers/storage/pkg/stringid"
 	"github.com/pkg/errors"
-	"github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 
 	constant "isula.org/isula-build"
@@ -31,7 +30,7 @@ import (
 )
 
 type saveOptions struct {
-	image  string
+	images []string
 	path   string
 	saveID string
 }
@@ -40,13 +39,14 @@ var saveOpts saveOptions
 
 const (
 	saveExample = `isula-build ctr-img save busybox:latest -o busybox.tar
-isula-build ctr-img save 21c3e96ac411 -o myimage.tar`
+isula-build ctr-img save 21c3e96ac411 -o myimage.tar
+isula-build ctr-img save busybox:latest alpine:3.9 -o all.tar`
 )
 
 // NewSaveCmd cmd for container image saving
 func NewSaveCmd() *cobra.Command {
 	saveCmd := &cobra.Command{
-		Use:     "save IMAGE [FLAGS]",
+		Use:     "save IMAGE [IMAGE...] [FLAGS]",
 		Short:   "Save image to tarball",
 		Example: saveExample,
 		RunE:    saveCommand,
@@ -70,8 +70,8 @@ func saveCommand(cmd *cobra.Command, args []string) error {
 }
 
 func runSave(ctx context.Context, cli Cli, args []string) error {
-	if len(args) != 1 {
-		return errors.New("save accepts only one image")
+	if len(args) == 0 {
+		return errors.New("save accepts at least one image")
 	}
 
 	if len(saveOpts.path) == 0 {
@@ -79,6 +79,7 @@ func runSave(ctx context.Context, cli Cli, args []string) error {
 	}
 
 	saveOpts.saveID = stringid.GenerateNonCryptoID()[:constant.DefaultIDLen]
+	saveOpts.images = args
 
 	if !filepath.IsAbs(saveOpts.path) {
 		pwd, err := os.Getwd()
@@ -88,13 +89,12 @@ func runSave(ctx context.Context, cli Cli, args []string) error {
 		saveOpts.path = util.MakeAbsolute(saveOpts.path, pwd)
 	}
 
-	saveOpts.image = args[0]
 	if util.IsExist(saveOpts.path) {
-		return errors.Errorf("output file already exist, try to remove existing tarball or rename output file")
+		return errors.Errorf("output file already exist: %q, try to remove existing tarball or rename output file", saveOpts.path)
 	}
 
 	saveStream, err := cli.Client().Save(ctx, &pb.SaveRequest{
-		Image:  saveOpts.image,
+		Images: saveOpts.images,
 		Path:   saveOpts.path,
 		SaveID: saveOpts.saveID,
 	})
@@ -110,11 +110,8 @@ func runSave(ctx context.Context, cli Cli, args []string) error {
 
 		if err != nil {
 			if err == io.EOF {
-				fmt.Printf("Save success with image: %s\n", saveOpts.image)
+				fmt.Printf("Save success with image: %s\n", saveOpts.images)
 				return nil
-			}
-			if rErr := os.Remove(saveOpts.path); rErr != nil {
-				logrus.Warnf("Removing save output tarball %q failed: %v", saveOpts.path, rErr)
 			}
 			return errors.Errorf("save image failed: %v", err)
 		}
