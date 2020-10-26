@@ -161,18 +161,25 @@ func exportHandler(ctx context.Context, stream pb.Control_SaveServer, options sa
 				}
 			}
 		}()
+
+		policyContext, err := exporter.NewPolicyContext(options.sysCtx)
+		if err != nil {
+			finalErr = err
+			logrus.Errorf("Getting policy failed: %v", err)
+			return errors.Wrap(err, "error getting policy")
+		}
+		defer func() {
+			if err := policyContext.Destroy(); err != nil {
+				logrus.Debugf("Error destroying signature policy context: %v", err)
+			}
+		}()
+
 		for id, img := range options.images {
 			exOpts := exporter.ExportOptions{
 				Ctx:           ctx,
 				SystemContext: options.sysCtx,
 				ExportID:      options.saveID,
 				ReportWriter:  options.logger,
-			}
-			policyContext, err := exporter.NewPolicyContext(exOpts.SystemContext)
-			if err != nil {
-				finalErr = err
-				logrus.Errorf("Getting policy failed: %v", err)
-				return errors.Wrap(err, "error getting policy")
 			}
 			src, err := is.Transport.NewStoreReference(options.localStore, nil, id)
 			if err != nil {
