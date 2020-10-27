@@ -15,7 +15,7 @@
 
 debug = false
 loglevel = ""
-group = "root"
+group = "isula"
 
 # Temporary storage location
 run_root = "/var/run/isula-build/"
