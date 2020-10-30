@@ -31,6 +31,7 @@ import (
 	"github.com/containers/image/v5/transports/alltransports"
 	"github.com/containers/image/v5/types"
 	"github.com/containers/storage/pkg/archive"
+	"github.com/containers/storage/pkg/stringid"
 	"github.com/docker/distribution/reference"
 	"github.com/opencontainers/go-digest"
 	"github.com/pkg/errors"
@@ -50,10 +51,11 @@ const (
 // ExportOptions is a struct for exporter
 type ExportOptions struct {
 	SystemContext *types.SystemContext
-	ExportID      string
-	ManifestType  string
 	Ctx           context.Context
 	ReportWriter  io.Writer
+	DataDir       string
+	ExportID      string
+	ManifestType  string
 }
 
 // Export export an archive to the client
@@ -62,7 +64,7 @@ func Export(src, destSpec string, opts ExportOptions, localStore *store.Store) e
 	if destSpec == "" {
 		return nil
 	}
-	epter, err := parseExporter(opts.ExportID, src, destSpec, localStore)
+	epter, isuladTarPath, err := parseExporter(opts, src, destSpec, localStore)
 	if err != nil {
 		return err
 	}
@@ -88,6 +90,31 @@ func Export(src, destSpec string, opts ExportOptions, localStore *store.Store) e
 		eLog.Debugf("Export image with reference %s", ref.Name())
 	}
 	eLog.Infof("Successfully output image with digest %s", digest.String())
+
+	if err := exportToIsulad(opts.Ctx, isuladTarPath); err != nil {
+		eLog.Error(err)
+		return err
+	}
+
+	return nil
+}
+
+func exportToIsulad(ctx context.Context, tarPath string) error {
+	// no tarPath need to export
+	if len(tarPath) == 0 {
+		return nil
+	}
+	defer func() {
+		if rErr := os.Remove(tarPath); rErr != nil {
+			logrus.Errorf("Remove file %s failed: %v", tarPath, rErr)
+		}
+	}()
+	// dest here will not be influenced by external input, no security risk
+	cmd := exec.CommandContext(ctx, "isula", "load", "-i", tarPath) // nolint:gosec
+	if bytes, lErr := cmd.CombinedOutput(); lErr != nil {
+		logrus.Errorf("Load image to isulad failed, stderr: %v, err: %v", string(bytes), lErr)
+		return errors.Errorf("load image to isulad failed, stderr: %v, err: %v", string(bytes), lErr)
+	}
 
 	return nil
 }
@@ -128,38 +155,44 @@ func export(exOpts ExportOptions, e Exporter, policyContext *signature.PolicyCon
 }
 
 // parseExporter parses an exporter instance and inits it with the src and dest reference.
-func parseExporter(exportID, src, destSpec string, localStore *store.Store) (Exporter, error) {
+func parseExporter(opts ExportOptions, src, destSpec string, localStore *store.Store) (Exporter, string, error) {
 	const partsNum = 2
+	var isuladTarPath string
 	// 1. parse exporter
 	parts := strings.SplitN(destSpec, ":", partsNum)
 	if len(parts) != partsNum {
-		return nil, errors.Errorf(`invalid dest spec %q, expected colon-separated exporter:reference`, destSpec)
+		return nil, "", errors.Errorf(`invalid dest spec %q, expected colon-separated exporter:reference`, destSpec)
 	}
 
 	ept := GetAnExporter(parts[0])
 	if ept == nil {
-		return nil, errors.Errorf(`invalid image name: %q, unknown exporter "%s"`, src, parts[0])
+		return nil, "", errors.Errorf(`invalid image name: %q, unknown exporter "%s"`, src, parts[0])
 	}
 
 	// 2. get src reference
 	srcReference, _, err := image.FindImage(localStore, src)
 	if err != nil {
-		return nil, errors.Errorf("find src image: %q failed, got error: %v", src, err)
+		return nil, "", errors.Errorf("find src image: %q failed, got error: %v", src, err)
 	}
 
 	// 3. get dest reference
 	if parts[0] == "isulad" {
-		destSpec = "docker-archive:" + parts[1]
+		randomID := stringid.GenerateNonCryptoID()[:constant.DefaultIDLen]
+		isuladTarPath = filepath.Join(opts.DataDir, fmt.Sprintf("isula-build-tmp-%s.tar", randomID))
+		// construct format: transport:path:image:tag
+		// parts[1] here could not be empty cause client-end already processed it
+		destSpec = fmt.Sprintf("docker-archive:%s:%s", isuladTarPath, parts[1])
+		logrus.Infof("Process isulad output %s", destSpec)
 	}
 	destReference, err := alltransports.ParseImageName(destSpec)
 	if err != nil {
-		return nil, errors.Errorf("parse dest spec: %q failed, got error: %v", destSpec, err)
+		return nil, "", errors.Errorf("parse dest spec: %q failed, got error: %v", destSpec, err)
 	}
 
 	// 4. init exporter with src reference and dest reference
-	ept.Init(exportID, srcReference, destReference)
+	ept.Init(opts.ExportID, srcReference, destReference)
 
-	return ept, nil
+	return ept, isuladTarPath, nil
 }
 
 // NewCopyOptions will return copy options

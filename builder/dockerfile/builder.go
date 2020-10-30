@@ -70,7 +70,6 @@ type Builder struct {
 	dataDir          string
 	runDir           string
 	dockerfileDigest string
-	pipeWrapper      *exporter.PipeWrapper
 	buildTime        *time.Time
 	ignores          []string
 	headingArgs      map[string]string
@@ -118,6 +117,7 @@ func NewBuilder(ctx context.Context, store *store.Store, req *pb.BuildRequest, r
 		CapAddList: req.GetCapAddList(),
 		ProxyFlag:  req.GetProxy(),
 		Iidfile:    req.GetIidfile(),
+		Output:     []string{req.GetOutput()},
 	}
 	b.parseStaticBuildOpts(req)
 	if err = b.parseTag(req.Output, req.AdditionalTag); err != nil {
@@ -140,10 +140,6 @@ func NewBuilder(ctx context.Context, store *store.Store, req *pb.BuildRequest, r
 		}(dir)
 	}
 
-	if err = b.parseOutput(req.Output); err != nil {
-		return nil, err
-	}
-
 	return b, nil
 }
 
@@ -160,30 +156,6 @@ func (b *Builder) parseTag(output, additionalTag string) error {
 			return err
 		}
 	}
-
-	return nil
-}
-
-func (b *Builder) parseOutput(output string) error {
-	var (
-		pipeWrapper *exporter.PipeWrapper
-		err         error
-	)
-
-	segments := strings.Split(output, ":")
-	expt := segments[0]
-	if util.IsClientExporter(expt) {
-		if pipeWrapper, err = exporter.NewPipeWrapper(b.runDir, expt); err != nil {
-			return err
-		}
-		// update the output path with pipe file to request
-		output = expt + ":" + pipeWrapper.PipeFile
-		if b.buildOpts.Tag != "" {
-			output = output + ":" + b.buildOpts.Tag
-		}
-		b.pipeWrapper = pipeWrapper
-	}
-	b.buildOpts.Output = []string{output}
 
 	return nil
 }
@@ -407,7 +379,7 @@ func getFlagsAndArgs(line *parser.Line, allowFlags map[string]bool) (map[string]
 }
 
 // Build makes the image
-func (b *Builder) Build(syncChan chan struct{}) (string, error) {
+func (b *Builder) Build() (string, error) {
 	var (
 		executeTimer = b.cliLog.StartTimer("\nTotal")
 		err          error
@@ -446,7 +418,6 @@ func (b *Builder) Build(syncChan chan struct{}) (string, error) {
 		}
 	}
 
-	close(syncChan)
 	// 4. export images
 	if err = b.export(imageID); err != nil {
 		return "", errors.Wrapf(err, "exporting images failed")
@@ -497,6 +468,7 @@ func (b *Builder) export(imageID string) error {
 			SystemContext: image.GetSystemContext(),
 			ReportWriter:  b.cliLog,
 			ExportID:      b.buildID,
+			DataDir:       b.dataDir,
 		}
 		if exErr := exporter.Export(imageID, o, exOpts, b.localStore); exErr != nil {
 			b.Logger().Errorf("Image %s output to %s failed with: %v", imageID, o, exErr)
@@ -556,11 +528,6 @@ func (b *Builder) CleanResources() error {
 		}
 	}
 	return err
-}
-
-// OutputPipeWrapper returns the output pipe file path
-func (b *Builder) OutputPipeWrapper() *exporter.PipeWrapper {
-	return b.pipeWrapper
 }
 
 // EntityID returns the entityID of the Builder

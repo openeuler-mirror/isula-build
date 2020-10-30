@@ -46,12 +46,6 @@ type mockDaemon struct {
 	saveReq   *pb.SaveRequest   // nolint
 }
 
-type mockBuildClient struct {
-	grpc.ClientStream
-	isArchive bool
-	endStream bool
-}
-
 type mockImportClient struct {
 	grpc.ClientStream
 }
@@ -73,7 +67,7 @@ type mockSaveClient struct {
 }
 
 type mockGrpcClient struct {
-	imageBuildFunc  func(ctx context.Context, in *pb.BuildRequest, opts ...grpc.CallOption) (pb.Control_BuildClient, error)
+	imageBuildFunc  func(ctx context.Context, in *pb.BuildRequest, opts ...grpc.CallOption) (*pb.BuildResponse, error)
 	removeFunc      func(ctx context.Context, in *pb.RemoveRequest, opts ...grpc.CallOption) (pb.Control_RemoveClient, error)
 	listFunc        func(ctx context.Context, in *pb.ListRequest, opts ...grpc.CallOption) (*pb.ListResponse, error) // nolint
 	statusFunc      func(ctx context.Context, in *pb.StatusRequest, opts ...grpc.CallOption) (pb.Control_StatusClient, error)
@@ -95,11 +89,11 @@ func newMockDaemon() *mockDaemon { // nolint
 	return &mockDaemon{}
 }
 
-func (gcli *mockGrpcClient) Build(ctx context.Context, in *pb.BuildRequest, opts ...grpc.CallOption) (pb.Control_BuildClient, error) {
+func (gcli *mockGrpcClient) Build(ctx context.Context, in *pb.BuildRequest, opts ...grpc.CallOption) (*pb.BuildResponse, error) {
 	if gcli.imageBuildFunc != nil {
 		return gcli.imageBuildFunc(ctx, in, opts...)
 	}
-	return &mockBuildClient{isArchive: true}, nil
+	return &pb.BuildResponse{ImageID: imageID}, nil
 }
 
 func (gcli *mockGrpcClient) Import(ctx context.Context, opts ...grpc.CallOption) (pb.Control_ImportClient, error) {
@@ -210,21 +204,6 @@ func (gcli *mockGrpcClient) Load(ctx context.Context, in *pb.LoadRequest, opts .
 	return nil, nil
 }
 
-func (bcli *mockBuildClient) Recv() (*pb.BuildResponse, error) {
-	resp := &pb.BuildResponse{
-		ImageID: imageID,
-		Data:    []byte{},
-	}
-	if bcli.isArchive && bcli.endStream {
-		return resp, io.EOF
-	}
-	if bcli.isArchive && !bcli.endStream {
-		bcli.endStream = true
-		return resp, nil
-	}
-	return resp, nil
-}
-
 func (icli *mockImportClient) Recv() (*pb.ImportResponse, error) {
 	resp := &pb.ImportResponse{
 		Log: "Import success with image id: " + imageID,
@@ -278,9 +257,9 @@ func (f *mockDaemon) load(_ context.Context, in *pb.LoadRequest, opts ...grpc.Ca
 	return &mockLoadClient{}, nil
 }
 
-func (f *mockDaemon) build(_ context.Context, in *pb.BuildRequest, opts ...grpc.CallOption) (pb.Control_BuildClient, error) {
+func (f *mockDaemon) build(_ context.Context, in *pb.BuildRequest, opts ...grpc.CallOption) (*pb.BuildResponse, error) {
 	f.buildReq = in
-	return &mockBuildClient{}, nil
+	return &pb.BuildResponse{ImageID: imageID}, nil
 }
 
 func (f *mockDaemon) status(_ context.Context, in *pb.StatusRequest, opts ...grpc.CallOption) (pb.Control_StatusClient, error) {

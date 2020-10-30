@@ -36,6 +36,8 @@ import (
 	"isula.org/isula-build/util"
 )
 
+const dataRootTmpDirPrefix = "tmp"
+
 // Options carries the options configured to daemon
 type Options struct {
 	Debug         bool
@@ -128,8 +130,8 @@ func (d *Daemon) Run() (err error) {
 
 // NewBuilder returns the builder with request sent from GRPC service
 func (d *Daemon) NewBuilder(ctx context.Context, req *pb.BuildRequest) (b builder.Builder, err error) {
-	// buildDir is used to set directory which is used to store data
-	buildDir := filepath.Join(d.opts.DataRoot, req.BuildID)
+	// buildDir is used to set directory which is used to store tmp data
+	buildDir := filepath.Join(d.opts.DataRoot, dataRootTmpDirPrefix, req.BuildID)
 	// runDir is used to store such as container bundle directories
 	runDir := filepath.Join(d.opts.RunRoot, req.BuildID)
 

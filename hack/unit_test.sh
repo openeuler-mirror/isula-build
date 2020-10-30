@@ -25,7 +25,8 @@ echo "Testing with args ${TEST_ARGS}"
 testlog=${PWD}"/unit_test_log"
 rm -f "${testlog}"
 touch "${testlog}"
-for path in $(go list ./...); do
+golist=$(go list ./... | grep -v gopkgs)
+for path in ${golist}; do
     echo "Start to test: ${path}"
     # TEST_ARGS is " -args SKIP_REG=foo", so no double quote for it
     go test -race -mod=vendor -cover -count=1 -timeout 300s -v "${path}" ${TEST_ARGS} >> "${testlog}"

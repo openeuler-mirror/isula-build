@@ -19,7 +19,7 @@ import "google/protobuf/timestamp.proto";
 
 service Control {
     // Build requests a new image building
-    rpc Build(BuildRequest) returns (stream BuildResponse);
+    rpc Build(BuildRequest) returns (BuildResponse);
     // Status pipes the image building process log back to client
     rpc Status(StatusRequest) returns (stream StatusResponse);
     // List lists all images in isula-builder
@@ -95,8 +95,6 @@ message BuildStatic {
 message BuildResponse {
     // imageID is the ID of built image
     string imageID = 1;
-    // data pipes the output stream back to client
-    bytes data = 2;
 }
 
 message StatusRequest {

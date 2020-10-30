@@ -23,16 +23,14 @@ import (
 	constant "isula.org/isula-build"
 	pb "isula.org/isula-build/api/services"
 	"isula.org/isula-build/builder/dockerfile"
-	"isula.org/isula-build/exporter"
 	"isula.org/isula-build/store"
 )
 
 // Builder is an interface for building an image
 type Builder interface {
-	Build(chan struct{}) (imageID string, err error)
+	Build() (imageID string, err error)
 	StatusChan() <-chan string
 	CleanResources() error
-	OutputPipeWrapper() *exporter.PipeWrapper
 	EntityID() string
 }
 
