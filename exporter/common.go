@@ -15,7 +15,6 @@
 package exporter
 
 import (
-	"bufio"
 	"context"
 	"fmt"
 	"io"
@@ -23,7 +22,6 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
-	"syscall"
 
 	cp "github.com/containers/image/v5/copy"
 	"github.com/containers/image/v5/manifest"
@@ -217,87 +215,4 @@ func NewPolicyContext(sc *types.SystemContext) (*signature.PolicyContext, error)
 	}
 
 	return policyContext, nil
-}
-
-// PipeWrapper is a wrapper for a pipefile
-type PipeWrapper struct {
-	PipeFile string
-	Done     bool
-}
-
-// Close set the done flag for this pip
-func (p *PipeWrapper) Close() {
-	p.Done = true
-}
-
-// NewPipeWrapper checks the exporter type and creates the pipeFile for local archive exporting if needed
-func NewPipeWrapper(runDir, expt string) (*PipeWrapper, error) {
-	pipeFile := filepath.Join(runDir, fmt.Sprintf("exporter-%s", expt))
-	if err := syscall.Mkfifo(pipeFile, constant.DefaultRootFileMode); err != nil {
-		return nil, err
-	}
-	pipeWraper := PipeWrapper{
-		PipeFile: pipeFile,
-	}
-	return &pipeWraper, nil
-}
-
-// PipeArchiveStream pipes the GRPC stream with pipeFile
-func PipeArchiveStream(pipeWrapper *PipeWrapper) (f *os.File, err error) {
-	var file *os.File
-	if pipeWrapper == nil || pipeWrapper.PipeFile == "" {
-		return nil, errors.New("no pipe wrapper found")
-	}
-
-	if file, err = os.OpenFile(pipeWrapper.PipeFile, os.O_RDONLY, os.ModeNamedPipe); err != nil {
-		return nil, err
-	}
-	return file, nil
-}
-
-// ArchiveRecv receive data stream and write to file
-func ArchiveRecv(ctx context.Context, dest string, isIsulad bool, fc chan []byte) error {
-	var (
-		err error
-	)
-	fo, err := os.Create(dest)
-	if err != nil {
-		return err
-	}
-
-	defer func() {
-		if cerr := fo.Close(); cerr != nil {
-			logrus.Errorf("Close file %s failed: %v", dest, cerr)
-		}
-		if err != nil || isIsulad {
-			if rerr := os.Remove(dest); rerr != nil {
-				logrus.Errorf("Remove file %s failed: %v", dest, rerr)
-			}
-		}
-	}()
-
-	if err = fo.Chmod(constant.DefaultRootFileMode); err != nil {
-		return err
-	}
-
-	w := bufio.NewWriter(fo)
-	for bytes := range fc {
-		if _, werr := w.Write(bytes); werr != nil {
-			return err
-		}
-	}
-
-	if err = w.Flush(); err != nil {
-		return errors.Errorf("flush buffer failed: %v", err)
-	}
-
-	if isIsulad {
-		// dest here will not be influenced by external input, no security risk
-		cmd := exec.CommandContext(ctx, "isula", "load", "-i", dest) // nolint:gosec
-		if bytes, lerr := cmd.CombinedOutput(); lerr != nil {
-			return errors.Errorf("load image to isulad failed, stderr: %v, err: %v", string(bytes), lerr)
-		}
-	}
-
-	return nil
 }
