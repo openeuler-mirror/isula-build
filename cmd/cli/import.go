@@ -14,18 +14,16 @@
 package main
 
 import (
-	"bufio"
 	"context"
 	"fmt"
 	"io"
 	"os"
+	"path/filepath"
 
 	dockerref "github.com/containers/image/v5/docker/reference"
 	"github.com/pkg/errors"
-	"github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 
-	constant "isula.org/isula-build"
 	pb "isula.org/isula-build/api/services"
 	"isula.org/isula-build/util"
 )
@@ -80,54 +78,33 @@ func runImport(ctx context.Context, cli Cli) error {
 			return err
 		}
 	}
-	file, err := os.Open(importOpts.source)
-	if err != nil {
-		return err
-	}
-	defer func() {
-		if ferr := file.Close(); ferr != nil {
-			logrus.Warnf("Close file %s failed", file.Name())
-		}
-	}()
 
-	rpcCli, err := cli.Client().Import(ctx)
-	if err != nil {
-		return err
-	}
-
-	reader := bufio.NewReader(file)
-	buf := make([]byte, constant.BufferSize, constant.BufferSize)
-	var length int
-	for {
-		length, err = reader.Read(buf)
-		if err == io.EOF {
-			break
-		}
+	if !filepath.IsAbs(importOpts.source) {
+		pwd, err := os.Getwd()
 		if err != nil {
-			return err
+			return errors.New("get current path failed")
 		}
-		if err = rpcCli.Send(&pb.ImportRequest{
-			Data:      buf[0:length],
-			Reference: importOpts.reference,
-		}); err != nil {
-			return err
-		}
+		importOpts.source = util.MakeAbsolute(importOpts.source, pwd)
 	}
-	if err = rpcCli.CloseSend(); err != nil {
+
+	stream, err := cli.Client().Import(ctx, &pb.ImportRequest{
+		Source:    importOpts.source,
+		Reference: importOpts.reference,
+	})
+	if err != nil {
 		return err
 	}
+
 	for {
-		msg, rerr := rpcCli.Recv()
-		if rerr != nil {
-			if rerr != io.EOF {
-				return rerr
-			}
-			break
-		}
+		msg, rErr := stream.Recv()
 		if msg != nil {
 			fmt.Print(msg.Log)
 		}
+		if rErr != nil {
+			if rErr == io.EOF {
+				return nil
+			}
+			return rErr
+		}
 	}
-
-	return nil
 }

@@ -75,7 +75,7 @@ type mockGrpcClient struct {
 	loginFunc       func(ctx context.Context, in *pb.LoginRequest, opts ...grpc.CallOption) (*pb.LoginResponse, error)
 	logoutFunc      func(ctx context.Context, in *pb.LogoutRequest, opts ...grpc.CallOption) (*pb.LogoutResponse, error)
 	loadFunc        func(ctx context.Context, in *pb.LoadRequest, opts ...grpc.CallOption) (pb.Control_LoadClient, error)
-	importFunc      func(ctx context.Context, opts ...grpc.CallOption) (pb.Control_ImportClient, error)
+	importFunc      func(ctx context.Context, in *pb.ImportRequest, opts ...grpc.CallOption) (pb.Control_ImportClient, error)
 	saveFunc        func(ctx context.Context, in *pb.SaveRequest, opts ...grpc.CallOption) (pb.Control_SaveClient, error)
 }
 
@@ -96,9 +96,9 @@ func (gcli *mockGrpcClient) Build(ctx context.Context, in *pb.BuildRequest, opts
 	return &pb.BuildResponse{ImageID: imageID}, nil
 }
 
-func (gcli *mockGrpcClient) Import(ctx context.Context, opts ...grpc.CallOption) (pb.Control_ImportClient, error) {
+func (gcli *mockGrpcClient) Import(ctx context.Context, in *pb.ImportRequest, opts ...grpc.CallOption) (pb.Control_ImportClient, error) {
 	if gcli.importFunc != nil {
-		return gcli.importFunc(ctx, opts...)
+		return gcli.importFunc(ctx, in, opts...)
 	}
 	return nil, nil
 }
