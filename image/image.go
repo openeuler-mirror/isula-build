@@ -113,7 +113,8 @@ func pullImage(opt pullOption) (types.ImageReference, error) {
 	return opt.dstRef, nil
 }
 
-func pullAndGetImageInfo(opt *PrepareImageOptions) (types.ImageReference, *storage.Image, error) {
+// PullAndGetImageInfo pull image and return its reference and image info
+func PullAndGetImageInfo(opt *PrepareImageOptions) (types.ImageReference, *storage.Image, error) {
 	pLog := logrus.WithField(util.LogKeySessionID, opt.Ctx.Value(util.LogFieldKey(util.LogKeySessionID)))
 	candidates, transport, err := ResolveName(opt.FromImage, opt.SystemContext, opt.Store)
 	if err != nil {
@@ -141,10 +142,10 @@ func pullAndGetImageInfo(opt *PrepareImageOptions) (types.ImageReference, *stora
 
 	// record the last pull error
 	var errPull error
-	const tagSeperator = "://"
+	const tagSeparator = "://"
 	for _, strImage := range candidates {
 		if transport != util.DefaultTransport {
-			transport += tagSeperator
+			transport += tagSeparator
 		}
 		srcRef, err := alltransports.ParseImageName(transport + strImage)
 		if err != nil {
@@ -359,7 +360,7 @@ func UpdateV2Image(docker *docker.Image) error {
 
 // ResolveFromImage pull the FROM image and instantiate it
 func ResolveFromImage(opt *PrepareImageOptions) (types.Image, *storage.Image, error) {
-	ref, si, err := pullAndGetImageInfo(opt)
+	ref, si, err := PullAndGetImageInfo(opt)
 	if err != nil {
 		return nil, nil, err
 	}

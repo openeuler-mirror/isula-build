@@ -42,6 +42,8 @@ type mockDaemon struct {
 	loadReq   *pb.LoadRequest
 	loginReq  *pb.LoginRequest
 	logoutReq *pb.LogoutRequest
+	pushReq   *pb.PushRequest
+	pullReq   *pb.PullRequest
 	importReq *pb.ImportRequest // nolint
 	saveReq   *pb.SaveRequest   // nolint
 }
@@ -51,6 +53,14 @@ type mockImportClient struct {
 }
 
 type mockStatusClient struct {
+	grpc.ClientStream
+}
+
+type mockPushClient struct {
+	grpc.ClientStream
+}
+
+type mockPullClient struct {
 	grpc.ClientStream
 }
 
@@ -75,6 +85,8 @@ type mockGrpcClient struct {
 	loginFunc       func(ctx context.Context, in *pb.LoginRequest, opts ...grpc.CallOption) (*pb.LoginResponse, error)
 	logoutFunc      func(ctx context.Context, in *pb.LogoutRequest, opts ...grpc.CallOption) (*pb.LogoutResponse, error)
 	loadFunc        func(ctx context.Context, in *pb.LoadRequest, opts ...grpc.CallOption) (pb.Control_LoadClient, error)
+	pushFunc        func(ctx context.Context, in *pb.PushRequest, opts ...grpc.CallOption) (pb.Control_PushClient, error)
+	pullFunc        func(ctx context.Context, in *pb.PullRequest, opts ...grpc.CallOption) (pb.Control_PullClient, error)
 	importFunc      func(ctx context.Context, in *pb.ImportRequest, opts ...grpc.CallOption) (pb.Control_ImportClient, error)
 	saveFunc        func(ctx context.Context, in *pb.SaveRequest, opts ...grpc.CallOption) (pb.Control_SaveClient, error)
 }
@@ -197,6 +209,20 @@ func (gcli *mockGrpcClient) Logout(ctx context.Context, in *pb.LogoutRequest, op
 	return &pb.LogoutResponse{Result: "Success Logout"}, nil
 }
 
+func (gcli *mockGrpcClient) Push(ctx context.Context, in *pb.PushRequest, opts ...grpc.CallOption) (pb.Control_PushClient, error) {
+	if gcli.pushFunc != nil {
+		return gcli.pushFunc(ctx, in, opts...)
+	}
+	return &mockPushClient{}, nil
+}
+
+func (gcli *mockGrpcClient) Pull(ctx context.Context, in *pb.PullRequest, opts ...grpc.CallOption) (pb.Control_PullClient, error) {
+	if gcli.pullFunc != nil {
+		return gcli.pullFunc(ctx, in, opts...)
+	}
+	return &mockPullClient{}, nil
+}
+
 func (gcli *mockGrpcClient) Load(ctx context.Context, in *pb.LoadRequest, opts ...grpc.CallOption) (pb.Control_LoadClient, error) {
 	if gcli.loadFunc != nil {
 		return gcli.loadFunc(ctx, in, opts...)
@@ -234,6 +260,14 @@ func (lcli *mockLoadClient) Recv() (*pb.LoadResponse, error) {
 		Log: "Getting image source signatures",
 	}
 	return resp, io.EOF
+}
+
+func (m mockPushClient) Recv() (*pb.PushResponse, error) {
+	return &pb.PushResponse{}, io.EOF
+}
+
+func (m mockPullClient) Recv() (*pb.PullResponse, error) {
+	return &pb.PullResponse{}, io.EOF
 }
 
 func (scli *mockSaveClient) Recv() (*pb.SaveResponse, error) {
@@ -280,6 +314,16 @@ func (f *mockDaemon) contextDir(t *testing.T) string {
 func (f *mockDaemon) remove(_ context.Context, in *pb.RemoveRequest, opts ...grpc.CallOption) (pb.Control_RemoveClient, error) {
 	f.removeReq = in
 	return &mockRemoveClient{}, nil
+}
+
+func (f *mockDaemon) push(_ context.Context, in *pb.PushRequest, opts ...grpc.CallOption) (pb.Control_PushClient, error) {
+	f.pushReq = in
+	return &mockPushClient{}, nil
+}
+
+func (f *mockDaemon) pull(_ context.Context, in *pb.PullRequest, opts ...grpc.CallOption) (pb.Control_PullClient, error) {
+	f.pullReq = in
+	return &mockPullClient{}, nil
 }
 
 func (f *mockDaemon) save(_ context.Context, in *pb.SaveRequest, opts ...grpc.CallOption) (pb.Control_SaveClient, error) {
