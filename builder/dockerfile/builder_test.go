@@ -1349,7 +1349,7 @@ func TestNewBuilder(t *testing.T) {
 
 	type args struct {
 		ctx         context.Context
-		store       store.Store
+		store       *store.Store
 		req         *pb.BuildRequest
 		runtimePath string
 		buildDir    string
@@ -1359,27 +1359,27 @@ func TestNewBuilder(t *testing.T) {
 	tests := []struct {
 		name    string
 		args    args
-		want    *Builder
+		wantNil bool
 		wantErr bool
 	}{
 		{
 			name: "NewBuilder - wrong rundir",
 			args: args{
 				ctx:      context.Background(),
-				store:    localStore,
+				store:    &localStore,
 				req:      &pb.BuildRequest{},
 				buildDir: tmpDir,
 				runDir:   "",
 				key:      privateKey,
 			},
-			want:    nil,
+			wantNil: true,
 			wantErr: true,
 		},
 		{
-			name: "NewBuilder - parseOutput fail",
+			name: "NewBuilder - parseOutput pass",
 			args: args{
 				ctx:   context.Background(),
-				store: localStore,
+				store: &localStore,
 				req: &pb.BuildRequest{
 					Output: "docker-archive:/home/test/aa.tar",
 				},
@@ -1387,19 +1387,19 @@ func TestNewBuilder(t *testing.T) {
 				runDir:   immutablePath,
 				key:      privateKey,
 			},
-			want:    nil,
-			wantErr: true,
+			wantNil: false,
+			wantErr: false,
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := NewBuilder(tt.args.ctx, &tt.args.store, tt.args.req, tt.args.runtimePath, tt.args.buildDir, tt.args.runDir, tt.args.key)
+			got, err := NewBuilder(tt.args.ctx, tt.args.store, tt.args.req, tt.args.runtimePath, tt.args.buildDir, tt.args.runDir, tt.args.key)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("NewBuilder() error = %v, wantErr %v", err, tt.wantErr)
 				return
 			}
-			if !reflect.DeepEqual(got, tt.want) {
-				t.Errorf("NewBuilder() got = %v, want %v", got, tt.want)
+			if (got == nil) != tt.wantNil {
+				t.Errorf("NewBuilder() \ngot = \n%v", got)
 			}
 		})
 	}

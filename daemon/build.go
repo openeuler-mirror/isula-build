@@ -14,23 +14,16 @@
 package daemon
 
 import (
-	"bufio"
 	"context"
-	"io"
-	"os"
-	"syscall"
 
 	"github.com/sirupsen/logrus"
-	"golang.org/x/sync/errgroup"
 
-	constant "isula.org/isula-build"
 	pb "isula.org/isula-build/api/services"
-	"isula.org/isula-build/exporter"
 	"isula.org/isula-build/util"
 )
 
 // Build receives a build request and build an image
-func (b *Backend) Build(req *pb.BuildRequest, stream pb.Control_BuildServer) error { // nolint:gocyclo
+func (b *Backend) Build(ctx context.Context, req *pb.BuildRequest) (*pb.BuildResponse, error) {
 	b.wg.Add(1)
 	defer b.wg.Done()
 	logrus.WithFields(logrus.Fields{
@@ -38,111 +31,26 @@ func (b *Backend) Build(req *pb.BuildRequest, stream pb.Control_BuildServer) err
 		"BuildID":   req.GetBuildID(),
 	}).Info("BuildRequest received")
 
-	ctx := context.WithValue(stream.Context(), util.LogFieldKey(util.LogKeySessionID), req.BuildID)
-	builder, nerr := b.daemon.NewBuilder(ctx, req)
-	if nerr != nil {
-		return nerr
+	ctx = context.WithValue(ctx, util.LogFieldKey(util.LogKeySessionID), req.BuildID)
+	builder, nErr := b.daemon.NewBuilder(ctx, req)
+	if nErr != nil {
+		return &pb.BuildResponse{}, nErr
 	}
 
 	defer func() {
-		if cerr := builder.CleanResources(); cerr != nil {
-			logrus.Warnf("defer builder clean build resources failed: %v", cerr)
+		if cErr := builder.CleanResources(); cErr != nil {
+			logrus.Warnf("defer builder clean build resources failed: %v", cErr)
 		}
 		b.daemon.deleteBuilder(req.BuildID)
 		b.deleteStatus(req.BuildID)
 	}()
 
-	var (
-		imageID string
-		errChan = make(chan error, 1)
-	)
-
-	pipeWrapper := builder.OutputPipeWrapper()
-	eg, ctx := errgroup.WithContext(ctx)
-	syncPipeChan := make(chan struct{})
-	eg.Go(func() error {
-		b.syncBuildStatus(req.BuildID) <- struct{}{}
-		b.closeStatusChan(req.BuildID)
-		var berr error
-		imageID, berr = builder.Build(syncPipeChan)
-
-		if berr != nil && pipeWrapper != nil {
-			// in case there is error during Build stage, the backend will always waiting for content write into
-			// the pipeFile, which will cause frontend hangs forever.
-			// so if the output type is archive(pipeWrapper is not nil) and any error occurred, we try to open and close
-			// the pipe in O_NONBLOCK flag to make the goroutine move on instead of hangs.
-			f, perr := os.OpenFile(pipeWrapper.PipeFile, os.O_WRONLY|syscall.O_NONBLOCK, os.ModeNamedPipe)
-			if perr == nil && f != nil {
-				if cerr := f.Close(); cerr != nil {
-					logrus.WithField(util.LogKeySessionID, req.BuildID).Warnf("Close pipe file failed: %v", cerr)
-				}
-			}
-		}
-
-		return berr
-	})
-
-	eg.Go(func() error {
-		if pipeWrapper == nil {
-			return nil
-		}
-		select {
-		case <-syncPipeChan:
-		case <-ctx.Done():
-			return nil
-		}
-		f, perr := exporter.PipeArchiveStream(pipeWrapper)
-		if perr != nil {
-			return perr
-		}
-		defer func() {
-			if cErr := f.Close(); cErr != nil {
-				logrus.WithField(util.LogKeySessionID, req.BuildID).Warnf("Closing archive stream pipe %q failed: %v", pipeWrapper.PipeFile, cErr)
-			}
-		}()
-
-		reader := bufio.NewReader(f)
-		buf := make([]byte, constant.BufferSize, constant.BufferSize)
-		for {
-			length, rerr := reader.Read(buf)
-			if rerr == io.EOF {
-				break
-			}
-			if rerr != nil {
-				return rerr
-			}
-
-			if serr := stream.Send(&pb.BuildResponse{Data: buf[0:length]}); serr != nil {
-				return serr
-			}
-		}
-		logrus.WithField(util.LogKeySessionID, req.BuildID).Debugf("Piping build archive stream done")
-		return nil
-	})
-
-	go func() {
-		errChan <- eg.Wait()
-	}()
-
-	select {
-	case chErr := <-errChan:
-		close(errChan)
-		if chErr != nil {
-			return chErr
-		}
-		// export done, send client the imageID
-		if serr := stream.Send(&pb.BuildResponse{
-			Data:    nil,
-			ImageID: imageID,
-		}); serr != nil {
-			return serr
-		}
-	case <-stream.Context().Done():
-		ctxErr := ctx.Err()
-		if ctxErr != nil && ctxErr != context.Canceled {
-			logrus.WithField(util.LogKeySessionID, req.BuildID).Warnf("Stream closed with: %v", ctxErr)
-		}
+	b.syncBuildStatus(req.BuildID) <- struct{}{}
+	b.closeStatusChan(req.BuildID)
+	imageID, bErr := builder.Build()
+	if bErr != nil {
+		return &pb.BuildResponse{}, bErr
 	}
 
-	return nil
+	return &pb.BuildResponse{ImageID: imageID}, nil
 }

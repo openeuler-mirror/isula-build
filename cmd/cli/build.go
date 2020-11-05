@@ -54,8 +54,6 @@ type buildOptions struct {
 	additionalTag string
 }
 
-type staticBuildMode string
-
 const (
 	buildExample = `isula-build ctr-img build -f Dockerfile .
 isula-build ctr-img build -f Dockerfile -o docker-archive:name.tar:image:tag .
@@ -63,12 +61,8 @@ isula-build ctr-img build -f Dockerfile -o docker-daemon:image:tag .
 isula-build ctr-img build -f Dockerfile -o docker://registry.example.com/repository:tag .
 isula-build ctr-img build -f Dockerfile -o isulad:image:tag .
 isula-build ctr-img build -f Dockerfile --build-static='build-time=2020-06-30 15:05:05' .`
-	// tarPathFormat is the path used to temporarily store tar for isulad load later,
-	// as client could not get daemon's dataroot and runroot, so we use /var/tmp here.
-	tarPathFormat = "/var/tmp/isula-build-tmp-%v.tar"
-
 	// buildTimeType is an option for static-build
-	buildTimeType staticBuildMode = "build-time"
+	buildTimeType = "build-time"
 )
 
 var buildOpts buildOptions = buildOptions{
@@ -195,61 +189,101 @@ func newBuildOptions(args []string) error {
 	return nil
 }
 
-func checkAndProcessOutput() (string, bool, error) {
+func checkOutput(output string) ([]string, error) {
 	const outputFieldLen = 2
-	segments := strings.Split(buildOpts.output, ":")
-	transport := segments[0]
-
-	// if transport is empty, but the rest parts are not empty
-	if transport == "" {
-		var err error
-		if len(segments) >= outputFieldLen {
-			err = errors.New("transport should not be empty")
-		}
-		return "", false, err
-	}
-
-	// 1. check the destination is not empty
-	if len(segments) < outputFieldLen || strings.TrimSpace(segments[1]) == "" {
-		return "", false, errors.New("destination should not be empty")
-	}
-
-	// 2. check the transport is support
-	if !exporter.IsSupport(transport) {
-		return "", false, errors.Errorf("transport %q not support", transport)
-	}
-
 	const longestOutputLen = 512
-	if len(buildOpts.output) > longestOutputLen {
-		return "", false, errors.Errorf("output should not longer than %v", longestOutputLen)
+	// just build, no export action
+	if len(output) == 0 {
+		return nil, nil
+	}
+	if len(output) > longestOutputLen {
+		return nil, errors.Errorf("output should not longer than %v", longestOutputLen)
+	}
+	segments := strings.Split(output, ":")
+	transport := segments[0]
+	if len(transport) == 0 {
+		return nil, errors.New("transport should not be empty")
+	}
+	if !exporter.IsSupport(transport) {
+		return nil, errors.Errorf("transport %q not support", transport)
 	}
 
-	if transport == "isulad" {
-		const validIsuladFiledsLen = 3
-		if len(segments) != validIsuladFiledsLen {
-			return "", true, errors.Errorf("invalid isulad output format: %v", buildOpts.output)
+	if len(segments) < outputFieldLen || strings.TrimSpace(segments[1]) == "" {
+		return nil, errors.New("destination should not be empty")
+	}
+
+	return segments, nil
+}
+
+func checkAbsPath(path string) (string, error) {
+	if !filepath.IsAbs(path) {
+		pwd, err := os.Getwd()
+		if err != nil {
+			return "", errors.New("get current path failed")
 		}
-		return fmt.Sprintf(tarPathFormat, buildOpts.buildID), true, nil
+		path = util.MakeAbsolute(path, pwd)
+	}
+	if util.IsExist(path) {
+		return "", errors.Errorf("output file already exist: %q, try to remove existing tarball or rename output file", path)
 	}
 
-	// for export to local, output may contain docker-reference, e.g docker-archive:path:image:tag,
-	// the part of reference is not a path, so only return segments[1]
-	if util.IsClientExporter(transport) {
-		return segments[1], false, nil
+	return path, nil
+}
+
+func modifyLocalTransporter(transport string, absPath string, segments []string) error {
+	const validIsuladFieldsLen = 3
+	switch transport {
+	case "docker-archive":
+		segments[1] = absPath
+		buildOpts.output = strings.Join(segments, ":")
+		return nil
+	case "isulad":
+		if len(segments) != validIsuladFieldsLen {
+			return errors.Errorf("invalid isulad output format: %v", buildOpts.output)
+		}
+		return nil
+	default:
+		return nil
+	}
+}
+
+func checkAndProcessOutput() error {
+	// validate output
+	segments, err := checkOutput(buildOpts.output)
+	if err != nil {
+		return err
+	}
+	if segments == nil {
+		return nil
 	}
 
+	transport := segments[0]
 	// just build, not need to export to any destination
-	return "", false, nil
+	if !util.IsClientExporter(transport) {
+		return nil
+	}
+
+	// segments here could not be nil, so just get the path from it
+	outputAbsPath, cErr := checkAbsPath(segments[1])
+	if cErr != nil {
+		return cErr
+	}
+
+	// according to transport, we modify them by changing output path
+	if mErr := modifyLocalTransporter(transport, outputAbsPath, segments); mErr != nil {
+		return mErr
+	}
+
+	return nil
 }
 
 func parseStaticBuildOpts() (*pb.BuildStatic, time.Time, error) {
 	var (
-		t           time.Time = time.Now()
 		err         error
-		buildStatic *pb.BuildStatic = &pb.BuildStatic{}
+		t           = time.Now()
+		buildStatic = &pb.BuildStatic{}
 	)
-	for k, v := range buildOpts.buildStatic.Values {
-		mode := staticBuildMode(k)
+	for mode, v := range buildOpts.buildStatic.Values {
 		switch mode {
 		case buildTimeType:
 			if t, err = time.Parse(constant.LayoutTime, v); err != nil {
@@ -268,12 +302,9 @@ func parseStaticBuildOpts() (*pb.BuildStatic, time.Time, error) {
 
 func runBuild(ctx context.Context, cli Cli) (string, error) {
 	var (
-		isIsulad        bool
 		encrypted       bool
 		err             error
 		content         string
-		dest            string
-		imageID         string
 		imageIDFilePath string
 		digest          string
 	)
@@ -284,7 +315,7 @@ func runBuild(ctx context.Context, cli Cli) (string, error) {
 		}
 	}
 
-	if dest, isIsulad, err = checkAndProcessOutput(); err != nil {
+	if err = checkAndProcessOutput(); err != nil {
 		return "", err
 	}
 	if content, digest, err = readDockerfile(); err != nil {
@@ -293,8 +324,7 @@ func runBuild(ctx context.Context, cli Cli) (string, error) {
 	if encrypted, err = encryptBuildArgs(util.DefaultRSAKeyPath); err != nil {
 		return "", errors.Wrap(err, "encrypt --build-arg failed")
 	}
-	imageIDFilePath, err = getAbsPath(buildOpts.imageIDFile)
-	if err != nil {
+	if imageIDFilePath, err = getAbsPath(buildOpts.imageIDFile); err != nil {
 		return "", err
 	}
 	buildOpts.imageIDFile = imageIDFilePath
@@ -305,7 +335,7 @@ func runBuild(ctx context.Context, cli Cli) (string, error) {
 	}
 	entityID := fmt.Sprintf("%s:%s", digest, t.String())
 
-	budStream, err := cli.Client().Build(ctx, &pb.BuildRequest{
+	buildResp, err := cli.Client().Build(ctx, &pb.BuildRequest{
 		BuildType:     constant.BuildContainerImageType,
 		BuildID:       buildOpts.buildID,
 		EntityID:      entityID,
@@ -323,40 +353,8 @@ func runBuild(ctx context.Context, cli Cli) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	if dest == "" {
-		buildResp, rerr := budStream.Recv()
-		if rerr != nil {
-			return "", rerr
-		}
-		return buildResp.ImageID, nil
-	}
 
-	ch := make(chan []byte, constant.BufferSize)
-	eg, _ := errgroup.WithContext(ctx)
-	eg.Go(func() error {
-		defer close(ch)
-		for {
-			buildResp, rerr := budStream.Recv()
-			if rerr == io.EOF {
-				break
-			}
-			if rerr != nil {
-				imageID = ""
-				return rerr
-			}
-			if buildResp != nil {
-				imageID = buildResp.ImageID
-				ch <- buildResp.Data
-			}
-		}
-		return nil
-	})
-
-	eg.Go(func() error {
-		return exporter.ArchiveRecv(ctx, dest, isIsulad, ch)
-	})
-
-	return imageID, eg.Wait()
+	return buildResp.ImageID, err
 }
 
 // encrypts those sensitive args before transporting via GRPC

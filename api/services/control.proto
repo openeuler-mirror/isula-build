@@ -19,7 +19,7 @@ import "google/protobuf/timestamp.proto";
 
 service Control {
     // Build requests a new image building
-    rpc Build(BuildRequest) returns (stream BuildResponse);
+    rpc Build(BuildRequest) returns (BuildResponse);
     // Status pipes the image building process log back to client
     rpc Status(StatusRequest) returns (stream StatusResponse);
     // List lists all images in isula-builder
@@ -37,7 +37,7 @@ service Control {
     // Load requests an image tar load
     rpc Load(LoadRequest) returns (stream LoadResponse);
     // Import requests import a new image
-    rpc Import(stream ImportRequest) returns (stream ImportResponse);
+    rpc Import(ImportRequest) returns (stream ImportResponse);
     // Tag requests to tag an image
     rpc Tag(TagRequest) returns (google.protobuf.Empty);
     // Save saves the image to tarball
@@ -76,10 +76,10 @@ message BuildRequest {
 }
 
 message ImportRequest {
+    // source is path of tarball used for import
+    string source = 1;
     // reference is reference of the import image
-    string reference = 1;
-    // data is the tarball of the import image
-    bytes data = 2;
+    string reference = 2;
 }
 
 message ImportResponse {
@@ -95,8 +95,6 @@ message BuildStatic {
 message BuildResponse {
     // imageID is the ID of built image
     string imageID = 1;
-    // data pipes the output stream back to client
-    bytes data = 2;
 }
 
 message StatusRequest {

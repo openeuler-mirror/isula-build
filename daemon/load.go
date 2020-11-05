@@ -85,7 +85,7 @@ func (b *Backend) Load(req *pb.LoadRequest, stream pb.Control_LoadServer) error 
 
 func getRepoTagFromImageTar(dataRoot, path string) ([]string, error) {
 	// tmp dir will be removed after NewSourceFromFileWithContext
-	tmpDir := filepath.Join(dataRoot, "tmp")
+	tmpDir := filepath.Join(dataRoot, dataRootTmpDirPrefix)
 	systemContext := image.GetSystemContext()
 	systemContext.BigFilesTemporaryDir = tmpDir
 

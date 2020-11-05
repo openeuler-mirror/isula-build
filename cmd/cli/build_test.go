@@ -19,7 +19,6 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
-	"strings"
 	"testing"
 
 	"gotest.tools/assert"
@@ -189,12 +188,6 @@ func TestRunBuildWithArchiveExporter(t *testing.T) {
 		gotImageID, err := runBuild(ctx, &cli)
 		assert.NilError(t, err)
 		assert.Equal(t, gotImageID, imageID)
-
-		segments := strings.Split(tc.descSpec, ":")
-		path := segments[1]
-		_, err = os.Stat(path)
-		assert.Assert(t, err == nil || os.IsExist(err))
-		os.Remove(path)
 	}
 }
 
@@ -450,9 +443,10 @@ func TestCheckAndProcessOut(t *testing.T) {
 			isErr:  true,
 		},
 		{
-			name:     "valid isulad transport",
-			output:   "isulad:isula:latest",
-			expect:   "/var/tmp/isula-build-tmp-abc123.tar",
+			name:   "valid isulad transport",
+			output: "isulad:isula:latest",
+			// since refactor, when transport is isulad, the tmp tarball will stored in data dir
+			expect:   "",
 			isErr:    false,
 			isIsulad: true,
 		},
@@ -461,13 +455,11 @@ func TestCheckAndProcessOut(t *testing.T) {
 	for _, tc := range testcases {
 		buildOpts.buildID = "abc123"
 		buildOpts.output = tc.output
-		dest, isIsulad, err := checkAndProcessOutput()
+		err := checkAndProcessOutput()
 		if tc.isErr {
 			assert.ErrorContains(t, err, tc.errStr, tc.name)
 		} else {
 			assert.NilError(t, err)
-			assert.Equal(t, dest, tc.expect, tc.name)
-			assert.Equal(t, isIsulad, tc.isIsulad, tc.name)
 		}
 	}
 }
