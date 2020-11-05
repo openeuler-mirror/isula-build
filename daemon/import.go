@@ -14,6 +14,7 @@
 package daemon
 
 import (
+	"os"
 	"path/filepath"
 
 	cp "github.com/containers/image/v5/copy"
@@ -21,7 +22,6 @@ import (
 	"github.com/containers/image/v5/tarball"
 	"github.com/containers/image/v5/transports"
 	"github.com/containers/image/v5/types"
-	"github.com/containers/storage/pkg/stringid"
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/sync/errgroup"
@@ -36,17 +36,18 @@ import (
 
 // Import an image from a tarball
 func (b *Backend) Import(req *pb.ImportRequest, stream pb.Control_ImportServer) error {
-	logrus.Info("ImportRequest received")
-
 	var (
 		srcRef     types.ImageReference
 		ctx        = stream.Context()
 		localStore = b.daemon.localStore
 		source     = req.Source
 		reference  = req.Reference
+		importID   = req.ImportID
 	)
+	logEntry := logrus.WithFields(logrus.Fields{"ImportID": importID})
+	logEntry.Info("ImportRequest received")
 
-	tmpName := stringid.GenerateRandomID() + "-import-tmp"
+	tmpName := importID + "-import-tmp"
 	dstRef, err := is.Transport.ParseStoreReference(localStore, tmpName)
 	if err != nil {
 		return err
@@ -55,7 +56,7 @@ func (b *Backend) Import(req *pb.ImportRequest, stream pb.Control_ImportServer) 
 	if err != nil {
 		return err
 	}
-	logrus.Infof("Received and import image as %q", reference)
+	logEntry.Infof("Received and import image as %q", reference)
 	srcRef, err = tarball.NewReference([]string{source}, nil)
 	if err != nil {
 		return err
@@ -67,16 +68,26 @@ func (b *Backend) Import(req *pb.ImportRequest, stream pb.Control_ImportServer) 
 	}
 	defer func() {
 		if err = policyContext.Destroy(); err != nil {
-			logrus.Debugf("Error destroying signature policy context: %v", err)
+			logEntry.Debugf("Error destroying signature policy context: %v", err)
 		}
 	}()
 
 	log := logger.NewCliLogger(constant.CliLogBufferLen)
 	imageCopyOptions := image.NewImageCopyOptions(log)
-	tmpDir := filepath.Join(b.daemon.opts.DataRoot, dataRootTmpDirPrefix, tmpName)
+
+	tmpDir := filepath.Join(b.daemon.opts.DataRoot, dataRootTmpDirPrefix, importID)
+	if err = os.MkdirAll(tmpDir, constant.DefaultRootDirMode); err != nil {
+		return err
+	}
+	defer func() {
+		if rErr := os.RemoveAll(tmpDir); rErr != nil {
+			logEntry.Errorf("Failed to remove import temporary dir %q, err: %v", filepath.Join(dataRootTmpDirPrefix, importID), rErr)
+		}
+	}()
+
 	imageCopyOptions.SourceCtx.BigFilesTemporaryDir = tmpDir
 	imageCopyOptions.DestinationCtx.BigFilesTemporaryDir = tmpDir
-	logrus.Debugf("Using path %q as import workspace", tmpDir)
+	logEntry.Debugf("Using path %q as import workspace", tmpDir)
 
 	eg, _ := errgroup.WithContext(ctx)
 	eg.Go(func() error {
@@ -114,7 +125,7 @@ func (b *Backend) Import(req *pb.ImportRequest, stream pb.Control_ImportServer) 
 	if err := eg.Wait(); err != nil {
 		return err
 	}
-	logrus.Infof("Import success with image id: %q", imageID)
+	logEntry.Infof("Import success with image id: %q", imageID)
 
 	return nil
 }

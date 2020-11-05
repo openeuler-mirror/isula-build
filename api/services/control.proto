@@ -47,10 +47,10 @@ service Control {
 }
 
 message BuildRequest {
-    // buildType is the type of this build action
-    string buildType = 1;
     // buildID is an unique id for this building process
-    string buildID = 2;
+    string buildID = 1;
+    // buildType is the type of this build action
+    string buildType = 2;
     // contextDir is the working directory of building context
     string contextDir = 3;
     // fileContent is the content of Dockerfile
@@ -76,10 +76,14 @@ message BuildRequest {
 }
 
 message ImportRequest {
+    // importID is the unique ID for each time save
+    // also is the part to construct tempory path to
+    // store transport file
+    string importID = 1;
     // source is path of tarball used for import
-    string source = 1;
+    string source = 2;
     // reference is reference of the import image
-    string reference = 2;
+    string reference = 3;
 }
 
 message ImportResponse {
@@ -205,14 +209,14 @@ message LoadResponse {
 }
 
 message SaveRequest {
-    // images are images in local storage to save
-    repeated string images = 1;
-    // path is location for output tarball
-    string path = 2;
     // saveID is the unique ID for each time save
     // also is the part to construct tempory path to
     // store transport file
-    string saveID = 3;
+    string saveID = 1;
+    // images are images in local storage to save
+    repeated string images = 2;
+    // path is location for output tarball
+    string path = 3;
 }
 
 message SaveResponse {
