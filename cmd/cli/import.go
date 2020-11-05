@@ -21,9 +21,11 @@ import (
 	"path/filepath"
 
 	dockerref "github.com/containers/image/v5/docker/reference"
+	"github.com/containers/storage/pkg/stringid"
 	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
 
+	constant "isula.org/isula-build"
 	pb "isula.org/isula-build/api/services"
 	"isula.org/isula-build/util"
 )
@@ -37,6 +39,7 @@ const (
 type importOptions struct {
 	source    string
 	reference string
+	importID  string
 }
 
 var importOpts importOptions
@@ -87,9 +90,12 @@ func runImport(ctx context.Context, cli Cli) error {
 		importOpts.source = util.MakeAbsolute(importOpts.source, pwd)
 	}
 
+	importOpts.importID = stringid.GenerateNonCryptoID()[:constant.DefaultIDLen]
+
 	stream, err := cli.Client().Import(ctx, &pb.ImportRequest{
 		Source:    importOpts.source,
 		Reference: importOpts.reference,
+		ImportID:  importOpts.importID,
 	})
 	if err != nil {
 		return err
