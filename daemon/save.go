@@ -49,13 +49,14 @@ type saveOptions struct {
 	sysCtx     *types.SystemContext
 	logger     *logger.Logger
 	localStore *store.Store
+	logEntry   *logrus.Entry
 	images     map[string]*imageInfo
 	saveID     string
 	outputPath string
 	oriImgList []string
 }
 
-func (b *Backend) getSaveOption(req *pb.SaveRequest) saveOptions {
+func (b *Backend) getSaveOptions(req *pb.SaveRequest) saveOptions {
 	return saveOptions{
 		writer:     nil,
 		sysCtx:     im.GetSystemContext(),
@@ -65,45 +66,46 @@ func (b *Backend) getSaveOption(req *pb.SaveRequest) saveOptions {
 		saveID:     req.GetSaveID(),
 		outputPath: req.GetPath(),
 		oriImgList: req.GetImages(),
+		logEntry:   logrus.WithFields(logrus.Fields{"SaveID": req.GetSaveID()}),
 	}
 }
 
 // Save receives a save request and save the image(s) into tarball
 func (b *Backend) Save(req *pb.SaveRequest, stream pb.Control_SaveServer) (err error) {
-	logrus.WithFields(logrus.Fields{
-		"SaveID": req.GetSaveID(),
-	}).Info("SaveRequest received")
-
-	opt := b.getSaveOption(req)
 	var (
 		ok         bool
 		archWriter *archive.Writer
 	)
-	archWriter, err = archive.NewWriter(opt.sysCtx, opt.outputPath)
+	opts := b.getSaveOptions(req)
+	opts.logEntry.Info("SaveRequest received")
+
+	archWriter, err = archive.NewWriter(opts.sysCtx, opts.outputPath)
 	if err != nil {
+		opts.logEntry.Error(err)
 		return errors.Errorf("create archive writer failed: %v", err)
 	}
 	defer func() {
 		if err != nil {
-			if rErr := os.Remove(opt.outputPath); rErr != nil && !os.IsNotExist(rErr) {
-				logrus.Warnf("Removing save output tarball %q failed: %v", opt.outputPath, rErr)
+			if rErr := os.Remove(opts.outputPath); rErr != nil && !os.IsNotExist(rErr) {
+				opts.logEntry.Warnf("Removing save output tarball %q failed: %v", opts.outputPath, rErr)
 			}
 		}
 		if cErr := archWriter.Close(); cErr != nil {
-			logrus.Errorf("Close archive writer failed: %v", cErr)
+			opts.logEntry.Errorf("Close archive writer failed: %v", cErr)
 		}
 	}()
-	opt.writer = archWriter
-	opt.images, err = getImagesFromLocal(opt.oriImgList, opt.localStore)
+	opts.writer = archWriter
+	opts.images, err = getImagesFromLocal(opts)
 	if err != nil {
+		opts.logEntry.Error(err)
 		return err
 	}
 
-	ctx := context.WithValue(stream.Context(), util.LogFieldKey(util.LogKeySessionID), opt.saveID)
+	ctx := context.WithValue(stream.Context(), util.LogFieldKey(util.LogKeySessionID), opts.saveID)
 	eg, egCtx := errgroup.WithContext(ctx)
 
-	eg.Go(exportHandler(ctx, stream, opt))
-	eg.Go(messageHandler(stream, opt.logger))
+	eg.Go(exportHandler(ctx, stream, opts))
+	eg.Go(messageHandler(stream, opts.logger))
 	errC := make(chan error, 1)
 
 	go func() { errC <- eg.Wait() }()
@@ -112,7 +114,7 @@ func (b *Backend) Save(req *pb.SaveRequest, stream pb.Control_SaveServer) (err e
 	select {
 	case err, ok = <-errC:
 		if !ok {
-			logrus.WithField(util.LogKeySessionID, opt.saveID).Info("Channel errC closed")
+			opts.logEntry.Info("Channel errC closed")
 			return nil
 		}
 		if err != nil {
@@ -120,24 +122,24 @@ func (b *Backend) Save(req *pb.SaveRequest, stream pb.Control_SaveServer) (err e
 		}
 	case _, ok := <-stream.Context().Done():
 		if !ok {
-			logrus.WithField(util.LogKeySessionID, opt.saveID).Info("Channel stream done closed")
+			opts.logEntry.Info("Channel stream done closed")
 			return nil
 		}
 		err = egCtx.Err()
 		if err != nil && err != context.Canceled {
-			logrus.WithField(util.LogKeySessionID, opt.saveID).Infof("Stream closed with: %v", err)
+			opts.logEntry.Infof("Stream closed with: %v", err)
 		}
 	}
 
 	return nil
 }
 
-func getImagesFromLocal(imageList []string, localStore *store.Store) (map[string]*imageInfo, error) {
+func getImagesFromLocal(opts saveOptions) (map[string]*imageInfo, error) {
 	var images = make(map[string]*imageInfo)
-	for _, image := range imageList {
-		_, localImg, err := im.FindImageLocally(localStore, image)
+	for _, image := range opts.oriImgList {
+		_, localImg, err := im.FindImageLocally(opts.localStore, image)
 		if err != nil {
-			logrus.Errorf("Lookup local image %s failed: %v", image, err)
+			opts.logEntry.Errorf("Lookup local image %s failed: %v", image, err)
 			return nil, err
 		}
 		id := localImg.ID
@@ -150,7 +152,9 @@ func getImagesFromLocal(imageList []string, localStore *store.Store) (map[string
 		if ref, tag, err := checkTag(image, id); err == nil && tag != "" {
 			refTag, ok := ref.(reference.NamedTagged)
 			if !ok {
-				return nil, errors.Errorf("invalid tag %s (%s): dose not contain a tag", tag, ref.String())
+				tErr := errors.Errorf("invalid tag %s (%s): dose not contain a tag", tag, ref.String())
+				opts.logEntry.Error(tErr)
+				return nil, tErr
 			}
 			imgInfo.tags = append(imgInfo.tags, refTag)
 		}
@@ -159,37 +163,38 @@ func getImagesFromLocal(imageList []string, localStore *store.Store) (map[string
 	return images, nil
 }
 
-func exportHandler(ctx context.Context, stream pb.Control_SaveServer, options saveOptions) func() error {
+func exportHandler(ctx context.Context, stream pb.Control_SaveServer, opts saveOptions) func() error {
 	return func() error {
 		defer func() {
-			options.logger.CloseContent()
+			opts.logger.CloseContent()
 		}()
 
-		policyContext, err := exporter.NewPolicyContext(options.sysCtx)
+		policyContext, err := exporter.NewPolicyContext(opts.sysCtx)
 		if err != nil {
-			logrus.Errorf("Getting policy failed: %v", err)
+			opts.logEntry.Errorf("Getting policy failed: %v", err)
 			return errors.Wrap(err, "error getting policy")
 		}
 		defer func() {
 			if err := policyContext.Destroy(); err != nil {
-				logrus.Debugf("Error destroying signature policy context: %v", err)
+				opts.logEntry.Debugf("Error destroying signature policy context: %v", err)
 			}
 		}()
 
-		for id, img := range options.images {
+		for id, img := range opts.images {
 			exOpts := exporter.ExportOptions{
 				Ctx:           ctx,
-				SystemContext: options.sysCtx,
-				ExportID:      options.saveID,
-				ReportWriter:  options.logger,
+				SystemContext: opts.sysCtx,
+				ExportID:      opts.saveID,
+				ReportWriter:  opts.logger,
 			}
-			src, err := is.Transport.NewStoreReference(options.localStore, nil, id)
+			src, err := is.Transport.NewStoreReference(opts.localStore, nil, id)
 			if err != nil {
-				logrus.Errorf("Getting source image %s failed: %v", img.oriName, err)
+				opts.logEntry.Errorf("Getting source image %s failed: %v", img.oriName, err)
 				return errors.Wrapf(err, "error getting source image ref for %q", img.oriName)
 			}
-			dest, errW := options.writer.NewReference(nil)
+			dest, errW := opts.writer.NewReference(nil)
 			if errW != nil {
+				opts.logEntry.Error(errW)
 				return errW
 			}
 			copyOptions := exporter.NewCopyOptions(exOpts)
@@ -197,7 +202,7 @@ func exportHandler(ctx context.Context, stream pb.Control_SaveServer, options sa
 			copyOptions.SourceCtx.DockerArchiveAdditionalTags = img.tags
 			_, err = cp.Image(stream.Context(), policyContext, dest, src, copyOptions)
 			if err != nil {
-				logrus.Errorf("Copying source image %s failed: %v", img.oriName, err)
+				opts.logEntry.Errorf("Copying source image %s failed: %v", img.oriName, err)
 				return errors.Wrapf(err, "copying source image %s failed", img.oriName)
 			}
 		}

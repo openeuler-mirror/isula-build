@@ -50,20 +50,24 @@ func (b *Backend) Import(req *pb.ImportRequest, stream pb.Control_ImportServer) 
 	tmpName := importID + "-import-tmp"
 	dstRef, err := is.Transport.ParseStoreReference(localStore, tmpName)
 	if err != nil {
+		logEntry.Error(err)
 		return err
 	}
 	_, reference, err = dockerfile.CheckAndExpandTag(reference)
 	if err != nil {
+		logEntry.Error(err)
 		return err
 	}
 	logEntry.Infof("Received and import image as %q", reference)
 	srcRef, err = tarball.NewReference([]string{source}, nil)
 	if err != nil {
+		logEntry.Error(err)
 		return err
 	}
 
 	policyContext, err := dockerfile.GetPolicyContext()
 	if err != nil {
+		logEntry.Error(err)
 		return err
 	}
 	defer func() {
@@ -77,6 +81,7 @@ func (b *Backend) Import(req *pb.ImportRequest, stream pb.Control_ImportServer) 
 
 	tmpDir := filepath.Join(b.daemon.opts.DataRoot, dataRootTmpDirPrefix, importID)
 	if err = os.MkdirAll(tmpDir, constant.DefaultRootDirMode); err != nil {
+		logEntry.Error(err)
 		return err
 	}
 	defer func() {
@@ -123,6 +128,7 @@ func (b *Backend) Import(req *pb.ImportRequest, stream pb.Control_ImportServer) 
 	})
 
 	if err := eg.Wait(); err != nil {
+		logEntry.Error(err)
 		return err
 	}
 	logEntry.Infof("Import success with image id: %q", imageID)
