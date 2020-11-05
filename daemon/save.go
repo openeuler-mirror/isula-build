@@ -69,19 +69,28 @@ func (b *Backend) getSaveOption(req *pb.SaveRequest) saveOptions {
 }
 
 // Save receives a save request and save the image(s) into tarball
-func (b *Backend) Save(req *pb.SaveRequest, stream pb.Control_SaveServer) error {
+func (b *Backend) Save(req *pb.SaveRequest, stream pb.Control_SaveServer) (err error) {
 	logrus.WithFields(logrus.Fields{
 		"SaveID": req.GetSaveID(),
 	}).Info("SaveRequest received")
 
 	opt := b.getSaveOption(req)
-	archWriter, err := archive.NewWriter(opt.sysCtx, opt.outputPath)
+	var (
+		ok         bool
+		archWriter *archive.Writer
+	)
+	archWriter, err = archive.NewWriter(opt.sysCtx, opt.outputPath)
 	if err != nil {
 		return errors.Errorf("create archive writer failed: %v", err)
 	}
 	defer func() {
-		if err = archWriter.Close(); err != nil {
-			logrus.Errorf("Close archive writer failed: %v", err)
+		if err != nil {
+			if rErr := os.Remove(opt.outputPath); rErr != nil && !os.IsNotExist(rErr) {
+				logrus.Warnf("Removing save output tarball %q failed: %v", opt.outputPath, rErr)
+			}
+		}
+		if cErr := archWriter.Close(); cErr != nil {
+			logrus.Errorf("Close archive writer failed: %v", cErr)
 		}
 	}()
 	opt.writer = archWriter
@@ -101,13 +110,13 @@ func (b *Backend) Save(req *pb.SaveRequest, stream pb.Control_SaveServer) error 
 	defer close(errC)
 
 	select {
-	case err2, ok := <-errC:
+	case err, ok = <-errC:
 		if !ok {
 			logrus.WithField(util.LogKeySessionID, opt.saveID).Info("Channel errC closed")
 			return nil
 		}
-		if err2 != nil {
-			return err2
+		if err != nil {
+			return err
 		}
 	case _, ok := <-stream.Context().Done():
 		if !ok {
@@ -152,19 +161,12 @@ func getImagesFromLocal(imageList []string, localStore *store.Store) (map[string
 
 func exportHandler(ctx context.Context, stream pb.Control_SaveServer, options saveOptions) func() error {
 	return func() error {
-		var finalErr error
 		defer func() {
 			options.logger.CloseContent()
-			if finalErr != nil {
-				if rErr := os.Remove(options.outputPath); rErr != nil && !os.IsNotExist(rErr) {
-					logrus.Warnf("Removing save output tarball %q failed: %v", options.outputPath, rErr)
-				}
-			}
 		}()
 
 		policyContext, err := exporter.NewPolicyContext(options.sysCtx)
 		if err != nil {
-			finalErr = err
 			logrus.Errorf("Getting policy failed: %v", err)
 			return errors.Wrap(err, "error getting policy")
 		}
@@ -183,13 +185,11 @@ func exportHandler(ctx context.Context, stream pb.Control_SaveServer, options sa
 			}
 			src, err := is.Transport.NewStoreReference(options.localStore, nil, id)
 			if err != nil {
-				finalErr = err
 				logrus.Errorf("Getting source image %s failed: %v", img.oriName, err)
 				return errors.Wrapf(err, "error getting source image ref for %q", img.oriName)
 			}
 			dest, errW := options.writer.NewReference(nil)
 			if errW != nil {
-				finalErr = errW
 				return errW
 			}
 			copyOptions := exporter.NewCopyOptions(exOpts)
@@ -197,7 +197,6 @@ func exportHandler(ctx context.Context, stream pb.Control_SaveServer, options sa
 			copyOptions.SourceCtx.DockerArchiveAdditionalTags = img.tags
 			_, err = cp.Image(stream.Context(), policyContext, dest, src, copyOptions)
 			if err != nil {
-				finalErr = err
 				logrus.Errorf("Copying source image %s failed: %v", img.oriName, err)
 				return errors.Wrapf(err, "copying source image %s failed", img.oriName)
 			}
