@@ -1,5 +1,11 @@
 PREFIX := /usr
 BINDIR := $(PREFIX)/bin
+CONFIG_DIR := /etc/isula-build
+LOCAL_CONF_PREFIX := cmd/daemon/config
+CONFIG_FILE := configuration.toml
+POLICY_FILE := policy.json
+REGIST_FILE := registries.toml
+STORAGE_FILE := storage.toml
 
 SOURCES := $(shell find . 2>&1 | grep -E '.*\.(c|h|go)$$')
 GIT_COMMIT ?= $(if $(shell git rev-parse --short HEAD),$(shell git rev-parse --short HEAD),$(shell cat ./git-commit | head -c 7))
@@ -89,8 +95,13 @@ proto:
 
 .PHONY: install
 install:
-	install -D -m0755 bin/isula-build $(BINDIR)
-	install -D -m0755 bin/isula-builder $(BINDIR)
+	install -D -m0555 bin/isula-build $(BINDIR)
+	install -D -m0555 bin/isula-builder $(BINDIR)
+	@[ ! -d ${CONFIG_DIR}/${CONFIG_FILE} ] && install -dm0640 ${CONFIG_DIR}
+	@( [ -f ${CONFIG_DIR}/${CONFIG_FILE} ] && printf "%-20s %s\n" "${CONFIG_FILE}" "already exist in ${CONFIG_DIR}, please replace it manually." ) || install -D -m0600 ${LOCAL_CONF_PREFIX}/${CONFIG_FILE} ${CONFIG_DIR}/${CONFIG_FILE}
+	@( [ -f ${CONFIG_DIR}/${POLICY_FILE} ] && printf "%-20s %s\n" "${POLICY_FILE}" "already exist in ${CONFIG_DIR}, please replace it manually." ) || install -D -m0600 ${LOCAL_CONF_PREFIX}/${POLICY_FILE} ${CONFIG_DIR}/${POLICY_FILE}
+	@( [ -f ${CONFIG_DIR}/${REGIST_FILE} ] && printf "%-20s %s\n" "${REGIST_FILE}" "already exist in ${CONFIG_DIR}, please replace it manually." ) || install -D -m0600 ${LOCAL_CONF_PREFIX}/${REGIST_FILE} ${CONFIG_DIR}/${REGIST_FILE}
+	@( [ -f ${CONFIG_DIR}/${STORAGE_FILE} ] && printf "%-20s %s\n" "${STORAGE_FILE}" "already exist in ${CONFIG_DIR}, please replace it manually." ) || install -D -m0600 ${LOCAL_CONF_PREFIX}/${STORAGE_FILE} ${CONFIG_DIR}/${STORAGE_FILE}
 
 .PHONY: checkall
 checkall:
