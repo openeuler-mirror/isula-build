@@ -35,9 +35,8 @@ const (
 
 // List lists all images
 func (b *Backend) List(ctx context.Context, req *pb.ListRequest) (*pb.ListResponse, error) {
-	logrus.WithFields(logrus.Fields{
-		"ImageName": req.GetImageName(),
-	}).Info("ListRequest received")
+	logEntry := logrus.WithFields(logrus.Fields{"ImageName": req.GetImageName()})
+	logEntry.Info("ListRequest received")
 
 	var reqRepository, reqTag string
 	const minImageFieldLenWithTag = 2
@@ -45,6 +44,7 @@ func (b *Backend) List(ctx context.Context, req *pb.ListRequest) (*pb.ListRespon
 		imageName := req.ImageName
 		_, img, err := image.FindImage(b.daemon.localStore, imageName)
 		if err != nil {
+			logEntry.Error(err)
 			return nil, errors.Wrapf(err, "find local image %v error", imageName)
 		}
 
@@ -66,6 +66,7 @@ func (b *Backend) List(ctx context.Context, req *pb.ListRequest) (*pb.ListRespon
 
 	images, err := b.daemon.localStore.Images()
 	if err != nil {
+		logEntry.Error(err)
 		return &pb.ListResponse{}, errors.Wrap(err, "failed list images from local storage")
 	}
 	sort.Slice(images, func(i, j int) bool {

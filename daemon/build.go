@@ -26,20 +26,19 @@ import (
 func (b *Backend) Build(ctx context.Context, req *pb.BuildRequest) (*pb.BuildResponse, error) {
 	b.wg.Add(1)
 	defer b.wg.Done()
-	logrus.WithFields(logrus.Fields{
-		"BuildType": req.GetBuildType(),
-		"BuildID":   req.GetBuildID(),
-	}).Info("BuildRequest received")
+	logEntry := logrus.WithFields(logrus.Fields{"BuildType": req.GetBuildType(), "BuildID": req.GetBuildID()})
+	logEntry.Info("BuildRequest received")
 
 	ctx = context.WithValue(ctx, util.LogFieldKey(util.LogKeySessionID), req.BuildID)
 	builder, nErr := b.daemon.NewBuilder(ctx, req)
 	if nErr != nil {
+		logEntry.Error(nErr)
 		return &pb.BuildResponse{}, nErr
 	}
 
 	defer func() {
 		if cErr := builder.CleanResources(); cErr != nil {
-			logrus.Warnf("defer builder clean build resources failed: %v", cErr)
+			logEntry.Warnf("defer builder clean build resources failed: %v", cErr)
 		}
 		b.daemon.deleteBuilder(req.BuildID)
 		b.deleteStatus(req.BuildID)
@@ -49,6 +48,7 @@ func (b *Backend) Build(ctx context.Context, req *pb.BuildRequest) (*pb.BuildRes
 	b.closeStatusChan(req.BuildID)
 	imageID, bErr := builder.Build()
 	if bErr != nil {
+		logEntry.Error(bErr)
 		return &pb.BuildResponse{}, bErr
 	}
 
