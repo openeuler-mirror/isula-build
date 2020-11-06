@@ -26,6 +26,10 @@ service Control {
     rpc List(ListRequest) returns (ListResponse);
     // Version requests version information of isula-builder
     rpc Version(google.protobuf.Empty) returns (VersionResponse);
+    // Push pushes image to remote repository
+    rpc Push(PushRequest) returns (stream PushResponse);
+    // Pull pulls image from remote repository
+    rpc Pull(PullRequest) returns (stream PullResponse);
     // Remove sends an image remove request to isula-builder
     rpc Remove(RemoveRequest) returns (stream RemoveResponse);
     // HealthCheck requests a health checking in isula-builder
@@ -206,6 +210,30 @@ message LoadRequest {
 message LoadResponse {
     // log is the log sent to client
     string log = 1;
+}
+
+message PushRequest {
+    // pushID is an unique ID for one push operation
+    string pushID = 1;
+    // imageName contains repository and tag
+    string imageName = 2;
+}
+
+message PushResponse {
+    // response is server's response to client push request
+    string response = 1;
+}
+
+message PullRequest {
+    // pullID is an unique ID for one pull operation
+    string pullID = 1;
+    // imageName contains repository and tag
+    string imageName = 2;
+}
+
+message PullResponse {
+    // response is server's response to client pull request
+    string response = 1;
 }
 
 message SaveRequest {

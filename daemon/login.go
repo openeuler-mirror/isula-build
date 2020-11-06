@@ -1,5 +1,5 @@
 // Copyright (c) Huawei Technologies Co., Ltd. 2020. All rights reserved.
-// iSula-Kits licensed under the Mulan PSL v2.
+// isula-build licensed under the Mulan PSL v2.
 // You can use this software according to the terms and conditions of the Mulan PSL v2.
 // You may obtain a copy of Mulan PSL v2 at:
 //     http://license.coscl.org.cn/MulanPSL2
