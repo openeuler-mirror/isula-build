@@ -1,8 +1,8 @@
 %global is_systemd 1
 
 Name: isula-build
-Version: 0.9.3
-Release: 2
+Version: 0.9.4
+Release: 1
 Summary: A tool to build container images
 License: Mulan PSL V2
 URL: https://gitee.com/openeuler/isula-build
@@ -41,15 +41,15 @@ sh ./apply-patches
 %install
 install -d %{buildroot}%{_bindir}
 # install binary
-install -p -m 550 ./bin/isula-build %{buildroot}%{_bindir}/isula-build
-install -p -m 550 ./bin/isula-builder %{buildroot}%{_bindir}/isula-builder
+install -p -m 555 ./bin/isula-build %{buildroot}%{_bindir}/isula-build
+install -p -m 555 ./bin/isula-builder %{buildroot}%{_bindir}/isula-builder
 # install service
 %if 0%{?is_systemd}
 install -d %{buildroot}%{_unitdir}
 install -p -m 640 isula-build.service %{buildroot}%{_unitdir}/isula-build.service
 %endif
 # install config file
-install -d %{buildroot}%{_sysconfdir}/isula-build
+install -d -m 750 %{buildroot}%{_sysconfdir}/isula-build
 install -p -m 600 ./cmd/daemon/config/configuration.toml %{buildroot}%{_sysconfdir}/isula-build/configuration.toml
 install -p -m 600 ./cmd/daemon/config/storage.toml %{buildroot}%{_sysconfdir}/isula-build/storage.toml
 install -p -m 600 ./cmd/daemon/config/registries.toml %{buildroot}%{_sysconfdir}/isula-build/registries.toml
@@ -61,14 +61,19 @@ install -p -m 600 __isula-build %{buildroot}/usr/share/bash-completion/completio
 %clean
 rm -rf %{buildroot}
 
+%post
+if ! getent group isula > /dev/null; then
+    groupadd --system isula
+fi
+
 %files
 # default perm for files and folder
 %defattr(0640,root,root,0550)
 %if 0%{?is_systemd}
 %config(noreplace) %attr(0640,root,root) %{_unitdir}/isula-build.service
 %endif
-%attr(550,root,root) %{_bindir}/isula-build
-%attr(550,root,root) %{_bindir}/isula-builder
+%attr(555,root,root) %{_bindir}/isula-build
+%attr(555,root,root) %{_bindir}/isula-builder
 %config(noreplace) %attr(0600,root,root) %{_sysconfdir}/isula-build/configuration.toml
 %config(noreplace) %attr(0600,root,root) %{_sysconfdir}/isula-build/storage.toml
 %config(noreplace) %attr(0600,root,root) %{_sysconfdir}/isula-build/registries.toml
@@ -76,6 +81,9 @@ rm -rf %{buildroot}
 /usr/share/bash-completion/completions/isula-build
 
 %changelog
+* Fri Nov 06 2020 lixiang <lixiang172@huawei.com> - 0.9.4-1
+- Bump version to 0.9.4
+
 * Thu Sep 10 2020 lixiang <lixiang172@huawei.com> - 0.9.3-2
 - Sync patch from upstream
 
