@@ -141,7 +141,7 @@ func format(rows []*rowLine, d *directive) ([]*parser.Line, error) {
 		trimLine := strings.TrimSpace(text)
 		// concat continues lines until no escapeToken at the end of the line
 		for len(trimLine) != 0 && trimLine[len(trimLine)-1] == d.escapeToken {
-			if str := text[:len(text)-1]; len(str) != 0 {
+			if str := trimLine[:len(trimLine)-1]; len(str) != 0 {
 				logicLine += str
 			}
 			i++
@@ -153,12 +153,11 @@ func format(rows []*rowLine, d *directive) ([]*parser.Line, error) {
 		}
 
 		if i <= len(rows)-1 {
-			logicLine += rows[i].content
+			logicLine += trimLine
 			line.End = rows[i].lineNum
 		} else {
 			line.End = rows[i-1].lineNum
 		}
-		logicLine = strings.TrimSpace(logicLine)
 		fields := strings.SplitN(logicLine, " ", 2)
 		const validLineLen = 2
 		if len(fields) < validLineLen {

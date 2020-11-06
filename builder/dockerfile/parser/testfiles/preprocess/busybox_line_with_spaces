@@ -1,0 +1,22 @@
+# escape = \
+
+# make build busybox image
+  FROM scratch
+
+
+       # add busybox.tar.xz to the root dir
+     ADD busybox.tar.xz /
+
+# a tab and a space befor RUN, a space after \
+      RUN mkdir -p /tmp/this/is/a/tmp/dir &&\
+        cd /tmp/this/is/a/tmp/dir &&echo "just a test" >> test.txt
+    RUN set -eux; \
+    \
+# see note below about "*.pyc" files
+    export PYTHONDONTWRITEBYTECODE=1; \
+    \
+    dpkgArch="$(dpkg --print-architecture)"
+CMD ["sh"]
+
+
+
