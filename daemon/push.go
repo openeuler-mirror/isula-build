@@ -63,23 +63,17 @@ func (b *Backend) Push(req *pb.PushRequest, stream pb.Control_PushServer) error 
 	eg.Go(pushMessageHandler(stream, opt.logger))
 	errC := make(chan error, 1)
 
-	go func() { errC <- eg.Wait() }()
+	errC <- eg.Wait()
 	defer close(errC)
 
-	select {
-	case err2 := <-errC:
-		if err2 != nil {
-			return err2
-		}
-	case _, ok := <-stream.Context().Done():
-		if !ok {
-			logrus.WithField(util.LogKeySessionID, opt.pushID).Info("Channel stream done closed")
-			return nil
-		}
-		err := egCtx.Err()
-		if err != nil && err != context.Canceled {
-			logrus.WithField(util.LogKeySessionID, opt.pushID).Warnf("Stream closed with: %v", err)
-		}
+	err, ok := <-errC
+	if !ok {
+		logrus.WithField(util.LogKeySessionID, opt.pushID).Info("Channel errC closed")
+		return nil
+	}
+	if err != nil {
+		logrus.WithField(util.LogKeySessionID, opt.pushID).Warnf("Stream closed with: %v", err)
+		return err
 	}
 
 	return nil

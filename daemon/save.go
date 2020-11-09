@@ -102,33 +102,22 @@ func (b *Backend) Save(req *pb.SaveRequest, stream pb.Control_SaveServer) (err e
 	}
 
 	ctx := context.WithValue(stream.Context(), util.LogFieldKey(util.LogKeySessionID), opts.saveID)
-	eg, egCtx := errgroup.WithContext(ctx)
+	eg, _ := errgroup.WithContext(ctx)
 
 	eg.Go(exportHandler(ctx, stream, opts))
 	eg.Go(messageHandler(stream, opts.logger))
 	errC := make(chan error, 1)
 
-	go func() { errC <- eg.Wait() }()
+	errC <- eg.Wait()
 	defer close(errC)
 
-	select {
-	case err, ok = <-errC:
-		if !ok {
-			opts.logEntry.Info("Channel errC closed")
-			return nil
-		}
-		if err != nil {
-			return err
-		}
-	case _, ok := <-stream.Context().Done():
-		if !ok {
-			opts.logEntry.Info("Channel stream done closed")
-			return nil
-		}
-		err = egCtx.Err()
-		if err != nil && err != context.Canceled {
-			opts.logEntry.Infof("Stream closed with: %v", err)
-		}
+	err, ok = <-errC
+	if !ok {
+		opts.logEntry.Info("Channel errC closed")
+		return nil
+	}
+	if err != nil {
+		return err
 	}
 
 	return nil

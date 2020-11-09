@@ -59,23 +59,17 @@ func (b *Backend) Pull(req *pb.PullRequest, stream pb.Control_PullServer) error 
 	eg.Go(pullMessageHandler(stream, opt.logger))
 	errC := make(chan error, 1)
 
-	go func() { errC <- eg.Wait() }()
+	errC <- eg.Wait()
 	defer close(errC)
 
-	select {
-	case err2 := <-errC:
-		if err2 != nil {
-			return err2
-		}
-	case _, ok := <-stream.Context().Done():
-		if !ok {
-			logrus.WithField(util.LogKeySessionID, opt.pullID).Info("Channel stream done closed")
-			return nil
-		}
-		err := egCtx.Err()
-		if err != nil && err != context.Canceled {
-			logrus.WithField(util.LogKeySessionID, opt.pullID).Warnf("Stream closed with: %v", err)
-		}
+	err, ok := <-errC
+	if !ok {
+		logrus.WithField(util.LogKeySessionID, opt.pullID).Info("Channel errC closed")
+		return nil
+	}
+	if err != nil {
+		logrus.WithField(util.LogKeySessionID, opt.pullID).Warnf("Stream closed with: %v", err)
+		return err
 	}
 
 	return nil
