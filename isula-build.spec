@@ -2,7 +2,7 @@
 
 Name: isula-build
 Version: 0.9.4
-Release: 2
+Release: 3
 Summary: A tool to build container images
 License: Mulan PSL V2
 URL: https://gitee.com/openeuler/isula-build
@@ -81,6 +81,9 @@ fi
 /usr/share/bash-completion/completions/isula-build
 
 %changelog
+* Thu Nov 12 2020 lixiang <lixiang172@huawei.com> - 0.9.4-3
+- Chown config root path before daemon started
+
 * Tue Nov 10 2020 lixiang <lixiang172@huawei.com> - 0.9.4-2
 - Fix panic when user knock ctrl-c in pull/push/save command
 
