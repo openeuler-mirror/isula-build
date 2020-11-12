@@ -97,6 +97,7 @@ func TestSetupWorkingDirectories(t *testing.T) {
 			tt.prepareFunc(t)
 			defer testDir.Remove()
 
+			daemonOpts.Group = "root"
 			if err := setupWorkingDirectories(); (err != nil) != tt.wantErr {
 				t.Errorf("testing failed! err = %v, wantErr = %v", err, tt.wantErr)
 			}

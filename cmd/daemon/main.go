@@ -276,6 +276,12 @@ func setupWorkingDirectories() error {
 		}
 	}
 
+	// change config root owner as group current defined
+	if err := util.ChangeGroup(constant.ConfigRoot, daemonOpts.Group); err != nil {
+		logrus.Errorf("Chown for %s failed: %v", constant.ConfigRoot, err)
+		return err
+	}
+
 	return nil
 }
 
