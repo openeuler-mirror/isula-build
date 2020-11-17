@@ -95,8 +95,8 @@ proto:
 
 .PHONY: install
 install:
-	install -D -m0555 bin/isula-build $(BINDIR)
-	install -D -m0555 bin/isula-builder $(BINDIR)
+	install -D -m0551 bin/isula-build $(BINDIR)
+	install -D -m0550 bin/isula-builder $(BINDIR)
 	@[ ! -d ${CONFIG_DIR}/${CONFIG_FILE} ] && install -dm0640 ${CONFIG_DIR}
 	@( [ -f ${CONFIG_DIR}/${CONFIG_FILE} ] && printf "%-20s %s\n" "${CONFIG_FILE}" "already exist in ${CONFIG_DIR}, please replace it manually." ) || install -D -m0600 ${LOCAL_CONF_PREFIX}/${CONFIG_FILE} ${CONFIG_DIR}/${CONFIG_FILE}
 	@( [ -f ${CONFIG_DIR}/${POLICY_FILE} ] && printf "%-20s %s\n" "${POLICY_FILE}" "already exist in ${CONFIG_DIR}, please replace it manually." ) || install -D -m0600 ${LOCAL_CONF_PREFIX}/${POLICY_FILE} ${CONFIG_DIR}/${POLICY_FILE}
