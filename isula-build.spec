@@ -2,7 +2,7 @@
 
 Name: isula-build
 Version: 0.9.4
-Release: 3
+Release: 4
 Summary: A tool to build container images
 License: Mulan PSL V2
 URL: https://gitee.com/openeuler/isula-build
@@ -41,8 +41,8 @@ sh ./apply-patches
 %install
 install -d %{buildroot}%{_bindir}
 # install binary
-install -p -m 555 ./bin/isula-build %{buildroot}%{_bindir}/isula-build
-install -p -m 555 ./bin/isula-builder %{buildroot}%{_bindir}/isula-builder
+install -p -m 551 ./bin/isula-build %{buildroot}%{_bindir}/isula-build
+install -p -m 550 ./bin/isula-builder %{buildroot}%{_bindir}/isula-builder
 # install service
 %if 0%{?is_systemd}
 install -d %{buildroot}%{_unitdir}
@@ -72,8 +72,8 @@ fi
 %if 0%{?is_systemd}
 %config(noreplace) %attr(0640,root,root) %{_unitdir}/isula-build.service
 %endif
-%attr(555,root,root) %{_bindir}/isula-build
-%attr(555,root,root) %{_bindir}/isula-builder
+%attr(551,root,root) %{_bindir}/isula-build
+%attr(550,root,root) %{_bindir}/isula-builder
 %config(noreplace) %attr(0600,root,root) %{_sysconfdir}/isula-build/configuration.toml
 %config(noreplace) %attr(0600,root,root) %{_sysconfdir}/isula-build/storage.toml
 %config(noreplace) %attr(0600,root,root) %{_sysconfdir}/isula-build/registries.toml
@@ -81,6 +81,9 @@ fi
 /usr/share/bash-completion/completions/isula-build
 
 %changelog
+* Tue Nov 17 2020 lixiang <lixiang172@huawei.com> - 0.9.4-4
+- Fix unsuitable filemode for isula-build(er)
+
 * Thu Nov 12 2020 lixiang <lixiang172@huawei.com> - 0.9.4-3
 - Chown config root path before daemon started
 
