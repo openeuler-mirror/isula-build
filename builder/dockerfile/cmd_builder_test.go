@@ -113,7 +113,7 @@ func TestExecuteHealthCheck(t *testing.T) {
 			}
 			err := s.analyzeStage(context.Background())
 			assert.NilError(t, err)
-			if err := s.commands[0].cmdExecutor(); (err != nil) != tt.wantErr {
+			if err := s.commands[1].cmdExecutor(); (err != nil) != tt.wantErr {
 				t.Errorf("CmdExecutor() error: %v, wantErr: %v", err, tt.wantErr)
 			}
 			tt.funcCheck(t, s)
@@ -195,7 +195,7 @@ CMD [""]`,
 			}
 			err := s.analyzeStage(context.Background())
 			assert.NilError(t, err)
-			if err := s.commands[0].cmdExecutor(); (err != nil) != tt.wantErr {
+			if err := s.commands[1].cmdExecutor(); (err != nil) != tt.wantErr {
 				t.Errorf("cmdExecutor() error: %v, wantErr: %v", err, tt.wantErr)
 			}
 			tt.funcCheck(t, s)
@@ -288,7 +288,7 @@ SHELL ["/bin/bash", "-c"]`,
 			}
 			err := s.analyzeStage(context.Background())
 			assert.NilError(t, err)
-			if err := s.commands[0].cmdExecutor(); (err != nil) != tt.wantErr {
+			if err := s.commands[1].cmdExecutor(); (err != nil) != tt.wantErr {
 				t.Errorf("SHELL cmdExecutor() error: %v, wantErr: %v", err, tt.wantErr)
 			}
 			tt.funcCheck(t, s)
@@ -316,15 +316,15 @@ CMD ls`
 	err := s.analyzeStage(context.Background())
 	assert.NilError(t, err)
 
-	if err := s.commands[0].cmdExecutor(); err != nil {
+	if err := s.commands[1].cmdExecutor(); err != nil {
 		t.Errorf("CMD cmdExecutor() error: %v", err)
 	}
 	assert.DeepEqual(t, s.docker.Config.Cmd, strslice.StrSlice{"/bin/sh", "-c", "ls"})
 
-	if err := s.commands[1].cmdExecutor(); err != nil {
+	if err := s.commands[2].cmdExecutor(); err != nil {
 		t.Errorf("SHELL cmdExecutor() error: %v", err)
 	}
-	if err := s.commands[2].cmdExecutor(); err != nil {
+	if err := s.commands[3].cmdExecutor(); err != nil {
 		t.Errorf("CMD cmdExecutor() error: %v", err)
 	}
 	assert.DeepEqual(t, s.shellForm, strslice.StrSlice{"/bin/bash", "-c"})
@@ -360,9 +360,10 @@ func TestExecuteNoop(t *testing.T) {
 
 	// the "STEP 1: FROM alpine" in production is done at stageBuilder.prepare()
 	// no cmdExecutor for FROM, so no print for FROM here
-	expectedString := `STEP  1: ARG testArg
-STEP  2: ENV env1=env2
-STEP  3: ONBUILD CMD ls
+	expectedString := `STEP  1: FROM alpine
+STEP  2: ARG testArg
+STEP  3: ENV env1=env2
+STEP  4: ONBUILD CMD ls
 `
 	assert.Equal(t, stepPrints, expectedString)
 }
@@ -441,7 +442,7 @@ ENTRYPOINT [""]`,
 			}
 			err := s.analyzeStage(context.Background())
 			assert.NilError(t, err)
-			if err := s.commands[0].cmdExecutor(); (err != nil) != tt.wantErr {
+			if err := s.commands[1].cmdExecutor(); (err != nil) != tt.wantErr {
 				t.Errorf("cmdExecutor() error: %v, wantErr: %v", err, tt.wantErr)
 			}
 			tt.funcCheck(t, s)
@@ -903,15 +904,15 @@ WORKDIR /c`
 	}
 	err := s.analyzeStage(context.Background())
 	assert.NilError(t, err)
-	if err := s.commands[0].cmdExecutor(); err != nil {
-		t.Errorf("WORKDIR cmdExecutor() error: %v", err)
-	}
-	assert.DeepEqual(t, s.docker.Config.WorkingDir, "/a")
 	if err := s.commands[1].cmdExecutor(); err != nil {
 		t.Errorf("WORKDIR cmdExecutor() error: %v", err)
 	}
-	assert.DeepEqual(t, s.docker.Config.WorkingDir, "/b")
+	assert.DeepEqual(t, s.docker.Config.WorkingDir, "/a")
 	if err := s.commands[2].cmdExecutor(); err != nil {
+		t.Errorf("WORKDIR cmdExecutor() error: %v", err)
+	}
+	assert.DeepEqual(t, s.docker.Config.WorkingDir, "/b")
+	if err := s.commands[3].cmdExecutor(); err != nil {
 		t.Errorf("WORKDIR cmdExecutor() error: %v", err)
 	}
 	assert.DeepEqual(t, s.docker.Config.WorkingDir, "/c")
@@ -938,15 +939,15 @@ WORKDIR c`
 	}
 	err := s.analyzeStage(context.Background())
 	assert.NilError(t, err)
-	if err := s.commands[0].cmdExecutor(); err != nil {
-		t.Errorf("WORKDIR cmdExecutor() error: %v", err)
-	}
-	assert.DeepEqual(t, s.docker.Config.WorkingDir, "/a")
 	if err := s.commands[1].cmdExecutor(); err != nil {
 		t.Errorf("WORKDIR cmdExecutor() error: %v", err)
 	}
-	assert.DeepEqual(t, s.docker.Config.WorkingDir, "/a/b")
+	assert.DeepEqual(t, s.docker.Config.WorkingDir, "/a")
 	if err := s.commands[2].cmdExecutor(); err != nil {
+		t.Errorf("WORKDIR cmdExecutor() error: %v", err)
+	}
+	assert.DeepEqual(t, s.docker.Config.WorkingDir, "/a/b")
+	if err := s.commands[3].cmdExecutor(); err != nil {
 		t.Errorf("WORKDIR cmdExecutor() error: %v", err)
 	}
 	assert.DeepEqual(t, s.docker.Config.WorkingDir, "/a/b/c")
@@ -973,15 +974,15 @@ WORKDIR $DIRPATH/$DIRNAME`
 	}
 	err := s.analyzeStage(context.Background())
 	assert.NilError(t, err)
-	if err = s.commands[0].cmdExecutor(); err != nil {
-		t.Errorf("WORKDIR cmdExecutor() error: %v", err)
-	}
-	assert.NilError(t, err)
 	if err = s.commands[1].cmdExecutor(); err != nil {
 		t.Errorf("WORKDIR cmdExecutor() error: %v", err)
 	}
 	assert.NilError(t, err)
 	if err = s.commands[2].cmdExecutor(); err != nil {
+		t.Errorf("WORKDIR cmdExecutor() error: %v", err)
+	}
+	assert.NilError(t, err)
+	if err = s.commands[3].cmdExecutor(); err != nil {
 		t.Errorf("WORKDIR cmdExecutor() error: %v", err)
 	}
 	assert.NilError(t, err)
@@ -1025,7 +1026,7 @@ Maintainer iSula iSula@huawei.com`,
 			}
 			err := s.analyzeStage(context.Background())
 			assert.NilError(t, err)
-			if err := s.commands[0].cmdExecutor(); (err != nil) != tt.wantErr {
+			if err := s.commands[1].cmdExecutor(); (err != nil) != tt.wantErr {
 				t.Errorf("cmdExecutor() error: %v, wantErr: %v", err, tt.wantErr)
 			}
 			tt.funcCheck(t, s)

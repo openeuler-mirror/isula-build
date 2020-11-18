@@ -172,9 +172,7 @@ func (s *stageBuilder) analyzeStage(ctx context.Context) error {
 		cb := newCmdBuilder(ctx, line, s, stageArgs, stageEnvs)
 
 		switch line.Command {
-		// From cmd is already pre-processed, we just pass it
 		case dockerfile.From:
-			continue
 		case dockerfile.Arg:
 			if cb.args, err = analyzeArg(s.builder, line, stageArgs, stageEnvs); err != nil {
 				return err
