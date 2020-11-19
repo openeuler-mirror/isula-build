@@ -39,6 +39,7 @@ var (
 
 func init() {
 	cmdExecutors = map[string]func(cb *cmdBuilder) error{
+		dockerfile.From:        executeNoop,
 		dockerfile.Add:         executeAdd,
 		dockerfile.Arg:         executeNoop,
 		dockerfile.Copy:        executeCopy,

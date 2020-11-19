@@ -196,8 +196,6 @@ func constructPages(lines []*parser.Line, onbuild bool) ([]*parser.Page, error) 
 		currentPage *parser.Page
 		pageNum     int
 	)
-	// a stage should have at least one FROM and one command
-	const minLinesPerPage = 2
 
 	for _, line := range lines {
 		if line == nil {
@@ -215,9 +213,6 @@ func constructPages(lines []*parser.Line, onbuild bool) ([]*parser.Page, error) 
 				return nil, errors.New("onbuild does not support the from command")
 			}
 			if currentPage != nil {
-				if !onbuild && len(currentPage.Lines) < minLinesPerPage {
-					return nil, errors.Errorf("stage %s should have at least one command", currentPage.Name)
-				}
 				pages = append(pages, currentPage)
 			}
 
@@ -253,9 +248,6 @@ func constructPages(lines []*parser.Line, onbuild bool) ([]*parser.Page, error) 
 		// to check currentPage wheather is nil
 		currentPage.End = line.End
 		currentPage.AddLine(line)
-	}
-	if !onbuild && len(currentPage.Lines) < minLinesPerPage {
-		return nil, errors.Errorf("stage %s should have at least one command", currentPage.Name)
 	}
 	// the last stage always need to commit
 	currentPage.NeedCommit = true

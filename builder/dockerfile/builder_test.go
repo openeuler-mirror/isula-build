@@ -248,13 +248,13 @@ RUN ls
 	}
 
 	// check the arg and env taken by the command: RUN ls
-	assert.DeepEqual(t, b.stageBuilders[0].commands[0].args,
+	assert.DeepEqual(t, b.stageBuilders[0].commands[1].args,
 		map[string]string{"no_proxy": "10.0.0.0"})
-	assert.DeepEqual(t, b.stageBuilders[1].commands[1].args,
+	assert.DeepEqual(t, b.stageBuilders[1].commands[2].args,
 		map[string]string{"testArg": "0.1", "no_proxy": "10.0.0.0"})
-	assert.DeepEqual(t, b.stageBuilders[2].commands[2].args,
+	assert.DeepEqual(t, b.stageBuilders[2].commands[3].args,
 		map[string]string{"no_proxy": "10.0.0.0"})
-	assert.DeepEqual(t, b.stageBuilders[2].commands[2].envs,
+	assert.DeepEqual(t, b.stageBuilders[2].commands[3].envs,
 		map[string]string{"testArg": "1.0"})
 }
 
@@ -291,13 +291,13 @@ RUN ls
 	}
 
 	// check the arg and env taken by the command: RUN ls
-	assert.DeepEqual(t, b.stageBuilders[0].commands[0].args,
+	assert.DeepEqual(t, b.stageBuilders[0].commands[1].args,
 		map[string]string{"HTTPS_PROXY": "127.0.0.1"})
-	assert.DeepEqual(t, b.stageBuilders[1].commands[1].args,
+	assert.DeepEqual(t, b.stageBuilders[1].commands[2].args,
 		map[string]string{"testArg": "0.1", "HTTPS_PROXY": "127.0.0.1"})
-	assert.DeepEqual(t, b.stageBuilders[2].commands[2].args,
+	assert.DeepEqual(t, b.stageBuilders[2].commands[3].args,
 		map[string]string{"HTTPS_PROXY": "127.0.0.1"})
-	assert.DeepEqual(t, b.stageBuilders[2].commands[2].envs,
+	assert.DeepEqual(t, b.stageBuilders[2].commands[3].envs,
 		map[string]string{"testArg": "1.0"})
 }
 

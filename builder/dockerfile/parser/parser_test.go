@@ -180,8 +180,6 @@ func TestParse(t *testing.T) {
 		},
 		{
 			name:   "busybox_no_command",
-			isErr:  true,
-			errStr: "stage 1 should have at least one command",
 		},
 		{
 			name:   "env_before_from",
