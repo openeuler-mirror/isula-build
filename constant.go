@@ -97,6 +97,7 @@ var (
 		"/proc/sig_catch",
 		"/proc/kbox",
 		"/proc/oom_extend",
+		"/proc/pin_memory",
 		"/sys/firmware",
 		"/proc/cpuirqstat",
 		"/proc/memstat",
