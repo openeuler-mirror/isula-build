@@ -2,7 +2,7 @@
 
 Name: isula-build
 Version: 0.9.4
-Release: 6
+Release: 7
 Summary: A tool to build container images
 License: Mulan PSL V2
 URL: https://gitee.com/openeuler/isula-build
