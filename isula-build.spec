@@ -2,7 +2,7 @@
 
 Name: isula-build
 Version: 0.9.4
-Release: 7
+Release: 8
 Summary: A tool to build container images
 License: Mulan PSL V2
 URL: https://gitee.com/openeuler/isula-build
@@ -23,6 +23,8 @@ Requires: systemd-units
 
 %description
 isula-build is a tool used for container images building.
+
+%debug_package
 
 %prep
 cp %{SOURCE0} .
@@ -83,6 +85,12 @@ fi
 /usr/share/bash-completion/completions/isula-build
 
 %changelog
+* Fir Nov 27 2020 lixiang <lixiang172@huawei.com> - 0.9.4-8
+- Add compile flag ftrapv and enable debuginfo
+
+* Thu Nov 20 2020 xiadanni <xiadanni1@huawei.com> - 0.9.4-7
+- Mask /proc/pin_memory
+
 * Thu Nov 19 2020 lixiang <lixiang172@huawei.com> - 0.9.4-6
 - Support build Dockerfile only have FROM command
 
