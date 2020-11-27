@@ -2,7 +2,7 @@
 
 Name: isula-build
 Version: 0.9.4
-Release: 2
+Release: 7
 Summary: A tool to build container images
 License: Mulan PSL V2
 URL: https://gitee.com/openeuler/isula-build
@@ -41,19 +41,19 @@ sh ./apply-patches
 %install
 install -d %{buildroot}%{_bindir}
 # install binary
-install -p -m 555 ./bin/isula-build %{buildroot}%{_bindir}/isula-build
-install -p -m 555 ./bin/isula-builder %{buildroot}%{_bindir}/isula-builder
+install -p ./bin/isula-build %{buildroot}%{_bindir}/isula-build
+install -p ./bin/isula-builder %{buildroot}%{_bindir}/isula-builder
 # install service
 %if 0%{?is_systemd}
 install -d %{buildroot}%{_unitdir}
-install -p -m 640 isula-build.service %{buildroot}%{_unitdir}/isula-build.service
+install -p isula-build.service %{buildroot}%{_unitdir}/isula-build.service
 %endif
 # install config file
-install -d -m 750 %{buildroot}%{_sysconfdir}/isula-build
-install -p -m 600 ./cmd/daemon/config/configuration.toml %{buildroot}%{_sysconfdir}/isula-build/configuration.toml
-install -p -m 600 ./cmd/daemon/config/storage.toml %{buildroot}%{_sysconfdir}/isula-build/storage.toml
-install -p -m 600 ./cmd/daemon/config/registries.toml %{buildroot}%{_sysconfdir}/isula-build/registries.toml
-install -p -m 400 ./cmd/daemon/config/policy.json %{buildroot}%{_sysconfdir}/isula-build/policy.json
+install -d %{buildroot}%{_sysconfdir}/isula-build
+install -p ./cmd/daemon/config/configuration.toml %{buildroot}%{_sysconfdir}/isula-build/configuration.toml
+install -p ./cmd/daemon/config/storage.toml %{buildroot}%{_sysconfdir}/isula-build/storage.toml
+install -p ./cmd/daemon/config/registries.toml %{buildroot}%{_sysconfdir}/isula-build/registries.toml
+install -p ./cmd/daemon/config/policy.json %{buildroot}%{_sysconfdir}/isula-build/policy.json
 # install bash completion script
 install -d %{buildroot}/usr/share/bash-completion/completions
 install -p -m 600 __isula-build %{buildroot}/usr/share/bash-completion/completions/isula-build
@@ -72,8 +72,10 @@ fi
 %if 0%{?is_systemd}
 %config(noreplace) %attr(0640,root,root) %{_unitdir}/isula-build.service
 %endif
-%attr(555,root,root) %{_bindir}/isula-build
-%attr(555,root,root) %{_bindir}/isula-builder
+%attr(551,root,root) %{_bindir}/isula-build
+%attr(550,root,root) %{_bindir}/isula-builder
+
+%dir %attr(650,root,root) %{_sysconfdir}/isula-build
 %config(noreplace) %attr(0600,root,root) %{_sysconfdir}/isula-build/configuration.toml
 %config(noreplace) %attr(0600,root,root) %{_sysconfdir}/isula-build/storage.toml
 %config(noreplace) %attr(0600,root,root) %{_sysconfdir}/isula-build/registries.toml
@@ -81,6 +83,18 @@ fi
 /usr/share/bash-completion/completions/isula-build
 
 %changelog
+* Thu Nov 19 2020 lixiang <lixiang172@huawei.com> - 0.9.4-6
+- Support build Dockerfile only have FROM command
+
+* Wed Nov 18 2020 lixiang <lixiang172@huawei.com> - 0.9.4-5
+- Delete patches no longer usefull
+
+* Tue Nov 17 2020 lixiang <lixiang172@huawei.com> - 0.9.4-4
+- Fix unsuitable filemode for isula-build(er)
+
+* Thu Nov 12 2020 lixiang <lixiang172@huawei.com> - 0.9.4-3
+- Chown config root path before daemon started
+
 * Tue Nov 10 2020 lixiang <lixiang172@huawei.com> - 0.9.4-2
 - Fix panic when user knock ctrl-c in pull/push/save command
 

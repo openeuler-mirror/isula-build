@@ -1,0 +1,43 @@
+From 11eac36a06326126ada8e42ea2b3bd0cfb9a3b4e Mon Sep 17 00:00:00 2001
+From: DCCooper <1866858@gmail.com>
+Date: Thu, 12 Nov 2020 15:39:33 +0800
+Subject: [PATCH] bugfix:chown config root path before daemon started
+
+Signed-off-by: DCCooper <1866858@gmail.com>
+---
+ cmd/daemon/main.go      | 6 ++++++
+ cmd/daemon/main_test.go | 1 +
+ 2 files changed, 7 insertions(+)
+
+diff --git a/cmd/daemon/main.go b/cmd/daemon/main.go
+index bd9c0cc..9fcde5c 100644
+--- a/cmd/daemon/main.go
++++ b/cmd/daemon/main.go
+@@ -276,6 +276,12 @@ func setupWorkingDirectories() error {
+ 		}
+ 	}
+ 
++	// change config root owner as group current defined
++	if err := util.ChangeGroup(constant.ConfigRoot, daemonOpts.Group); err != nil {
++		logrus.Errorf("Chown for %s failed: %v", constant.ConfigRoot, err)
++		return err
++	}
++
+ 	return nil
+ }
+ 
+diff --git a/cmd/daemon/main_test.go b/cmd/daemon/main_test.go
+index 46cc683..660d84d 100644
+--- a/cmd/daemon/main_test.go
++++ b/cmd/daemon/main_test.go
+@@ -97,6 +97,7 @@ func TestSetupWorkingDirectories(t *testing.T) {
+ 			tt.prepareFunc(t)
+ 			defer testDir.Remove()
+ 
++			daemonOpts.Group = "root"
+ 			if err := setupWorkingDirectories(); (err != nil) != tt.wantErr {
+ 				t.Errorf("testing failed! err = %v, wantErr = %v", err, tt.wantErr)
+ 			}
+-- 
+1.8.3.1
+
