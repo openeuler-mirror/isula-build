@@ -15,6 +15,7 @@
 
 top_dir=$(git rev-parse --show-toplevel)
 test_name="fuzz-test-builder"
+exit_flag=0
 source "$top_dir"/tests/lib/fuzz_commonlib.sh
 
 function pre_fun() {
@@ -47,10 +48,11 @@ function main() {
     test_fun "$1"
     res=$?
     if [ $res -ne 0 ];then
-        exit 1
+        exit_flag=1
     else
         clean_env
     fi
 }
 
 main "$1"
+exit $exit_flag

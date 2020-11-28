@@ -16,6 +16,7 @@
 workspace=$(cd "$(dirname "$0")" && cd .. && pwd)
 config_file=".golangci.yml"
 check_type=$1
+export GO111MODULE=on
 
 # check binary file golangci-lint and it's config exist
 function pre() {

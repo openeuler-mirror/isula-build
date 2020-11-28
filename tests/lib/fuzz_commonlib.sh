@@ -101,5 +101,5 @@ function set_env() {
 }
 
 function clean_env() {
-    rm -rf "$fuzz_zip" "$fuzz_log" "$fuzz_crashers" "$fuzz_suppressions"
+    rm -rf "$fuzz_zip" "$fuzz_crashers" "$fuzz_suppressions"
 }

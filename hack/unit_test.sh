@@ -13,6 +13,8 @@
 # Create: 2020-07-11
 # Description: go test script
 
+export GO111MODULE=on
+
 TEST_ARGS=""
 if [ ! -z "${TEST_REG}" ]; then
     TEST_ARGS+=" -args TEST_REG=${TEST_REG}"

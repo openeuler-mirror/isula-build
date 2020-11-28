@@ -10,11 +10,11 @@
 # PURPOSE.
 # See the Mulan PSL v2 for more details.
 # Author: Xiang Li
-# Create: 2020-08-29
-# Description: fuzz dockerignore
+# Create: 2020-11-28
+# Description: fuzz parseTag
 
 top_dir=$(git rev-parse --show-toplevel)
-test_name="fuzz-test-dockerignore"
+test_name="fuzz-test-parseTag"
 exit_flag=0
 source "$top_dir"/tests/lib/fuzz_commonlib.sh
 
@@ -36,8 +36,8 @@ function test_fun() {
     go-fuzz -bin="$fuzz_zip" -workdir="$test_dir" &>> "$fuzz_log" &
     pid=$!
     if ! check_timeout $time $pid > /dev/null 2>&1; then
-		echo "Can not kill process $pid"
-	fi
+        echo "Can not kill process $pid"
+    fi
     check_result "$fuzz_log"
     res=$?
     return $res
