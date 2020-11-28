@@ -21,6 +21,7 @@ import (
 
 	"github.com/containers/storage/pkg/reexec"
 	"github.com/containers/storage/pkg/stringid"
+	"golang.org/x/sync/errgroup"
 	"golang.org/x/sys/unix"
 	"google.golang.org/grpc"
 	"gotest.tools/assert"
@@ -28,6 +29,7 @@ import (
 
 	constant "isula.org/isula-build"
 	pb "isula.org/isula-build/api/services"
+	"isula.org/isula-build/pkg/logger"
 	"isula.org/isula-build/store"
 )
 
@@ -99,4 +101,20 @@ func TestPull(t *testing.T) {
 	err := d.Daemon.backend.Pull(req, stream)
 	assert.ErrorContains(t, err, "failed to get the image")
 	tmpClean(d)
+}
+
+func TestPullHandler(t *testing.T) {
+	stream := &controlPullServer{}
+	cliLogger := logger.NewCliLogger(constant.CliLogBufferLen)
+
+	ctx := context.TODO()
+	eg, _ := errgroup.WithContext(ctx)
+	eg.Go(pullMessageHandler(stream, cliLogger))
+	eg.Go(func() error {
+		cliLogger.Print("Pull Response")
+		cliLogger.CloseContent()
+		return nil
+	})
+
+	eg.Wait()
 }
