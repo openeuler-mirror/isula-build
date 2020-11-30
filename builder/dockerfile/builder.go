@@ -120,9 +120,11 @@ func NewBuilder(ctx context.Context, store *store.Store, req *pb.BuildRequest, r
 		Output:     []string{req.GetOutput()},
 	}
 	b.parseStaticBuildOpts(req)
-	if err = b.parseTag(req.Output, req.AdditionalTag); err != nil {
+	tag, additionalTag, err := parseTag(req.Output, req.AdditionalTag)
+	if err != nil {
 		return nil, err
 	}
+	b.buildOpts.Tag, b.buildOpts.AdditionalTag = tag, additionalTag
 
 	// prepare workdirs for dockerfile builder
 	for _, dir := range []string{buildDir, runDir} {
@@ -143,21 +145,27 @@ func NewBuilder(ctx context.Context, store *store.Store, req *pb.BuildRequest, r
 	return b, nil
 }
 
-func (b *Builder) parseTag(output, additionalTag string) error {
-	var err error
-	if tag := parseOutputTag(output); tag != "" {
-		if _, b.buildOpts.Tag, err = CheckAndExpandTag(tag); err != nil {
-			return err
+func parseTag(output, additionalTag string) (string, string, error) {
+	var (
+		err    error
+		tag    string
+		addTag string
+	)
+	if tag = parseOutputTag(output); tag != "" {
+		_, tag, err = CheckAndExpandTag(tag)
+		if err != nil {
+			return "", "", err
 		}
 	}
 
 	if additionalTag != "" {
-		if _, b.buildOpts.AdditionalTag, err = CheckAndExpandTag(additionalTag); err != nil {
-			return err
+		_, addTag, err = CheckAndExpandTag(additionalTag)
+		if err != nil {
+			return "", "", err
 		}
 	}
 
-	return nil
+	return tag, addTag, nil
 }
 
 // Logger adds the "buildID" attribute to build logs

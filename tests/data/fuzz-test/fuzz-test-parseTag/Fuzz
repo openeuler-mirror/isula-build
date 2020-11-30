@@ -1,0 +1,33 @@
+// Copyright (c) Huawei Technologies Co., Ltd. 2020. All rights reserved.
+// isula-build licensed under the Mulan PSL v2.
+// You can use this software according to the terms and conditions of the Mulan PSL v2.
+// You may obtain a copy of Mulan PSL v2 at:
+//     http://license.coscl.org.cn/MulanPSL2
+// THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER EXPRESS OR
+// IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY OR FIT FOR A PARTICULAR
+// PURPOSE.
+// See the Mulan PSL v2 for more details.
+// Author: Xiang Li
+// Create: 2020-11-28
+// Description: Fuzz file for parseTag
+
+package dockerfile
+
+import (
+	"strings"
+)
+
+func Fuzz(data []byte) int {
+	if len(data) == 0 {
+		return 1
+	}
+	input := strings.Split(string(data), ",")
+	if len(input) != 2 {
+		return 1
+	}
+	_, _, err := parseTag(input[0], input[1])
+	if err != nil {
+		return 0
+	}
+	return 1
+}

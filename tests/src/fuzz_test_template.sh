@@ -16,7 +16,9 @@
 # top dir is path of where you put isula-build project
 top_dir=$(git rev-parse --show-toplevel)
 # keep the name same as the folder you created before like "fuzz-test-xxx"
-test_name="fuzz-test-parser"
+test_name="fuzz-test-xxx"
+# exit_flag is the flag to indicate if the test success(set 0) or failed(set 1)
+exit_flag=0
 # get common functions used for test script
 source "$top_dir"/tests/lib/fuzz_commonlib.sh
 
@@ -54,7 +56,7 @@ function main() {
     test_fun "$1"
     res=$?
     if [ $res -ne 0 ];then
-        exit 1
+        exit_flag=1
     else
         clean_env
     fi
@@ -62,3 +64,5 @@ function main() {
 
 # uncomment following to make script working
 # main "$1"
+
+exit $exit_flag
