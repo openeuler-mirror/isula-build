@@ -16,11 +16,11 @@ package daemon
 import (
 	"context"
 	"crypto"
-	"path/filepath"
 
 	"github.com/containers/image/v5/docker"
 	"github.com/containers/image/v5/pkg/docker/config"
 	"github.com/containers/image/v5/types"
+	securejoin "github.com/cyphar/filepath-securejoin"
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
 
@@ -48,12 +48,16 @@ func (b *Backend) Login(ctx context.Context, req *pb.LoginRequest) (*pb.LoginRes
 		"Username": req.GetUsername(),
 	}).Info("LoginRequest received")
 
-	if err := validLoginOpts(req); err != nil {
+	err := validLoginOpts(req)
+	if err != nil {
 		return &pb.LoginResponse{Content: loginFailed}, err
 	}
 
 	sysCtx := image.GetSystemContext()
-	sysCtx.DockerCertPath = filepath.Join(constant.DefaultCertRoot, req.Server)
+	sysCtx.DockerCertPath, err = securejoin.SecureJoin(constant.DefaultCertRoot, req.Server)
+	if err != nil {
+		return &pb.LoginResponse{Content: loginFailed}, err
+	}
 
 	if loginWithAuthFile(req) {
 		auth, err := config.GetCredentials(sysCtx, req.Server)

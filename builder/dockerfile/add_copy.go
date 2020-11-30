@@ -143,7 +143,10 @@ func (c *cmdBuilder) getCopyContextDir(from string) (string, func(), error) {
 	if err != nil {
 		return "", nil, err
 	}
-	c.stage.buildOpt.systemContext.DockerCertPath = filepath.Join(constant.DefaultCertRoot, server)
+	c.stage.buildOpt.systemContext.DockerCertPath, err = securejoin.SecureJoin(constant.DefaultCertRoot, server)
+	if err != nil {
+		return "", nil, err
+	}
 
 	// "from" is neither name nor index of stage, consider that "from" is image description
 	imgDesc, err := prepareImage(&image.PrepareImageOptions{

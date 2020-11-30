@@ -153,16 +153,28 @@ func TestParseServer(t *testing.T) {
 			want:    "",
 			wantErr: true,
 		},
+		{
+			name:    "TC10 - abnormal server address with relative filepath",
+			args:    args{server: "https://mydockerhub/../../../"},
+			want:    "mydockerhub",
+			wantErr: false,
+		},
+		{
+			name:    "TC11 - abnormal server address with relative filepath 2",
+			args:    args{server: "https://../../../../mydockerhub"},
+			want:    "",
+			wantErr: true,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			got, err := ParseServer(tt.args.server)
+			if got != tt.want {
+				t.Errorf("ParseServer() got = %v, want %v", got, tt.want)
+			}
 			if (err != nil) != tt.wantErr {
 				t.Errorf("ParseServer() error = %v, wantErr %v", err, tt.wantErr)
 				return
-			}
-			if got != tt.want {
-				t.Errorf("ParseServer() got = %v, want %v", got, tt.want)
 			}
 		})
 	}

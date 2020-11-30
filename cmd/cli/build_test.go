@@ -602,17 +602,15 @@ func TestRunBuildWithCap(t *testing.T) {
 	defer tmpDir.Remove()
 	buildOpts.file = tmpDir.Join("Dockerfile")
 	buildOpts.output = "docker-daemon:cap:latest"
-	mockBuild := newMockDaemon()
-	ctx := context.Background()
-	cli := newMockClient(&mockGrpcClient{imageBuildFunc: mockBuild.build})
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			buildOpts.capAddList = tt.caps
-			_, err := runBuild(ctx, &cli)
+			err := newBuildOptions([]string{tmpDir.Path()})
 			if tt.isErr {
 				assert.ErrorContains(t, err, "is invalid")
 			}
+			buildOpts.capAddList = nil
 		})
 	}
 }

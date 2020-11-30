@@ -23,6 +23,7 @@ import (
 	"time"
 
 	"github.com/containerd/containerd/sys/reaper"
+	securejoin "github.com/cyphar/filepath-securejoin"
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/sys/unix"
@@ -130,10 +131,20 @@ func (d *Daemon) Run() (err error) {
 
 // NewBuilder returns the builder with request sent from GRPC service
 func (d *Daemon) NewBuilder(ctx context.Context, req *pb.BuildRequest) (b builder.Builder, err error) {
+	var (
+		buildDir string
+		runDir   string
+	)
 	// buildDir is used to set directory which is used to store tmp data
-	buildDir := filepath.Join(d.opts.DataRoot, dataRootTmpDirPrefix, req.BuildID)
+	buildDir, err = securejoin.SecureJoin(d.opts.DataRoot, filepath.Join(dataRootTmpDirPrefix, req.BuildID))
+	if err != nil {
+		return nil, err
+	}
 	// runDir is used to store such as container bundle directories
-	runDir := filepath.Join(d.opts.RunRoot, req.BuildID)
+	runDir, err = securejoin.SecureJoin(d.opts.RunRoot, req.BuildID)
+	if err != nil {
+		return nil, err
+	}
 
 	// this key with BuildDir will be used by exporter to save blob temporary
 	// NOTE: keep it be updated before NewBuilder. ctx will be taken by Builder
