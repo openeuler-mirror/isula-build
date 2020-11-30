@@ -171,6 +171,13 @@ func newBuildOptions(args []string) error {
 		return nil
 	}
 
+	// check cap list
+	for _, c := range buildOpts.capAddList {
+		if !util.CheckCap(c) {
+			return errors.Errorf("cap %v is invalid", c)
+		}
+	}
+
 	// the path may be a symbol link
 	contextDir, err := filepath.Abs(args[0])
 	if err != nil {
@@ -236,8 +243,9 @@ func modifyLocalTransporter(transport string, absPath string, segments []string)
 	const validIsuladFieldsLen = 3
 	switch transport {
 	case "docker-archive":
-		segments[1] = absPath
-		buildOpts.output = strings.Join(segments, ":")
+		newSeg := util.CopyStrings(segments)
+		newSeg[1] = absPath
+		buildOpts.output = strings.Join(newSeg, ":")
 		return nil
 	case "isulad":
 		if len(segments) != validIsuladFieldsLen {
@@ -310,12 +318,6 @@ func runBuild(ctx context.Context, cli Cli) (string, error) {
 		imageIDFilePath string
 		digest          string
 	)
-
-	for _, c := range buildOpts.capAddList {
-		if !util.CheckCap(c) {
-			return "", errors.Errorf("cap %v is invalid", c)
-		}
-	}
 
 	if err = checkAndProcessOutput(); err != nil {
 		return "", err

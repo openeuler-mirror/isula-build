@@ -14,10 +14,9 @@
 package daemon
 
 import (
-	"path/filepath"
-
 	"github.com/containers/image/v5/docker/tarfile"
 	"github.com/containers/storage"
+	securejoin "github.com/cyphar/filepath-securejoin"
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/sync/errgroup"
@@ -85,7 +84,10 @@ func (b *Backend) Load(req *pb.LoadRequest, stream pb.Control_LoadServer) error 
 
 func getRepoTagFromImageTar(dataRoot, path string) ([]string, error) {
 	// tmp dir will be removed after NewSourceFromFileWithContext
-	tmpDir := filepath.Join(dataRoot, dataRootTmpDirPrefix)
+	tmpDir, err := securejoin.SecureJoin(dataRoot, dataRootTmpDirPrefix)
+	if err != nil {
+		return nil, err
+	}
 	systemContext := image.GetSystemContext()
 	systemContext.BigFilesTemporaryDir = tmpDir
 

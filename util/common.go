@@ -20,6 +20,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	securejoin "github.com/cyphar/filepath-securejoin"
 	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
 	"golang.org/x/sys/unix"
@@ -150,6 +151,17 @@ func ParseServer(server string) (string, error) {
 	fields := strings.Split(server, "/")
 	if fields[0] == "" {
 		return "", errors.Errorf("invalid registry address %s", server)
+	}
+
+	// to prevent directory traversal
+	fakePrefix := "/fakePrefix"
+	origAddr := fmt.Sprintf("%s/%s", fakePrefix, fields[0])
+	cleanAddr, err := securejoin.SecureJoin(fakePrefix, fields[0])
+	if err != nil {
+		return "", err
+	}
+	if cleanAddr != origAddr {
+		return "", errors.Errorf("invalid relative path detected")
 	}
 
 	return fields[0], nil

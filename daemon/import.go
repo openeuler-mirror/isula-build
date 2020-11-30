@@ -22,6 +22,7 @@ import (
 	"github.com/containers/image/v5/tarball"
 	"github.com/containers/image/v5/transports"
 	"github.com/containers/image/v5/types"
+	securejoin "github.com/cyphar/filepath-securejoin"
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/sync/errgroup"
@@ -43,6 +44,7 @@ func (b *Backend) Import(req *pb.ImportRequest, stream pb.Control_ImportServer) 
 		source     = req.Source
 		reference  = req.Reference
 		importID   = req.ImportID
+		tmpDir     string
 	)
 	logEntry := logrus.WithFields(logrus.Fields{"ImportID": importID})
 	logEntry.Info("ImportRequest received")
@@ -78,8 +80,10 @@ func (b *Backend) Import(req *pb.ImportRequest, stream pb.Control_ImportServer) 
 
 	log := logger.NewCliLogger(constant.CliLogBufferLen)
 	imageCopyOptions := image.NewImageCopyOptions(log)
-
-	tmpDir := filepath.Join(b.daemon.opts.DataRoot, dataRootTmpDirPrefix, importID)
+	tmpDir, err = securejoin.SecureJoin(b.daemon.opts.DataRoot, filepath.Join(dataRootTmpDirPrefix, importID))
+	if err != nil {
+		return err
+	}
 	if err = os.MkdirAll(tmpDir, constant.DefaultRootDirMode); err != nil {
 		logEntry.Error(err)
 		return err

@@ -16,10 +16,10 @@ package daemon
 import (
 	"context"
 	"fmt"
-	"path/filepath"
 	"strings"
 
 	"github.com/containers/image/v5/pkg/docker/config"
+	securejoin "github.com/cyphar/filepath-securejoin"
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
 
@@ -35,12 +35,16 @@ func (b *Backend) Logout(ctx context.Context, req *pb.LogoutRequest) (*pb.Logout
 		"All":    req.GetAll(),
 	}).Info("LogoutRequest received")
 
-	if err := validLogoutOpts(req); err != nil {
+	err := validLogoutOpts(req)
+	if err != nil {
 		return &pb.LogoutResponse{Result: "Logout Failed"}, err
 	}
 
 	sysCtx := image.GetSystemContext()
-	sysCtx.DockerCertPath = filepath.Join(constant.DefaultCertRoot, req.Server)
+	sysCtx.DockerCertPath, err = securejoin.SecureJoin(constant.DefaultCertRoot, req.Server)
+	if err != nil {
+		return &pb.LogoutResponse{Result: "Logout Failed"}, err
+	}
 
 	if req.All {
 		if err := config.RemoveAllAuthentication(sysCtx); err != nil {
@@ -51,8 +55,7 @@ func (b *Backend) Logout(ctx context.Context, req *pb.LogoutRequest) (*pb.Logout
 		return &pb.LogoutResponse{Result: "Removed authentications"}, nil
 	}
 
-	err := config.RemoveAuthentication(sysCtx, req.Server)
-	if err == nil {
+	if err = config.RemoveAuthentication(sysCtx, req.Server); err == nil {
 		msg := fmt.Sprintf("Removed authentication for %s", req.Server)
 		logrus.Infof("Success logout from server: %q", req.Server)
 		return &pb.LogoutResponse{Result: msg}, nil

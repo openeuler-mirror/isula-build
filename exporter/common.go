@@ -20,7 +20,6 @@ import (
 	"io"
 	"os"
 	"os/exec"
-	"path/filepath"
 	"strings"
 
 	cp "github.com/containers/image/v5/copy"
@@ -30,6 +29,7 @@ import (
 	"github.com/containers/image/v5/types"
 	"github.com/containers/storage/pkg/archive"
 	"github.com/containers/storage/pkg/stringid"
+	securejoin "github.com/cyphar/filepath-securejoin"
 	"github.com/docker/distribution/reference"
 	"github.com/opencontainers/go-digest"
 	"github.com/pkg/errors"
@@ -72,15 +72,12 @@ func Export(src, destSpec string, opts ExportOptions, localStore *store.Store) e
 	if err != nil {
 		return err
 	}
-	opts.SystemContext.DockerCertPath = filepath.Join(constant.DefaultCertRoot, registry)
-
-	options := NewCopyOptions(opts)
-
-	policyContext, err := NewPolicyContext(opts.SystemContext)
+	opts.SystemContext.DockerCertPath, err = securejoin.SecureJoin(constant.DefaultCertRoot, registry)
 	if err != nil {
 		return err
 	}
-	ref, digest, err := export(opts, epter, policyContext, options)
+
+	ref, digest, err := export(epter, opts)
 	if err != nil {
 		return errors.Errorf("export image from %s to %s failed, got error: %s", src, destSpec, err)
 	}
@@ -117,13 +114,18 @@ func exportToIsulad(ctx context.Context, tarPath string) error {
 	return nil
 }
 
-func export(exOpts ExportOptions, e Exporter, policyContext *signature.PolicyContext, cpOpts *cp.Options) (reference.Canonical, digest.Digest, error) {
+func export(e Exporter, exOpts ExportOptions) (reference.Canonical, digest.Digest, error) {
 	var (
-		err            error
 		ref            reference.Canonical
 		manifestBytes  []byte
 		manifestDigest digest.Digest
 	)
+
+	cpOpts := NewCopyOptions(exOpts)
+	policyContext, err := NewPolicyContext(exOpts.SystemContext)
+	if err != nil {
+		return nil, "", err
+	}
 	defer func() {
 		destroyErr := policyContext.Destroy()
 		if err == nil {
@@ -176,7 +178,10 @@ func parseExporter(opts ExportOptions, src, destSpec string, localStore *store.S
 	// 3. get dest reference
 	if parts[0] == "isulad" {
 		randomID := stringid.GenerateNonCryptoID()[:constant.DefaultIDLen]
-		isuladTarPath = filepath.Join(opts.DataDir, fmt.Sprintf("isula-build-tmp-%s.tar", randomID))
+		isuladTarPath, err = securejoin.SecureJoin(opts.DataDir, fmt.Sprintf("isula-build-tmp-%s.tar", randomID))
+		if err != nil {
+			return nil, "", err
+		}
 		// construct format: transport:path:image:tag
 		// parts[1] here could not be empty cause client-end already processed it
 		destSpec = fmt.Sprintf("docker-archive:%s:%s", isuladTarPath, parts[1])

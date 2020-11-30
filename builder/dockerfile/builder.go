@@ -22,13 +22,13 @@ import (
 	"io"
 	"io/ioutil"
 	"os"
-	"path/filepath"
 	"regexp"
 	"sort"
 	"strings"
 	"time"
 
 	"github.com/containers/image/v5/docker/reference"
+	securejoin "github.com/cyphar/filepath-securejoin"
 	"github.com/opencontainers/go-digest"
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
@@ -257,7 +257,10 @@ func (b *Builder) newStageBuilders() error {
 		if err != nil {
 			return err
 		}
-		sb.buildOpt.systemContext.DockerCertPath = filepath.Join(constant.DefaultCertRoot, server)
+		sb.buildOpt.systemContext.DockerCertPath, err = securejoin.SecureJoin(constant.DefaultCertRoot, server)
+		if err != nil {
+			return err
+		}
 
 		b.stageBuilders = append(b.stageBuilders, sb)
 	}

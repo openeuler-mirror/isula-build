@@ -131,15 +131,15 @@ func (s *Store) CleanContainer(id string) error {
 
 	// Do not care about all the errors whiling cleaning the container,
 	// just return one if the error occurs.
-	var err error
+	var finalErr error
 	if _, uerr := s.Unmount(id, false); uerr != nil {
-		err = uerr
+		finalErr = uerr
 		logrus.Warnf("Unmount container store failed while cleaning %q", id)
 	}
 	if derr := s.DeleteContainer(id); derr != nil {
-		err = derr
+		finalErr = derr
 		logrus.Warnf("Delete container store failed while cleaning %q", id)
 	}
 
-	return err
+	return finalErr
 }

@@ -22,6 +22,7 @@ import (
 
 	"github.com/BurntSushi/toml"
 	"github.com/containers/storage/pkg/reexec"
+	securejoin "github.com/cyphar/filepath-securejoin"
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
@@ -157,9 +158,17 @@ func before(cmd *cobra.Command) error {
 	logrus.SetOutput(os.Stdout)
 	logrus.SetFormatter(&logrus.TextFormatter{FullTimestamp: true})
 
+	runRoot, err := securejoin.SecureJoin(daemonOpts.RunRoot, "storage")
+	if err != nil {
+		return err
+	}
+	dataRoot, err := securejoin.SecureJoin(daemonOpts.DataRoot, "storage")
+	if err != nil {
+		return err
+	}
 	store.SetDefaultStoreOptions(store.DaemonStoreOptions{
-		RunRoot:      filepath.Join(daemonOpts.RunRoot, "storage"),
-		DataRoot:     filepath.Join(daemonOpts.DataRoot, "storage"),
+		RunRoot:      runRoot,
+		DataRoot:     dataRoot,
 		Driver:       daemonOpts.StorageDriver,
 		DriverOption: util.CopyStrings(daemonOpts.StorageOpts),
 	})
@@ -204,7 +213,7 @@ func loadConfig(path string) (config.TomlConfig, error) {
 	return conf, err
 }
 
-func mergeStorageConfig(cmd *cobra.Command) {
+func mergeStorageConfig(cmd *cobra.Command) error {
 	store.SetDefaultConfigFilePath(constant.StorageConfigPath)
 	option, err := store.GetDefaultStoreOptions(true)
 	if err == nil {
@@ -218,10 +227,16 @@ func mergeStorageConfig(cmd *cobra.Command) {
 
 	var storeOpt store.DaemonStoreOptions
 	if option.RunRoot == "" {
-		storeOpt.RunRoot = filepath.Join(daemonOpts.RunRoot, "storage")
+		storeOpt.RunRoot, err = securejoin.SecureJoin(daemonOpts.RunRoot, "storage")
+		if err != nil {
+			return err
+		}
 	}
 	if option.GraphRoot == "" {
-		storeOpt.DataRoot = filepath.Join(daemonOpts.DataRoot, "storage")
+		storeOpt.DataRoot, err = securejoin.SecureJoin(daemonOpts.DataRoot, "storage")
+		if err != nil {
+			return err
+		}
 	}
 	if daemonOpts.StorageDriver != "" {
 		storeOpt.Driver = daemonOpts.StorageDriver
@@ -230,6 +245,8 @@ func mergeStorageConfig(cmd *cobra.Command) {
 		storeOpt.DriverOption = util.CopyStrings(daemonOpts.StorageOpts)
 	}
 	store.SetDefaultStoreOptions(storeOpt)
+
+	return nil
 }
 
 func mergeConfig(conf config.TomlConfig, cmd *cobra.Command) {
@@ -258,7 +275,10 @@ func setupWorkingDirectories() error {
 		return errors.Errorf("runroot(%q) and dataroot(%q) must be different paths", daemonOpts.RunRoot, daemonOpts.DataRoot)
 	}
 
-	buildTmpDir := filepath.Join(daemonOpts.DataRoot, dataRootTmpDirPrefix)
+	buildTmpDir, err := securejoin.SecureJoin(daemonOpts.DataRoot, dataRootTmpDirPrefix)
+	if err != nil {
+		return err
+	}
 	dirs := []string{daemonOpts.DataRoot, daemonOpts.RunRoot, buildTmpDir}
 	for _, dir := range dirs {
 		if !filepath.IsAbs(dir) {
@@ -325,7 +345,7 @@ func checkAndValidateConfig(cmd *cobra.Command) error {
 
 	// if storage config file exists, merge storage config
 	if util.IsExist(constant.StorageConfigPath) {
-		mergeStorageConfig(cmd)
+		return mergeStorageConfig(cmd)
 	}
 
 	return nil
