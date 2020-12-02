@@ -6,5 +6,5 @@ ENTRYPOINT ["sh"]
 RUN ["ls"]
 RUN echo "hello world"
 
-# fail at here
+# Support single FROM command at here
 FROM busybox

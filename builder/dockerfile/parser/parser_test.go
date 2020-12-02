@@ -119,7 +119,6 @@ func TestFormatWithSpacesAfterEscapeToken(t *testing.T) {
 			name:   "busybox_line_with_spaces",
 			expect: []int{12, 20, 96, 87, 10},
 		},
-
 	}
 
 	for _, tc := range testcases {
@@ -194,12 +193,72 @@ func TestParse(t *testing.T) {
 			r, err := os.Open(file)
 			assert.NilError(t, err)
 			defer r.Close()
+
 			df := dockerfile{}
 			_, err = df.Parse(r, false)
+
 			if !tc.isErr {
 				assert.NilError(t, err, file)
 			} else {
 				assert.ErrorContains(t, err, tc.errStr)
+			}
+		})
+	}
+}
+
+func TestParseContainSingleFrom(t *testing.T) {
+	testcases := []struct {
+		name      string
+		isErr     bool
+		committed bool
+	}{
+		{
+			name:      "busybox_with_from_only",
+			isErr:     false,
+			committed: false,
+		}, {
+			name:      "busybox_ubuntu_centos",
+			isErr:     false,
+			committed: false,
+		}, {
+			name:      "compelte_stage_with_single_from_stage",
+			isErr:     false,
+			committed: false,
+		}, {
+			name:      "single_from_stage_with_complete_stage",
+			isErr:     false,
+			committed: true,
+		}, {
+			name:      "final_single_from_stage_depend_on_previous_stage",
+			isErr:     false,
+			committed: true,
+		}, {
+			name:      "final_stage_depend_on_previous_stage",
+			isErr:     false,
+			committed: true,
+		},
+	}
+
+	for _, tc := range testcases {
+		t.Run(tc.name, func(t *testing.T) {
+			file := filepath.Join("testfiles", "preprocess", tc.name)
+			r, err := os.Open(file)
+			assert.NilError(t, err)
+			defer r.Close()
+
+			df := dockerfile{}
+			playbook := &parser.PlayBook{}
+			playbook, err = df.Parse(r, false)
+
+			if !tc.isErr {
+				assert.NilError(t, err, file)
+				if tc.committed {
+					needCommit := false
+					for _, page := range playbook.Pages {
+						needCommit = page.NeedCommit || needCommit
+					}
+					assert.Equal(t, needCommit, true)
+				}
 			}
 		})
 	}

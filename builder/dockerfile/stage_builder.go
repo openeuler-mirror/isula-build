@@ -172,7 +172,9 @@ func (s *stageBuilder) analyzeStage(ctx context.Context) error {
 		cb := newCmdBuilder(ctx, line, s, stageArgs, stageEnvs)
 
 		switch line.Command {
+		// From cmd is already pre-processed, we just pass it
 		case dockerfile.From:
+			continue
 		case dockerfile.Arg:
 			if cb.args, err = analyzeArg(s.builder, line, stageArgs, stageEnvs); err != nil {
 				return err
@@ -209,10 +211,16 @@ func (s *stageBuilder) stageBuild(ctx context.Context) (string, error) {
 
 	// 3. commit for new image if needed
 	if s.rawStage.NeedCommit {
-		s.imageID, err = s.commit(ctx)
+		if s.imageID, err = s.commit(ctx); err != nil {
+			return s.imageID, errors.Wrapf(err, "commit image for stage %s failed", s.name)
+		}
+	}
+	// for only from command in Dockerfile, there is no imageID committed, use fromImageID
+	if s.imageID == "" {
+		s.imageID = s.fromImageID
 	}
 
-	return s.imageID, errors.Wrapf(err, "commit image for stage %s failed", s.name)
+	return s.imageID, nil
 }
 
 func prepareImage(opt *image.PrepareImageOptions) (*image.Describe, error) {

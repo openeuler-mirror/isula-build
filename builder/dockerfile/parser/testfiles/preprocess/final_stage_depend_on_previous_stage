@@ -1,0 +1,3 @@
+FROM busybox as new_busybox
+FROM new_busybox
+RUN touch /tmp/a_test.txt

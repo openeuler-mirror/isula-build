@@ -238,19 +238,21 @@ func constructPages(lines []*parser.Line, onbuild bool) ([]*parser.Page, error) 
 			}
 			pageMap[page.Name] = page
 			// if the base image for current stage is from the previous stage,
-			// mark the previous stage need to commit
-			if from, ok := pageMap[line.Cells[0].Value]; ok {
+			// mark the previous stage need to commit, for only from command we don't commit
+			if from, ok := pageMap[line.Cells[0].Value]; ok && len(from.Lines) > 1 {
 				from.NeedCommit = true
 			}
 			currentPage = page
 		}
 		// because a valid dockerfile is always start with 'FROM' command here, so no need
-		// to check currentPage wheather is nil
+		// to check whether currentPage is nil or not
 		currentPage.End = line.End
 		currentPage.AddLine(line)
 	}
-	// the last stage always need to commit
-	currentPage.NeedCommit = true
+	// the last stage always need to commit except page that contains only from command
+	if len(currentPage.Lines) > 1 {
+		currentPage.NeedCommit = true
+	}
 	pages = append(pages, currentPage)
 
 	if len(pages) == 0 {
