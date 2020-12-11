@@ -51,8 +51,8 @@ const (
 	DefaultRootDirMode = 0700
 	// DefaultReadOnlyFileMode is the default root read only file mode
 	DefaultReadOnlyFileMode = 0444
-	// DefaultUmask is the working umask in isula-builder
-	DefaultUmask = 0027
+	// DefaultUmask is the working umask of isula-builder as a process, not for users
+	DefaultUmask = 0022
 	// CliLogBufferLen is log channel buffer size
 	CliLogBufferLen = 8
 	// HostsFilePath is the path of file hosts
