@@ -2,7 +2,7 @@
 
 Name: isula-build
 Version: 0.9.4
-Release: 12
+Release: 13
 Summary: A tool to build container images
 License: Mulan PSL V2
 URL: https://gitee.com/openeuler/isula-build
@@ -85,6 +85,9 @@ fi
 /usr/share/bash-completion/completions/isula-build
 
 %changelog
+* Fri Dec 11 2020 lujingxiao <lujingxiao@huawei.com> - 0.9.4-12
+- Change default umask of isula-builder process
+
 * Tue Dec 08 2020 caihaomin<caihaomin@huawei.com> - 0.9.4-12
 - Fix printing FROM command double times to console
 
