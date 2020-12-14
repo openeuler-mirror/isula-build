@@ -1,0 +1,37 @@
+From c9aa2a92e06d32dada0029fbf9154f23afbf506b Mon Sep 17 00:00:00 2001
+From: Lu Jingxiao <lujingxiao@huawei.com>
+Date: Fri, 11 Dec 2020 10:53:36 +0800
+Subject: [PATCH] isula-build: change default umask of isula-builder process
+
+As the daemon process, the working umask 0027 is not suitable.
+0022 is better.
+
+Take this example:
+isula-builder using 0027, the working dir of container for RUN command
+(overlay/merged dir, as an example), has the 0640. Then developer changes
+working user in RUN command to a non-root user, it will not have
+correct permission to work.
+
+Signed-off-by: Lu Jingxiao <lujingxiao@huawei.com>
+---
+ constant.go | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/constant.go b/constant.go
+index a0abfc9..30c1653 100644
+--- a/constant.go
++++ b/constant.go
+@@ -51,8 +51,8 @@ const (
+ 	DefaultRootDirMode = 0700
+ 	// DefaultReadOnlyFileMode is the default root read only file mode
+ 	DefaultReadOnlyFileMode = 0444
+-	// DefaultUmask is the working umask in isula-builder
+-	DefaultUmask = 0027
++	// DefaultUmask is the working umask of isula-builder as a process, not for users
++	DefaultUmask = 0022
+ 	// CliLogBufferLen is log channel buffer size
+ 	CliLogBufferLen = 8
+ 	// HostsFilePath is the path of file hosts
+-- 
+2.17.1
+

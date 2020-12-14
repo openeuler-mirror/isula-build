@@ -66,16 +66,23 @@ case ${input} in
         ;;
 esac
 
+author=$(git config user.name)
+email=$(git config user.email)
 
 # VERSION format:
 # Major.Minor.Revision
 new_version=${major_old_version}.${minor_old_version}.${revision_old_version}
 new_release="${new_release_num}"
 new_all=${new_version}-${new_release_num}
+new_changelog=$(cat << EOF
+* $(date '+%a %b %d %Y') $author <$email> - $new_all\n- Type:\n- CVE:\n- SUG:\n- DESC:\n
+EOF
+)
 
 # Replace version and release for spec and VERSION files
 sed -i -e "s/^Version: .*$/Version: ${new_version}/g" "${spec_file}"
 sed -i -e "s/^Release: .*$/Release: ${new_release}/g" "${spec_file}"
+sed -i -e "/\%changelog/a$new_changelog" "${spec_file}"
 echo "${new_all}" > "${version_file}"
 
 if [[ "${old_all}" != "${new_all}" ]]; then
