@@ -22,6 +22,7 @@ import (
 	"os"
 	"path"
 	"runtime"
+	"strconv"
 	"strings"
 	"time"
 
@@ -55,6 +56,7 @@ type PrepareImageOptions struct {
 	FromImage     string
 	Store         *store.Store
 	Reporter      io.Writer
+	ManifestIndex int
 }
 
 // ContainerDescribe describes the contents for container
@@ -142,20 +144,28 @@ func PullAndGetImageInfo(opt *PrepareImageOptions) (types.ImageReference, *stora
 
 	// record the last pull error
 	var errPull error
-	const tagSeparator = "://"
 	for _, strImage := range candidates {
-		if transport != util.DefaultTransport {
-			transport += tagSeparator
+		var (
+			srcRef    types.ImageReference
+			imageName string
+			pErr      error
+		)
+
+		if transport == util.DockerArchiveTransport {
+			imageName = transport + ":" + strImage
+			srcRef, pErr = alltransports.ParseImageName(imageName + ":@" + strconv.Itoa(opt.ManifestIndex))
+		} else {
+			imageName = transport + strImage
+			srcRef, pErr = alltransports.ParseImageName(imageName)
 		}
-		srcRef, err := alltransports.ParseImageName(transport + strImage)
-		if err != nil {
-			pLog.Debugf("Failed to parse the image %q: %v", transport+strImage, err)
+		if pErr != nil {
+			pLog.Debugf("Failed to parse the image %q: %v", imageName, pErr)
 			continue
 		}
 
 		destImage, err := getLocalImageNameFromRef(opt.Store, srcRef)
 		if err != nil {
-			pLog.Debugf("Failed to get local image name for %q: %v", transport+strImage, err)
+			pLog.Debugf("Failed to get local image name for %q: %v", imageName, err)
 			continue
 		}
 
@@ -183,7 +193,7 @@ func PullAndGetImageInfo(opt *PrepareImageOptions) (types.ImageReference, *stora
 		})
 		if err != nil {
 			errPull = err
-			pLog.Debugf("Failed to pull image %q: %v", transport+strImage, err)
+			pLog.Debugf("Failed to pull image %q: %v", imageName, err)
 			continue
 		}
 		pulledImg, err := is.Transport.GetStoreImage(opt.Store, pulledRef)
@@ -242,7 +252,7 @@ func getLocalImageNameFromRef(store storage.Store, srcRef types.ImageReference) 
 		return "", errors.Errorf("reference to image is empty")
 	}
 
-	if srcRef.Transport().Name() == "docker-archive" {
+	if srcRef.Transport().Name() == util.DockerArchiveTransport {
 		return stringid.GenerateRandomID() + ":" + stringid.GenerateRandomID(), nil
 	}
 
@@ -575,7 +585,7 @@ func tryResolveNameWithTransport(name string) (string, string) {
 				// trim prefix if dest like docker://registry.example.com format
 				dest := strings.TrimPrefix(splits[1], "//")
 				return dest, trans.Name()
-			case "docker-archive":
+			case util.DockerArchiveTransport:
 				dest := strings.TrimSpace(splits[1])
 				return dest, trans.Name()
 			}
