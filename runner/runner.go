@@ -23,14 +23,15 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
-	"sync"
 	"syscall"
+	"time"
 
 	"github.com/containerd/go-runc"
 	"github.com/containers/storage/pkg/ioutils"
 	"github.com/opencontainers/runtime-spec/specs-go"
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
+	"golang.org/x/sync/errgroup"
 	"golang.org/x/sys/unix"
 
 	constant "isula.org/isula-build"
@@ -124,7 +125,12 @@ func (r *OCIRunner) Run() error {
 	return nil
 }
 
-func (r *OCIRunner) runContainer() (wstatus unix.WaitStatus, err error) { // nolint:gocyclo
+func (r *OCIRunner) runContainer() (unix.WaitStatus, error) { // nolint:gocyclo
+	var (
+		pid     int
+		wstatus unix.WaitStatus
+	)
+
 	pLog := logrus.WithField(util.LogKeySessionID, r.ctx.Value(util.LogFieldKey(util.LogKeySessionID)))
 	containerName := filepath.Base(r.bundlePath)
 	pidFile := filepath.Join(r.bundlePath, "pid")
@@ -135,63 +141,77 @@ func (r *OCIRunner) runContainer() (wstatus unix.WaitStatus, err error) { // nol
 		NoPivot: r.noPivot,
 	}
 
-	pLog.Debugf("Running container: %v", containerName)
-	if _, err = r.runtime.Run(r.ctx, containerName, r.bundlePath, &createOpts); err != nil {
-		return 1, errors.Errorf("error running container: %v", err)
-	}
-
 	defer func() {
-		if deleteErr := r.runtime.Delete(context.Background(), containerName, nil); deleteErr != nil {
-			err = errors.Errorf("error deleting container, delete err: %v, other err: %v", deleteErr, err)
-		}
-	}()
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
 
-	// read the container's exit status when it exits.
-	pid, err := readPid(pidFile)
-	if err != nil {
-		return 1, err
-	}
-	var reaping sync.WaitGroup
-	reaping.Add(1) // nolint:gomnd
-	go func() {
-		var werr error
-		defer reaping.Done()
-		wstatus, werr = waitPid(pid)
-		if werr != nil {
-			pLog.Errorf("Error waiting for process %d, wstatus: %v, err: %v", pid, wstatus, werr)
-		}
-	}()
-
-	stopped := false
-	defer func() {
-		if !stopped {
-			if killErr := r.runtime.Kill(context.Background(), containerName, int(syscall.SIGKILL), nil); killErr != nil {
-				err = errors.Errorf("error killing container, kill err: %v, other err: %v", killErr, err)
+		stateOutput, stateErr := r.runtime.State(ctx, containerName)
+		if stateErr == nil && stateOutput.Status != "stopped" {
+			killErr := r.runtime.Kill(ctx, containerName, int(syscall.SIGKILL), nil)
+			if killErr != nil {
+				if pid > 1 {
+					killErr = unix.Kill(pid, syscall.SIGKILL)
+				}
+				pLog.Warnf("Kill container %v error: %v", containerName, killErr)
 			}
 		}
+
+		if deleteErr := r.runtime.Delete(ctx, containerName, nil); deleteErr != nil {
+			pLog.Warnf("Delete container %v error: %v,", containerName, deleteErr)
+		}
 	}()
 
-	for {
-		stateOutput, stateErr := r.runtime.State(r.ctx, containerName)
-		if stateErr != nil {
-			return 1, errors.Errorf("reading container state err: %v", stateErr)
+	eg, _ := errgroup.WithContext(r.ctx)
+	eg.Go(func() error {
+		pLog.Debugf("Running container: %v", containerName)
+		if _, err := r.runtime.Run(r.ctx, containerName, r.bundlePath, &createOpts); err != nil {
+			return errors.Wrap(err, "error running container")
 		}
-		switch stateOutput.Status {
-		case "running":
-		case "stopped":
-			stopped = true
-		default:
-			return 1, errors.Errorf("container status unexpectedly changed to %q", stateOutput.Status)
+
+		return nil
+	})
+
+	// read the container's exit status when it exits.
+	eg.Go(func() error {
+		var rErr, wErr error
+		pidGetWaitDuration, pidGetWaitTimes := 100*time.Millisecond, 100
+		for i := 0; i < pidGetWaitTimes; i++ {
+			if pid, rErr = readPid(pidFile); rErr == nil {
+				break
+			}
+			time.Sleep(pidGetWaitDuration)
 		}
-		if stopped {
-			break
+		if rErr != nil {
+			return errors.New("timeout to get container init process pid")
+		}
+
+		if wstatus, wErr = waitPid(pid); wErr != nil {
+			pLog.Errorf("Error waiting for process %d, wstatus: %v, err: %v", pid, wstatus, wErr)
+		}
+
+		return nil
+	})
+
+	errC := make(chan error, 1)
+	go func() {
+		defer close(errC)
+		errC <- eg.Wait()
+	}()
+
+	select {
+	case <-r.ctx.Done():
+		return 1, errors.Wrap(r.ctx.Err(), "context finished")
+	case err, ok := <-errC:
+		if !ok {
+			pLog.Info("Channel errC closed")
+			return 1, nil
+		}
+		if err != nil {
+			return 1, err
 		}
 	}
 
-	// wait until reading the exit status
-	reaping.Wait()
-
-	return wstatus, err
+	return wstatus, nil
 }
 
 func readPid(pidFilePath string) (int, error) {
