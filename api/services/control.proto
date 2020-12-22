@@ -48,6 +48,12 @@ service Control {
     rpc Save(SaveRequest) returns (stream SaveResponse);
     // Info requests isula-build system information
     rpc Info(InfoRequest) returns (InfoResponse);
+    // ManifestCreate requests to create manifest list
+    rpc ManifestCreate(ManifestCreateRequest) returns (ManifestCreateResponse);
+    // ManifestAnnotate requests to annotate manifest list
+    rpc ManifestAnnotate(ManifestAnnotateRequest) returns (google.protobuf.Empty);
+    // ManifestInspect requests to inspect manifest list
+    rpc ManifestInspect(ManifestInspectRequest) returns (ManifestInspectResponse);
 }
 
 message BuildRequest {
@@ -319,3 +325,28 @@ message InfoResponse {
     MemStat memStat = 9;
 }
 
+message ManifestCreateRequest {
+    string manifestList = 1;
+    repeated string manifests = 2;
+}
+
+message ManifestCreateResponse {
+    string imageID = 1;
+}
+
+message ManifestAnnotateRequest {
+    string manifestList = 1;
+    string manifest = 2;
+    string arch = 3;
+    string os = 4;
+    repeated string osFeatures = 5;
+    string variant = 6;
+}
+
+message ManifestInspectRequest {
+    string manifestList = 1;
+}
+
+message ManifestInspectResponse {
+    bytes data = 1;
+}

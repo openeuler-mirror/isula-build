@@ -42,6 +42,7 @@ const dataRootTmpDirPrefix = "tmp"
 // Options carries the options configured to daemon
 type Options struct {
 	Debug         bool
+	Experimental  bool
 	Group         string
 	LogLevel      string
 	DataRoot      string
