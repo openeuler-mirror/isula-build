@@ -99,7 +99,7 @@ func (r *mockFailRunc) Run(context context.Context, id, bundle string, opts *run
 	if err := ioutil.WriteFile(bundle+"/pid", []byte(pid), constant.DefaultSharedFileMode); err != nil {
 		return 1, errors.New("write pid to file failed")
 	}
-	return 0, nil
+	return 1, errors.New("run error")
 }
 
 func (r *mockFailRunc) Kill(context context.Context, id string, sig int, opts *runc.KillOpts) error {
@@ -174,6 +174,40 @@ func TestRunOCIRuntimeSucceed(t *testing.T) {
 	assert.NilError(t, err)
 }
 
+func TestRunOCIRuntimeContextCancel(t *testing.T) {
+	runtime := &mockRunc{
+		Command:       "",
+		Root:          "",
+		Debug:         false,
+		Log:           "",
+		LogFormat:     "",
+		PdeathSignal:  0,
+		Setpgid:       false,
+		Criu:          "",
+		SystemdCgroup: false,
+		Rootless:      nil,
+	}
+
+	tmpDir := fs.NewDir(t, t.Name())
+	defer tmpDir.Remove()
+	bundlePath := tmpDir.Path()
+	cliLog := logger.NewCliLogger(constant.CliLogBufferLen)
+	spec := &specs.Spec{}
+
+	ctx, _ := context.WithTimeout(context.Background(), 500*time.Millisecond)
+	runner := NewOCIRunner(&OCIRunOpts{
+		Ctx:         ctx,
+		Spec:        spec,
+		RuntimePath: "",
+		BundlePath:  bundlePath,
+		NoPivot:     false,
+		Output:      cliLog,
+	})
+	runner.runtime = runtime
+	_, err := runner.runContainer()
+	assert.ErrorContains(t, err, "context finished")
+}
+
 func TestRunOCIRuntimeFailed(t *testing.T) {
 	runtime := &mockFailRunc{
 		Command:       "",
@@ -204,7 +238,7 @@ func TestRunOCIRuntimeFailed(t *testing.T) {
 	})
 	runner.runtime = runtime
 	_, err := runner.runContainer()
-	assert.ErrorContains(t, err, "reading container state err")
+	assert.ErrorContains(t, err, "run error")
 }
 
 func TestReadPidFail(t *testing.T) {
