@@ -17,9 +17,13 @@ package daemon
 import (
 	"sync"
 
+	"github.com/containers/image/v5/transports/alltransports"
 	"github.com/containers/image/v5/types"
+	"github.com/pkg/errors"
 
 	"isula.org/isula-build/exporter"
+	"isula.org/isula-build/image"
+	"isula.org/isula-build/store"
 )
 
 func init() {
@@ -39,13 +43,29 @@ func (d *dockerDaemonExporter) Name() string {
 	return "docker-daemon"
 }
 
-func (d *dockerDaemonExporter) Init(exportID string, src, dest types.ImageReference) {
+func (d *dockerDaemonExporter) Init(opts exporter.ExportOptions, src, destSpec string, localStore *store.Store) error {
+	srcReference, _, err := image.FindImage(localStore, src)
+	if err != nil {
+		return errors.Errorf("find src image: %q failed, got error: %v", src, err)
+	}
+
+	destReference, err := alltransports.ParseImageName(destSpec)
+	if err != nil {
+		return errors.Errorf("parse dest spec: %q failed, got error: %v", destSpec, err)
+	}
+
+	if err != nil {
+		return errors.Errorf("parse dest spec: %q failed, got error: %v", destSpec, err)
+	}
+
 	d.Lock()
-	d.items[exportID] = exporter.Bus{
-		SrcRef:  src,
-		DestRef: dest,
+	d.items[opts.ExportID] = exporter.Bus{
+		SrcRef:  srcReference,
+		DestRef: destReference,
 	}
 	d.Unlock()
+
+	return nil
 }
 
 func (d *dockerDaemonExporter) GetSrcRef(exportID string) types.ImageReference {

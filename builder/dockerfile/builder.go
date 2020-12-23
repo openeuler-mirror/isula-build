@@ -37,6 +37,7 @@ import (
 	pb "isula.org/isula-build/api/services"
 	dockerfile "isula.org/isula-build/builder/dockerfile/parser"
 	"isula.org/isula-build/exporter"
+	savedocker "isula.org/isula-build/exporter/docker/archive"
 	"isula.org/isula-build/image"
 	"isula.org/isula-build/pkg/logger"
 	"isula.org/isula-build/pkg/parser"
@@ -468,6 +469,15 @@ func (b *Builder) cleanup() {
 
 func (b *Builder) export(imageID string) error {
 	exportTimer := b.cliLog.StartTimer("EXPORT")
+	defer func() {
+		if savedocker.DockerArchiveExporter.GetArchiveWriter(b.buildID) != nil {
+			if cErr := savedocker.DockerArchiveExporter.GetArchiveWriter(b.buildID).Close(); cErr != nil {
+				b.Logger().Errorf("Close archive writer failed: %v", cErr)
+			}
+			savedocker.DockerArchiveExporter.RemoveArchiveWriter(b.buildID)
+		}
+	}()
+
 	if err := b.applyTag(imageID); err != nil {
 		return err
 	}
@@ -486,6 +496,7 @@ func (b *Builder) export(imageID string) error {
 			retErr = exErr
 			continue
 		}
+
 		b.Logger().Infof("Image %s output to %s completed", imageID, o)
 	}
 	b.cliLog.StopTimer(exportTimer)

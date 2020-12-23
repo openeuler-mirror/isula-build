@@ -15,36 +15,125 @@
 package archive
 
 import (
+	"strings"
 	"sync"
 
+	"github.com/containers/image/v5/docker/archive"
+	"github.com/containers/image/v5/transports/alltransports"
 	"github.com/containers/image/v5/types"
+	"github.com/docker/distribution/reference"
+	"github.com/pkg/errors"
+	"github.com/sirupsen/logrus"
 
 	"isula.org/isula-build/exporter"
+	"isula.org/isula-build/image"
+	"isula.org/isula-build/store"
 )
 
 func init() {
-	exporter.Register(&_dockerArchiveExporter)
+	exporter.Register(&DockerArchiveExporter)
 }
 
 type dockerArchiveExporter struct {
-	items map[string]exporter.Bus
+	itemsArchiveWriter map[string]*archive.Writer
+	items              map[string]exporter.Bus
 	sync.RWMutex
 }
 
-var _dockerArchiveExporter = dockerArchiveExporter{
-	items: make(map[string]exporter.Bus),
+// DockerArchiveExporter for exporting images in local store to tarball
+var DockerArchiveExporter = dockerArchiveExporter{
+	items:              make(map[string]exporter.Bus),
+	itemsArchiveWriter: make(map[string]*archive.Writer),
 }
 
 func (d *dockerArchiveExporter) Name() string {
 	return "docker-archive"
 }
 
-func (d *dockerArchiveExporter) Init(exportID string, src, dest types.ImageReference) {
-	d.Lock()
-	d.items[exportID] = exporter.Bus{
-		SrcRef:  src,
-		DestRef: dest,
+func (d *dockerArchiveExporter) Init(opts exporter.ExportOptions, src, destSpec string, localStore *store.Store) error {
+	var (
+		srcReference  types.ImageReference
+		destReference types.ImageReference
+		err           error
+	)
+	const partsNum = 2
+	// src could be form of ImageID digest or name[:tag]
+	// destSpec could be "file:name:tag" or "file:name" or just "file" with transport "docker-archive", such as docker-archive:output.tar:name:tag
+	// When more than two parts, build must be called
+	if parts := strings.Split(destSpec, ":"); len(parts) > partsNum {
+		srcReference, _, err = image.FindImageLocally(localStore, src)
+		if err != nil {
+			return errors.Errorf("find src image: %q failed, got error: %v", src, err)
+		}
+		destReference, err = alltransports.ParseImageName(destSpec)
+		if err != nil {
+			return errors.Errorf("parse dest spec: %q failed, got error: %v", destSpec, err)
+		}
+		d.Lock()
+		d.items[opts.ExportID] = exporter.Bus{
+			SrcRef:  srcReference,
+			DestRef: destReference,
+		}
+		d.Unlock()
+
+		return nil
 	}
+
+	// from build or save, we can get path from the other part
+	archiveFilePath := strings.SplitN(destSpec, ":", partsNum)[1]
+
+	if DockerArchiveExporter.GetArchiveWriter(opts.ExportID) == nil {
+		archWriter, wErr := archive.NewWriter(opts.SystemContext, archiveFilePath)
+		if wErr != nil {
+			return errors.Errorf("create archive writer failed: %v", wErr)
+		}
+		DockerArchiveExporter.InitArchiveWriter(opts.ExportID, archWriter)
+	}
+
+	// There is a slightly difference between FindImageLocally and ParseImagesToReference to get a reference.
+	// FindImageLocally or FindImage, both result a reference with a nil named field of *storageReference.
+	// ParseImagesToReference returns a reference with non-nil named field of *storageReference that used to set destReference, if names is the format of name[:tag] with and without repository domain.
+
+	// If using  srcReferenceForDest to replace srcReference, When src is the format of name[:tag] without a registry domain name,
+	// in which time, cp.Image() will be called and new image source will call imageMatchesRepo() to check If image matches repository or not.
+	// ParseNormalizedNamed will finally called to add default docker.io/library/ prefix to name[:tag], return false result of the checking.
+	// As a result, we will get error of no image matching reference found.
+	srcReference, _, err = image.FindImageLocally(localStore, src)
+	if err != nil {
+		return errors.Errorf("find src image: %q failed, got error: %v", src, err)
+	}
+
+	imageReferenceForDest, _, err := image.ParseImagesToReference(localStore, []string{src})
+	if err != nil {
+		return errors.Errorf("parse image: %q to reference failed, got error: %v", src, err)
+	}
+	archiveWriter := DockerArchiveExporter.GetArchiveWriter(opts.ExportID)
+	nameAndTag, ok := imageReferenceForDest.DockerReference().(reference.NamedTagged)
+	// src is the format of ImageID, ok is false
+	if ok {
+		destReference, err = archiveWriter.NewReference(nameAndTag)
+	} else {
+		logrus.Infof("Transform image reference failed, use nil instead")
+		destReference, err = archiveWriter.NewReference(nil)
+	}
+	if err != nil {
+		return errors.Errorf("parse dest spec: %q failed, got error: %v", destSpec, err)
+	}
+
+	d.Lock()
+	d.items[opts.ExportID] = exporter.Bus{
+		SrcRef:  srcReference,
+		DestRef: destReference,
+	}
+	d.Unlock()
+
+	return nil
+}
+func (d *dockerArchiveExporter) InitArchiveWriter(exportID string, writer *archive.Writer) {
+	d.Lock()
+
+	d.itemsArchiveWriter[exportID] = writer
+
 	d.Unlock()
 }
 
@@ -70,8 +159,25 @@ func (d *dockerArchiveExporter) GetDestRef(exportID string) types.ImageReference
 	return nil
 }
 
+func (d *dockerArchiveExporter) GetArchiveWriter(exportID string) *archive.Writer {
+	d.RLock()
+	defer d.RUnlock()
+
+	if _, ok := d.itemsArchiveWriter[exportID]; ok {
+		return d.itemsArchiveWriter[exportID]
+	}
+
+	return nil
+}
+
 func (d *dockerArchiveExporter) Remove(exportID string) {
 	d.Lock()
 	delete(d.items, exportID)
+	d.Unlock()
+}
+
+func (d *dockerArchiveExporter) RemoveArchiveWriter(exportID string) {
+	d.Lock()
+	delete(d.itemsArchiveWriter, exportID)
 	d.Unlock()
 }
