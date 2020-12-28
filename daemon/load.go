@@ -56,33 +56,39 @@ func (b *Backend) Load(req *pb.LoadRequest, stream pb.Control_LoadServer) error 
 
 	eg.Go(func() error {
 		defer log.CloseContent()
-		_, si, err = image.ResolveFromImage(&image.PrepareImageOptions{
-			Ctx:           ctx,
-			FromImage:     "docker-archive:" + req.Path,
-			SystemContext: image.GetSystemContext(),
-			Store:         b.daemon.localStore,
-			Reporter:      log,
-		})
-		if err != nil {
-			return err
+
+		for index, nameAndTag := range repoTags {
+			_, si, err = image.ResolveFromImage(&image.PrepareImageOptions{
+				Ctx:           ctx,
+				FromImage:     "docker-archive:" + req.Path,
+				SystemContext: image.GetSystemContext(),
+				Store:         b.daemon.localStore,
+				Reporter:      log,
+				ManifestIndex: index,
+			})
+			if err != nil {
+				return err
+			}
+
+			if sErr := b.daemon.localStore.SetNames(si.ID, nameAndTag); sErr != nil {
+				return sErr
+			}
+
+			log.Print("Loaded image as %s\n", si.ID)
 		}
 
-		if serr := b.daemon.localStore.SetNames(si.ID, repoTags); serr != nil {
-			return serr
-		}
-		log.Print("Loaded image as %s\n", si.ID)
 		return nil
 	})
 
-	if werr := eg.Wait(); werr != nil {
-		return werr
+	if wErr := eg.Wait(); wErr != nil {
+		return wErr
 	}
 	logrus.Infof("Loaded image as %s", si.ID)
 
 	return nil
 }
 
-func getRepoTagFromImageTar(dataRoot, path string) ([]string, error) {
+func getRepoTagFromImageTar(dataRoot, path string) ([][]string, error) {
 	// tmp dir will be removed after NewSourceFromFileWithContext
 	tmpDir, err := securejoin.SecureJoin(dataRoot, dataRootTmpDirPrefix)
 	if err != nil {
@@ -101,5 +107,10 @@ func getRepoTagFromImageTar(dataRoot, path string) ([]string, error) {
 		return nil, errors.Errorf("failed to get the top level image manifest: %v", err)
 	}
 
-	return topLevelImageManifest[0].RepoTags, nil
+	var allRepoTags [][]string
+	for _, manifestItem := range topLevelImageManifest {
+		allRepoTags = append(allRepoTags, manifestItem.RepoTags)
+	}
+
+	return allRepoTags, nil
 }

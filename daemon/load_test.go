@@ -25,6 +25,7 @@ import (
 	"google.golang.org/grpc"
 	"gotest.tools/assert"
 	"gotest.tools/fs"
+
 	pb "isula.org/isula-build/api/services"
 	"isula.org/isula-build/store"
 )
@@ -87,12 +88,8 @@ func prepareLoadTar(dir *fs.Dir) error {
 
 }
 
-func prepareForLoad(t *testing.T) *fs.Dir {
-	dockerfile := `[{"Config":"76a4dd2d5d6a18323ac8d90f959c3c8562bf592e2a559bab9b462ab600e9e5fc.json",
-	"RepoTags":["hello:latest"],
-	"Layers":["6eb4c21cc3fcb729a9df230ae522c1d3708ca66e5cf531713dbfa679837aa287.tar",
-	"37841116ad3b1eeea972c75ab8bad05f48f721a7431924bc547fc91c9076c1c8.tar"]}]`
-	tmpDir := fs.NewDir(t, t.Name(), fs.WithFile("manifest.json", dockerfile))
+func prepareForLoad(t *testing.T, manifest string) *fs.Dir {
+	tmpDir := fs.NewDir(t, t.Name(), fs.WithFile("manifest.json", manifest))
 	if err := prepareLoadTar(tmpDir); err != nil {
 		tmpDir.Remove()
 		return nil
@@ -123,14 +120,78 @@ func clean(dir *fs.Dir) {
 }
 
 func TestLoad(t *testing.T) {
-	dir := prepareForLoad(t)
+	manifestJson :=
+		`[
+			{
+				"Config":"76a4dd2d5d6a18323ac8d90f959c3c8562bf592e2a559bab9b462ab600e9e5fc.json",
+				"RepoTags":[
+					"hello:latest"
+				],
+				"Layers":[
+					"6eb4c21cc3fcb729a9df230ae522c1d3708ca66e5cf531713dbfa679837aa287.tar",
+					"37841116ad3b1eeea972c75ab8bad05f48f721a7431924bc547fc91c9076c1c8.tar"
+				]
+			}
+		]`
+	dir := prepareForLoad(t, manifestJson)
 	assert.Equal(t, dir != nil, true)
 	defer clean(dir)
 
 	path := dir.Join("load.tar")
 	repoTags, err := getRepoTagFromImageTar(daemon.opts.DataRoot, path)
 	assert.NilError(t, err)
-	assert.Equal(t, repoTags[0], "hello:latest")
+	assert.Equal(t, repoTags[0][0], "hello:latest")
+
+	req := &pb.LoadRequest{Path: path}
+	stream := &controlLoadServer{}
+
+	err = daemon.backend.Load(req, stream)
+	assert.ErrorContains(t, err, "failed to get the image")
+}
+
+func TestLoadMultipleImages(t *testing.T) {
+	manifestJson :=
+		`[
+			{
+				"Config": "e4db68de4ff27c2adfea0c54bbb73a61a42f5b667c326de4d7d5b19ab71c6a3b.json",
+				"RepoTags": [
+				"registry.example.com/sayhello:first"
+				],
+				"Layers": [
+				"6194458b07fcf01f1483d96cd6c34302ffff7f382bb151a6d023c4e80ba3050a.tar"
+				]
+			},
+			{
+				"Config": "c07ddb44daa97e9e8d2d68316b296cc9343ab5f3d2babc5e6e03b80cd580478e.json",
+				"RepoTags": [
+				"registry.example.com/sayhello:second",
+				"registry.example.com/sayhello:third"
+				],
+				"Layers": [
+				"e7ebc6e16708285bee3917ae12bf8d172ee0d7684a7830751ab9a1c070e7a125.tar"
+				]
+			},
+			{
+				"Config": "f643c72bc25212974c16f3348b3a898b1ec1eb13ec1539e10a103e6e217eb2f1.json",
+				"RepoTags": [],
+				"Layers": [
+				  "bacd3af13903e13a43fe87b6944acd1ff21024132aad6e74b4452d984fb1a99a.tar",
+				  "9069f84dbbe96d4c50a656a05bbe6b6892722b0d1116a8f7fd9d274f4e991bf6.tar",
+				  "f6253634dc78da2f2e3bee9c8063593f880dc35d701307f30f65553e0f50c18c.tar"
+				]
+			}
+		]`
+	dir := prepareForLoad(t, manifestJson)
+	assert.Equal(t, dir != nil, true)
+	defer clean(dir)
+
+	path := dir.Join("load.tar")
+	repoTags, err := getRepoTagFromImageTar(daemon.opts.DataRoot, path)
+	assert.NilError(t, err)
+	assert.Equal(t, repoTags[0][0], "registry.example.com/sayhello:first")
+	assert.Equal(t, repoTags[1][0], "registry.example.com/sayhello:second")
+	assert.Equal(t, repoTags[1][1], "registry.example.com/sayhello:third")
+	assert.Equal(t, len(repoTags[2]), 0)
 
 	req := &pb.LoadRequest{Path: path}
 	stream := &controlLoadServer{}

@@ -50,6 +50,9 @@ const (
 	// DefaultTransport is default transport
 	DefaultTransport = "docker://"
 
+	// DockerArchiveTransport is default transport for docker archive file
+	DockerArchiveTransport = "docker-archive"
+
 	// LogKeySessionID describes the key field with sessionID for logrus
 	LogKeySessionID = "sessionID"
 
