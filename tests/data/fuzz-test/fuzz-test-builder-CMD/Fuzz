@@ -1,0 +1,108 @@
+// Copyright (c) Huawei Technologies Co., Ltd. 2020. All rights reserved.
+// isula-build licensed under the Mulan PSL v2.
+// You can use this software according to the terms and conditions of the Mulan PSL v2.
+// You may obtain a copy of Mulan PSL v2 at:
+//     http://license.coscl.org.cn/MulanPSL2
+// THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER EXPRESS OR
+// IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY OR FIT FOR A PARTICULAR
+// PURPOSE.
+// See the Mulan PSL v2 for more details.
+// Author: Xiang Li
+// Create: 2020-8-29
+// Description: Fuzz each line for command
+
+package dockerfile
+
+import (
+	"bytes"
+	"context"
+	"io/ioutil"
+	"os"
+
+	"github.com/containers/image/v5/pkg/strslice"
+	"github.com/containers/storage/pkg/reexec"
+
+	constant "isula.org/isula-build"
+	"isula.org/isula-build/image"
+	"isula.org/isula-build/pkg/docker"
+	"isula.org/isula-build/pkg/logger"
+	"isula.org/isula-build/pkg/parser"
+	"isula.org/isula-build/store"
+)
+
+func init() {
+	reexec.Init()
+}
+
+func generateStage(content string) (*parser.Page, error) {
+	p, err := parser.NewParser(parser.DefaultParser)
+	if err != nil {
+		return nil, err
+	}
+	playbook, err := p.Parse(bytes.NewReader([]byte(content)), false)
+	if err != nil {
+		return nil, err
+	}
+
+	return playbook.Pages[0], nil
+}
+
+func Fuzz(data []byte) int {
+	prefix := []byte("FROM alpine\nCMD")
+	data = append(prefix, data...)
+
+	config := &docker.Image{V1Image: docker.V1Image{Config: &docker.Config{}}}
+	dir, err := ioutil.TempDir("/tmp", "fuzzExecutor")
+	if err != nil {
+		return 0
+	}
+	defer os.RemoveAll(dir)
+
+	rawStage, err := generateStage(string(data))
+	if err != nil {
+		return 0
+	}
+	lst, err := store.GetStore()
+	if err != nil {
+		return 0
+	}
+	s := &stageBuilder{
+		builder: &Builder{
+			buildOpts: BuildOptions{
+				BuildArgs:  make(map[string]string),
+				ContextDir: dir,
+			},
+			reservedArgs: make(map[string]string),
+			cliLog:       logger.NewCliLogger(constant.CliLogBufferLen),
+			ctx:          context.Background(),
+		},
+		mountpoint: dir,
+		env:        make(map[string]string),
+		rawStage:   rawStage,
+		docker:     config,
+		shellForm:  strslice.StrSlice{"/bin/sh", "-c"},
+		buildOpt:   &stageBuilderOption{systemContext: image.GetSystemContext()},
+		localStore: &lst,
+	}
+
+	err = s.analyzeStage(context.Background())
+	if err != nil {
+		return 0
+	}
+
+	// to release pipe :-)
+	go func() {
+		for {
+			<-s.builder.cliLog.GetContent()
+		}
+	}()
+
+	for _, cmd := range s.commands {
+		err = cmd.cmdExecutor()
+		if err != nil {
+			return 0
+		}
+	}
+
+	return 1
+}

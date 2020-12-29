@@ -11,7 +11,7 @@ function normal() {
     while IFS= read -r testfile; do
         printf "%-45s" "test $(basename "$testfile"): "
         if ! bash "$testfile"; then
-          exit 1
+            exit 1
         fi
     done < <(find "$top_dir"/tests/src -maxdepth 1 -name "test_*" -type f -print)
 
@@ -20,12 +20,16 @@ function normal() {
 
 # go fuzz test
 function fuzz() {
+    failed=0
     while IFS= read -r testfile; do
         printf "%-45s" "test $(basename "$testfile"): "
         if ! bash "$testfile" "$1"; then
-          exit 1
+            failed=1
         fi
-    done < <(find "$top_dir"/tests/src -maxdepth 1 -name "fuzz_*" -type f -print)
+        # delete tmp files to avoid "no space left" problem
+        find /tmp -maxdepth 1 -iname "*fuzz*" -exec rm -rf {} \;
+    done < <(find "$top_dir"/tests/src -maxdepth 1 -name "fuzz_*.sh" -type f -print)
+    exit $failed
 }
 
 # main function to chose which kind of test

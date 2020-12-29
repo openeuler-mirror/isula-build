@@ -1,0 +1,1 @@
+ test -e /etc/nsswitch.conf || echo 'hosts: files dns' > /etc/nsswitch.conf

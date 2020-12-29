@@ -1,0 +1,1 @@
+ 20-envsubst-on-templates.sh /docker-entrypoint.d
