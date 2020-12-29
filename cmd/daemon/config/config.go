@@ -16,10 +16,11 @@ package config
 
 // TomlConfig defines the configuration of isula-builder
 type TomlConfig struct {
-	Debug    bool   `toml:"debug"`
-	Group    string `toml:"group"`
-	LogLevel string `toml:"loglevel"`
-	Runtime  string `toml:"runtime"`
-	RunRoot  string `toml:"run_root"`
-	DataRoot string `toml:"data_root"`
+	Debug        bool   `toml:"debug"`
+	Experimental bool   `toml:"experimental"`
+	Group        string `toml:"group"`
+	LogLevel     string `toml:"loglevel"`
+	Runtime      string `toml:"runtime"`
+	RunRoot      string `toml:"run_root"`
+	DataRoot     string `toml:"data_root"`
 }

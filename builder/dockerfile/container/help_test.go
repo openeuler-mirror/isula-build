@@ -135,7 +135,7 @@ func TestCreateConfigsAndManifests(t *testing.T) {
 
 	assert.DeepEqual(t, dmanifest, docker.Manifest{
 		Versioned: docker.Versioned{
-			SchemaVersion: schemaVersion,
+			SchemaVersion: SchemaVersion,
 			MediaType:     "application/vnd.docker.distribution.manifest.v2+json",
 		},
 		Config: docker.Descriptor{

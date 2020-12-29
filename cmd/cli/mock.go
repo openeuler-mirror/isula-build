@@ -223,6 +223,24 @@ func (gcli *mockGrpcClient) Pull(ctx context.Context, in *pb.PullRequest, opts .
 	return &mockPullClient{}, nil
 }
 
+func (gcli *mockGrpcClient) ManifestCreate(ctx context.Context, in *pb.ManifestCreateRequest, opts ...grpc.CallOption) (*pb.ManifestCreateResponse, error) {
+	resp := &pb.ManifestCreateResponse{
+		ImageID: "abc123",
+	}
+	return resp, nil
+}
+
+func (gcli *mockGrpcClient) ManifestAnnotate(ctx context.Context, in *pb.ManifestAnnotateRequest, opts ...grpc.CallOption) (*types.Empty, error) {
+	return &types.Empty{}, nil
+}
+
+func (gcli *mockGrpcClient) ManifestInspect(ctx context.Context, in *pb.ManifestInspectRequest, opts ...grpc.CallOption) (*pb.ManifestInspectResponse, error) {
+	resp := &pb.ManifestInspectResponse{
+		Data: []byte(`{"schemaVersion": 2}`),
+	}
+	return resp, nil
+}
+
 func (gcli *mockGrpcClient) Load(ctx context.Context, in *pb.LoadRequest, opts ...grpc.CallOption) (pb.Control_LoadClient, error) {
 	if gcli.loadFunc != nil {
 		return gcli.loadFunc(ctx, in, opts...)

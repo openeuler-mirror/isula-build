@@ -32,7 +32,8 @@ import (
 )
 
 const (
-	schemaVersion = 2
+	// SchemaVersion is the image manifest schema
+	SchemaVersion = 2
 )
 
 // create configs and manifests aimed to can edit without making unintended changes
@@ -55,7 +56,7 @@ func (ref *Reference) createConfigsAndManifests() (docker.Image, docker.Manifest
 	// 2. manifest
 	dmanifest := docker.Manifest{
 		Versioned: docker.Versioned{
-			SchemaVersion: schemaVersion,
+			SchemaVersion: SchemaVersion,
 			MediaType:     mimetypes.DockerV2Schema2MediaType,
 		},
 		Config: docker.Descriptor{

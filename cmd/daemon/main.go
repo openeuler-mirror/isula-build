@@ -18,7 +18,6 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
-	"strconv"
 
 	"github.com/BurntSushi/toml"
 	"github.com/containers/storage/pkg/reexec"
@@ -58,6 +57,7 @@ func newDaemonCommand() *cobra.Command {
 		Version:       fmt.Sprintf("%s, build %s", version.Version, version.GitCommit),
 	}
 	rootCmd.PersistentFlags().BoolVarP(&daemonOpts.Debug, "debug", "D", false, "Open debug mode")
+	rootCmd.PersistentFlags().BoolVarP(&daemonOpts.Experimental, "experimental", "", false, "Enable experimental features")
 	rootCmd.PersistentFlags().StringVar(&daemonOpts.DataRoot, "dataroot", constant.DefaultDataRoot, "Persistent dir")
 	rootCmd.PersistentFlags().StringVar(&daemonOpts.RunRoot, "runroot", constant.DefaultRunRoot, "Runtime dir")
 	rootCmd.PersistentFlags().StringVar(&daemonOpts.Group, "group", "isula", "User group for unix socket isula-build.sock")
@@ -250,8 +250,11 @@ func mergeStorageConfig(cmd *cobra.Command) error {
 }
 
 func mergeConfig(conf config.TomlConfig, cmd *cobra.Command) {
-	if strconv.FormatBool(conf.Debug) == "true" && !cmd.Flag("debug").Changed {
+	if conf.Debug && !cmd.Flag("debug").Changed {
 		daemonOpts.Debug = true
+	}
+	if conf.Experimental && !cmd.Flag("experimental").Changed {
+		daemonOpts.Experimental = true
 	}
 	if conf.LogLevel != "" && !cmd.Flag("log-level").Changed {
 		daemonOpts.LogLevel = conf.LogLevel
