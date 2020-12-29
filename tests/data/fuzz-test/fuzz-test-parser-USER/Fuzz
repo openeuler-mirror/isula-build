@@ -1,0 +1,35 @@
+// Copyright (c) Huawei Technologies Co., Ltd. 2020. All rights reserved.
+// isula-build licensed under the Mulan PSL v2.
+// You can use this software according to the terms and conditions of the Mulan PSL v2.
+// You may obtain a copy of Mulan PSL v2 at:
+//     http://license.coscl.org.cn/MulanPSL2
+// THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER EXPRESS OR
+// IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY OR FIT FOR A PARTICULAR
+// PURPOSE.
+// See the Mulan PSL v2 for more details.
+// Author: Xiang Li
+// Create: 2020-8-29
+// Description: Fuzz each command per line for parser
+package dockerfile
+
+import (
+	"bytes"
+
+    "isula.org/isula-build/pkg/parser"
+)
+
+func Fuzz(data []byte) int {
+	p, err := parser.NewParser("")
+	if err != nil {
+		return 0
+	}
+
+    prefix := []byte("FROM alpine\nRUN")
+	data = append(prefix, data...)
+	_, err = p.Parse(bytes.NewReader(data), false)
+	if err != nil {
+		return 0
+	}
+
+	return 1
+}

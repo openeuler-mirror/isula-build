@@ -1,0 +1,1 @@
+ groupadd --system --gid 11211 memcache && useradd --system --gid memcache --uid 11211 memcache

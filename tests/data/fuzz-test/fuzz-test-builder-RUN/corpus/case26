@@ -1,0 +1,1 @@
+ groupadd -r mysql && useradd -r -g mysql mysql

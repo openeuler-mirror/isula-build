@@ -102,4 +102,5 @@ function set_env() {
 
 function clean_env() {
     rm -rf "$fuzz_zip" "$fuzz_crashers" "$fuzz_suppressions"
+    find /tmp -maxdepth 1 -iname "*fuzz*" -exec rm -rf {} \;
 }

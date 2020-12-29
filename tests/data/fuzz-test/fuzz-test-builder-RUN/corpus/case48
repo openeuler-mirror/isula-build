@@ -1,0 +1,1 @@
+ setx /m PATH "%GOPATH%\bin;C:\go\bin;%PATH%"

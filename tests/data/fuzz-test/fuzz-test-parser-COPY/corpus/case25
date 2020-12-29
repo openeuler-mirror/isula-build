@@ -1,0 +1,1 @@
+ modprobe.sh /usr/local/bin/modprobe

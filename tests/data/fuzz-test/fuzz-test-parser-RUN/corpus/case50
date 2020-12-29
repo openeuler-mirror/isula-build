@@ -1,0 +1,1 @@
+ wget --no-verbose https://dl.influxdata.com/influxdb/nightlies/influxdb_nightly_amd64.deb.asc

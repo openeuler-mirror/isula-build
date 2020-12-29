@@ -1,0 +1,1 @@
+ addgroup -g 11211 memcache && adduser -D -u 11211 -G memcache memcache
