@@ -16,19 +16,18 @@ package exporter
 
 import (
 	"context"
-	"fmt"
 	"io"
 	"os"
 	"os/exec"
+	"regexp"
 	"strings"
 
 	cp "github.com/containers/image/v5/copy"
 	"github.com/containers/image/v5/manifest"
 	"github.com/containers/image/v5/signature"
-	"github.com/containers/image/v5/transports/alltransports"
+	"github.com/containers/image/v5/transports"
 	"github.com/containers/image/v5/types"
 	"github.com/containers/storage/pkg/archive"
-	"github.com/containers/storage/pkg/stringid"
 	securejoin "github.com/cyphar/filepath-securejoin"
 	"github.com/docker/distribution/reference"
 	"github.com/opencontainers/go-digest"
@@ -36,7 +35,6 @@ import (
 	"github.com/sirupsen/logrus"
 
 	constant "isula.org/isula-build"
-	"isula.org/isula-build/image"
 	"isula.org/isula-build/store"
 	"isula.org/isula-build/util"
 )
@@ -56,19 +54,19 @@ type ExportOptions struct {
 	ManifestType  string
 }
 
-// Export export an archive to the client
-func Export(src, destSpec string, opts ExportOptions, localStore *store.Store) error {
+// Export exports an image to an output destination
+func Export(imageID, outputDest string, opts ExportOptions, localStore *store.Store) error {
 	eLog := logrus.WithField(util.LogKeySessionID, opts.Ctx.Value(util.LogFieldKey(util.LogKeySessionID)))
-	if destSpec == "" {
+	if outputDest == "" {
 		return nil
 	}
-	epter, isuladTarPath, err := parseExporter(opts, src, destSpec, localStore)
+	epter, err := parseExporter(opts, imageID, outputDest, localStore)
 	if err != nil {
 		return err
 	}
 	defer epter.Remove(opts.ExportID)
 
-	registry, err := util.ParseServer(destSpec)
+	registry, err := util.ParseServer(outputDest)
 	if err != nil {
 		return err
 	}
@@ -79,17 +77,12 @@ func Export(src, destSpec string, opts ExportOptions, localStore *store.Store) e
 
 	ref, digest, err := export(epter, opts)
 	if err != nil {
-		return errors.Errorf("export image from %s to %s failed, got error: %s", src, destSpec, err)
+		return errors.Errorf("export image from %s to %s failed, got error: %s", imageID, outputDest, err)
 	}
 	if ref != nil {
 		eLog.Debugf("Export image with reference %s", ref.Name())
 	}
 	eLog.Infof("Successfully output image with digest %s", digest.String())
-
-	if err := exportToIsulad(opts.Ctx, isuladTarPath); err != nil {
-		eLog.Error(err)
-		return err
-	}
 
 	return nil
 }
@@ -139,6 +132,11 @@ func export(e Exporter, exOpts ExportOptions) (reference.Canonical, digest.Diges
 	if destRef == nil || srcRef == nil {
 		return nil, "", errors.Wrapf(err, "get dest or src reference by export ID %v failed", exOpts.ExportID)
 	}
+
+	if err != nil {
+		return nil, "", errors.Wrapf(err, "Error initializing destination %s", transports.ImageName(destRef))
+	}
+
 	if manifestBytes, err = cp.Image(exOpts.Ctx, policyContext, destRef, srcRef, cpOpts); err != nil {
 		return nil, "", errors.Wrap(err, "copying layers and metadata failed")
 	}
@@ -151,51 +149,37 @@ func export(e Exporter, exOpts ExportOptions) (reference.Canonical, digest.Diges
 			return nil, "", errors.Wrapf(err, "generating canonical reference with name %q and digest %s failed", name, manifestDigest.String())
 		}
 	}
+	if e.Name() == "isulad" {
+		tarPathRegexp := regexp.MustCompile("(.*).tar")
+		tarPath := tarPathRegexp.FindString(e.GetDestRef(exOpts.ExportID).StringWithinTransport())
+		if err := exportToIsulad(exOpts.Ctx, tarPath); err != nil {
+			return nil, "", errors.Wrapf(err, "export to isulad failed")
+		}
+	}
+
 	return ref, manifestDigest, nil
 }
 
 // parseExporter parses an exporter instance and inits it with the src and dest reference.
-func parseExporter(opts ExportOptions, src, destSpec string, localStore *store.Store) (Exporter, string, error) {
+func parseExporter(opts ExportOptions, src, destSpec string, localStore *store.Store) (Exporter, error) {
 	const partsNum = 2
-	var isuladTarPath string
 	// 1. parse exporter
 	parts := strings.SplitN(destSpec, ":", partsNum)
 	if len(parts) != partsNum {
-		return nil, "", errors.Errorf(`invalid dest spec %q, expected colon-separated exporter:reference`, destSpec)
+		return nil, errors.Errorf(`invalid dest spec %q, expected colon-separated exporter:reference`, destSpec)
 	}
 
 	ept := GetAnExporter(parts[0])
 	if ept == nil {
-		return nil, "", errors.Errorf(`invalid image name: %q, unknown exporter "%s"`, src, parts[0])
+		return nil, errors.Errorf(`invalid image name: %q, unknown exporter "%s"`, src, parts[0])
 	}
 
-	// 2. get src reference
-	srcReference, _, err := image.FindImage(localStore, src)
-	if err != nil {
-		return nil, "", errors.Errorf("find src image: %q failed, got error: %v", src, err)
+	// 2. Init exporter reference
+	iErr := ept.Init(opts, src, destSpec, localStore)
+	if iErr != nil {
+		return nil, errors.Errorf(`fail to Init exporter with error: %v"`, iErr)
 	}
-
-	// 3. get dest reference
-	if parts[0] == "isulad" {
-		randomID := stringid.GenerateNonCryptoID()[:constant.DefaultIDLen]
-		isuladTarPath, err = securejoin.SecureJoin(opts.DataDir, fmt.Sprintf("isula-build-tmp-%s.tar", randomID))
-		if err != nil {
-			return nil, "", err
-		}
-		// construct format: transport:path:image:tag
-		// parts[1] here could not be empty cause client-end already processed it
-		destSpec = fmt.Sprintf("docker-archive:%s:%s", isuladTarPath, parts[1])
-		logrus.Infof("Process isulad output %s", destSpec)
-	}
-	destReference, err := alltransports.ParseImageName(destSpec)
-	if err != nil {
-		return nil, "", errors.Errorf("parse dest spec: %q failed, got error: %v", destSpec, err)
-	}
-
-	// 4. init exporter with src reference and dest reference
-	ept.Init(opts.ExportID, srcReference, destReference)
-
-	return ept, isuladTarPath, nil
+	return ept, nil
 }
 
 // NewCopyOptions will return copy options

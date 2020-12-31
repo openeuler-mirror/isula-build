@@ -19,6 +19,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/containers/storage/pkg/stringid"
 	"github.com/pkg/errors"
@@ -80,6 +81,10 @@ func runSave(ctx context.Context, cli Cli, args []string) error {
 
 	saveOpts.saveID = stringid.GenerateNonCryptoID()[:constant.DefaultIDLen]
 	saveOpts.images = args
+
+	if strings.Contains(saveOpts.path, ":") {
+		return errors.Errorf("colon in path %q is not supported", saveOpts.path)
+	}
 
 	if !filepath.IsAbs(saveOpts.path) {
 		pwd, err := os.Getwd()

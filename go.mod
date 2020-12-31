@@ -12,7 +12,6 @@ require (
 	github.com/containerd/go-runc v0.0.0-20200707131846-23d84c510c41
 	github.com/containers/image/v5 v5.6.0
 	github.com/containers/libtrust v0.0.0-20200511145503-9c3a6c22cd9a // indirect
-	github.com/containers/ocicrypt v1.0.3 // indirect
 	github.com/containers/storage v1.23.5
 	github.com/coreos/go-systemd v0.0.0-20191104093116-d3cd4ed1dbcf
 	github.com/cyphar/filepath-securejoin v0.2.2
@@ -35,7 +34,6 @@ require (
 	github.com/spf13/pflag v1.0.5 // indirect
 	github.com/syndtr/gocapability v0.0.0-20180916011248-d98352740cb2
 	github.com/xeipuuv/gojsonpointer v0.0.0-20190905194746-02993c407bfb // indirect
-	go.etcd.io/bbolt v1.3.5 // indirect
 	go.opencensus.io v0.22.4 // indirect
 	golang.org/x/crypto v0.0.0-20200728195943-123391ffb6de
 	golang.org/x/net v0.0.0-20200707034311-ab3426394381 // indirect

@@ -16,8 +16,6 @@ package daemon
 import (
 	"context"
 
-	cp "github.com/containers/image/v5/copy"
-	"github.com/containers/image/v5/transports/alltransports"
 	"github.com/containers/image/v5/types"
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
@@ -26,6 +24,7 @@ import (
 	constant "isula.org/isula-build"
 	pb "isula.org/isula-build/api/services"
 	"isula.org/isula-build/exporter"
+	"isula.org/isula-build/exporter/docker"
 	"isula.org/isula-build/image"
 	"isula.org/isula-build/pkg/logger"
 	"isula.org/isula-build/store"
@@ -92,30 +91,9 @@ func pushHandler(ctx context.Context, options pushOptions) func() error {
 			ExportID:      options.pushID,
 		}
 
-		policyContext, err := exporter.NewPolicyContext(exOpts.SystemContext)
-		if err != nil {
-			logrus.Errorf("Getting policy failed: %v", err)
-			return errors.Wrap(err, "error getting policy")
-		}
-		defer func() {
-			if pErr := policyContext.Destroy(); pErr != nil {
-				logrus.Debugf("Error destroying signature policy context: %v", pErr)
-			}
-		}()
-
-		src, img, fErr := image.FindImage(options.localStore, options.imageName)
-		if fErr != nil {
-			return errors.Wrapf(fErr, "find local image %v error", options.imageName)
-		}
-		dest, pErr := alltransports.ParseImageName(util.DefaultTransport + options.imageName)
-		if pErr != nil {
-			return errors.Errorf("parse dest spec: %q failed, got error: %v", options.imageName, pErr)
-		}
-		cpOpt := exporter.NewCopyOptions(exOpts)
-
-		if _, err = cp.Image(exOpts.Ctx, policyContext, dest, src, cpOpt); err != nil {
-			logrus.Errorf("Copying source image %s failed: %v", img.Names[0], err)
-			return errors.Wrapf(err, "copying source image %s failed", img.Names[0])
+		transport := docker.DockerExporter.Name()
+		if err := exporter.Export(options.imageName, transport+"://"+options.imageName, exOpts, options.localStore); err != nil {
+			return errors.Wrapf(err, "Push Image %s output to %s failed", options.imageName, transport)
 		}
 
 		return nil

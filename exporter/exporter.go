@@ -17,6 +17,8 @@ import (
 	"sync"
 
 	"github.com/containers/image/v5/types"
+
+	"isula.org/isula-build/store"
 )
 
 type exportHub struct {
@@ -39,7 +41,7 @@ func init() {
 // Exporter is an interface
 type Exporter interface {
 	Name() string
-	Init(exportID string, src, dest types.ImageReference)
+	Init(opts ExportOptions, src, destSpec string, localStore *store.Store) error
 	GetSrcRef(exportID string) types.ImageReference
 	GetDestRef(exportID string) types.ImageReference
 	Remove(exportID string)

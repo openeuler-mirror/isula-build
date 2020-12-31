@@ -11,19 +11,23 @@
 // Create: 2020-03-20
 // Description: docker repository exporter related functions
 
-// Package daemon is an exporter for docker daemon
-package daemon
+// Package docker is an exporter for docker daemon
+package docker
 
 import (
 	"sync"
 
+	"github.com/containers/image/v5/transports/alltransports"
 	"github.com/containers/image/v5/types"
+	"github.com/pkg/errors"
 
 	"isula.org/isula-build/exporter"
+	"isula.org/isula-build/image"
+	"isula.org/isula-build/store"
 )
 
 func init() {
-	exporter.Register(&_dockerExporter)
+	exporter.Register(&DockerExporter)
 }
 
 type dockerExporter struct {
@@ -31,7 +35,8 @@ type dockerExporter struct {
 	sync.RWMutex
 }
 
-var _dockerExporter = dockerExporter{
+// DockerExporter for exporting images in local store to tarball
+var DockerExporter = dockerExporter{
 	items: make(map[string]exporter.Bus),
 }
 
@@ -39,13 +44,24 @@ func (d *dockerExporter) Name() string {
 	return "docker"
 }
 
-func (d *dockerExporter) Init(exportID string, src, dest types.ImageReference) {
+func (d *dockerExporter) Init(opts exporter.ExportOptions, src, destSpec string, localStore *store.Store) error {
+	srcReference, _, err := image.FindImage(localStore, src)
+	if err != nil {
+		return errors.Errorf("find src image: %q failed, got error: %v", src, err)
+	}
+
+	destReference, err := alltransports.ParseImageName(destSpec)
+	if err != nil {
+		return errors.Errorf("parse dest spec: %q failed, got error: %v", destSpec, err)
+	}
+
 	d.Lock()
-	d.items[exportID] = exporter.Bus{
-		SrcRef:  src,
-		DestRef: dest,
+	d.items[opts.ExportID] = exporter.Bus{
+		SrcRef:  srcReference,
+		DestRef: destReference,
 	}
 	d.Unlock()
+	return nil
 }
 
 func (d *dockerExporter) GetSrcRef(exportID string) types.ImageReference {

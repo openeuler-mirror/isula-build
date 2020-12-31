@@ -51,10 +51,11 @@ func TestRunSave(t *testing.T) {
 			wantErr: false,
 		},
 		{
-			name:    "TC2 - abnormal case with empty args",
-			path:    tmpDir.Join("test2"),
-			args:    []string{},
-			wantErr: true,
+			name:      "TC2 - abnormal case with empty args",
+			path:      tmpDir.Join("test2"),
+			args:      []string{},
+			wantErr:   true,
+			errString: "save accepts at least one image",
 		},
 		{
 			name: "TC3 - normal case with relative path",
@@ -62,16 +63,18 @@ func TestRunSave(t *testing.T) {
 			args: []string{"testImage"},
 		},
 		{
-			name:    "TC4 - abnormal case with empty path",
-			path:    "",
-			args:    []string{"testImage"},
-			wantErr: true,
+			name:      "TC4 - abnormal case with empty path",
+			path:      "",
+			args:      []string{"testImage"},
+			wantErr:   true,
+			errString: "output path should not be empty",
 		},
 		{
-			name:    "TC5 - abnormal case with already file exist",
-			path:    alreadyExistFile.Path(),
-			args:    []string{"testImage"},
-			wantErr: true,
+			name:      "TC5 - abnormal case with already file exist",
+			path:      alreadyExistFile.Path(),
+			args:      []string{"testImage"},
+			wantErr:   true,
+			errString: "output file already exist",
 		},
 		{
 			name: "TC6 - normal case with multiple image",
@@ -79,12 +82,19 @@ func TestRunSave(t *testing.T) {
 			args: []string{"testImage1:test", "testImage2:test"},
 		},
 		{
-			name:      "TC7 - normal case with save failed",
-			path:      tmpDir.Join("test7"),
-			args:      []string{imageID, "testImage1:test"},
+			name: "TC7 - normal case with save failed",
+			path: tmpDir.Join("test7"),
+			args: []string{imageID, "testImage1:test"},
 			// construct failed env when trying to save image id "38b993607bcabe01df1dffdf01b329005c6a10a36d557f9d073fc25943840c66"
 			wantErr:   true,
 			errString: "failed to save image 38b993607bcabe01df1dffdf01b329005c6a10a36d5",
+		},
+		{
+			name:      "TC8 - abnormal case path with colon",
+			path:      tmpDir.Join("test8:image:tag"),
+			args:      []string{"testImage"},
+			wantErr:   true,
+			errString: "colon in path",
 		},
 	}
 

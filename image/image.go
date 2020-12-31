@@ -476,9 +476,9 @@ func FindImage(store *store.Store, image string) (types.ImageReference, *storage
 		return nil, nil, errors.Wrapf(err, "error parsing name %q", image)
 	}
 
-	ref, img := parseImagesToReference(store, names)
-	if ref == nil || img == nil {
-		return nil, nil, errors.Errorf("locating image %q with name: %v failed", image, names)
+	ref, img, err := ParseImagesToReference(store, names)
+	if err != nil {
+		return nil, nil, errors.Errorf("locating image %q failed with err: %v", image, err)
 	}
 	return ref, img, nil
 }
@@ -497,14 +497,17 @@ func FindImageLocally(store *store.Store, image string) (types.ImageReference, *
 	}
 
 	// 3. parse to image reference
-	ref, img := parseImagesToReference(store, []string{localName})
-	if ref == nil || img == nil {
-		return nil, nil, errors.Errorf("locating image %q locally with name: %v failed", image, localName)
+	ref, img, err := ParseImagesToReference(store, []string{localName})
+	if err != nil {
+		return nil, nil, errors.Errorf("locating image %q locally failed with err: %v", image, err)
 	}
 	return ref, img, nil
 }
 
-func parseImagesToReference(store *store.Store, names []string) (types.ImageReference, *storage.Image) {
+// ParseImagesToReference get the image reference in store
+// When names is the format of ImageID (sha256), return ref with nil named field of *storageReference
+// When names is the format of name[:tag] with and without repository domain, such as registry.example.com/name:tag, name:tag, return corresponding ref with non-nil named field of *storageReference with and without domain
+func ParseImagesToReference(store *store.Store, names []string) (types.ImageReference, *storage.Image, error) {
 	var (
 		ref types.ImageReference
 		img *storage.Image
@@ -516,18 +519,40 @@ func parseImagesToReference(store *store.Store, names []string) (types.ImageRefe
 			logrus.Debugf("Error parsing reference to image %q: %v", name, err)
 			continue
 		}
-		img, err = is.Transport.GetStoreImage(store, ref)
-		if err != nil {
+
+		var gErr error
+		img, gErr = is.Transport.GetStoreImage(store, ref)
+		// When name is the format of name[:rag] with out registry domain, err is storage.ErrImageUnknown
+		if gErr != nil {
 			img2, err2 := store.Image(name)
 			if err2 != nil {
 				logrus.Debugf("Error locating image %q: %v", name, err2)
 				continue
 			}
 			img = img2
+
+			// For support export archive file, we need provide reference.Named field when names is the format of name[:tag] not the image ID
+			pRef, pErr := reference.Parse(name)
+			if pErr != nil {
+				return nil, nil, errors.Errorf("error parse name %q: %v", name, pErr)
+			}
+			namedRef, isNamed := pRef.(reference.Named)
+			if !isNamed {
+				return nil, nil, errors.Errorf("reference %s has no name", pRef.String())
+			}
+
+			var nErr error
+			ref, nErr = is.Transport.NewStoreReference(store, namedRef, img2.ID)
+			if nErr != nil {
+				return nil, nil, errors.Errorf("error get reference from store %v", nErr)
+			}
 		}
 		break
 	}
-	return ref, img
+	if ref == nil || img == nil || err != nil {
+		return nil, nil, errors.Errorf("failed to parse image %v in local store", names)
+	}
+	return ref, img, nil
 }
 
 // ResolveName checks whether the image name is valid, if the name does not include a domain,

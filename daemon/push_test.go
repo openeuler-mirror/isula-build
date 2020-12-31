@@ -26,6 +26,7 @@ import (
 
 	constant "isula.org/isula-build"
 	pb "isula.org/isula-build/api/services"
+	_ "isula.org/isula-build/exporter/docker"
 	"isula.org/isula-build/pkg/logger"
 )
 
