@@ -146,7 +146,8 @@ func ParseServer(server string) (string, error) {
 	// first trim prefix https:// and http://
 	server = strings.TrimPrefix(strings.TrimPrefix(server, "https://"), "http://")
 	// then trim prefix docker://
-	server = strings.TrimPrefix(server, DefaultTransport)
+	dockerTransport := "docker://"
+	server = strings.TrimPrefix(server, dockerTransport)
 	// always get first part split by "/"
 	fields := strings.Split(server, "/")
 	if fields[0] == "" {
@@ -177,4 +178,9 @@ func FormatSize(size, base float64) string {
 	}
 
 	return fmt.Sprintf("%.3g %s", size, suffixes[cnt])
+}
+
+// CheckCliExperimentalEnabled checks if client ISULABUILD_CLI_EXPERIMENTAL set to enabled
+func CheckCliExperimentalEnabled() bool {
+	return os.Getenv("ISULABUILD_CLI_EXPERIMENTAL") == "enabled"
 }

@@ -115,10 +115,11 @@ func exportHandler(ctx context.Context, opts saveOptions) func() error {
 				ExportID:      opts.saveID,
 				ReportWriter:  opts.logger,
 			}
-			transport := savedocker.DockerArchiveExporter.Name()
-			if err := exporter.Export(imageID, transport+":"+opts.outputPath, exOpts, opts.localStore); err != nil {
-				opts.logEntry.Errorf("Save Image %s output to %s failed with: %v", imageID, transport, err)
-				return errors.Wrapf(err, "Save Image %s output to %s failed", imageID, transport)
+
+			if err := exporter.Export(imageID, exporter.FormatTransport(exporter.DockerArchiveTransport, opts.outputPath),
+				exOpts, opts.localStore); err != nil {
+				opts.logEntry.Errorf("Save Image %s output to %s failed with: %v", imageID, exporter.DockerArchiveTransport, err)
+				return errors.Wrapf(err, "save Image %s output to %s failed", imageID, exporter.DockerArchiveTransport)
 			}
 		}
 

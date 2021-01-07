@@ -16,6 +16,7 @@ package exporter
 
 import (
 	"context"
+	"fmt"
 	"io"
 	"os"
 	"os/exec"
@@ -25,7 +26,6 @@ import (
 	cp "github.com/containers/image/v5/copy"
 	"github.com/containers/image/v5/manifest"
 	"github.com/containers/image/v5/signature"
-	"github.com/containers/image/v5/transports"
 	"github.com/containers/image/v5/types"
 	"github.com/containers/storage/pkg/archive"
 	securejoin "github.com/cyphar/filepath-securejoin"
@@ -77,7 +77,7 @@ func Export(imageID, outputDest string, opts ExportOptions, localStore *store.St
 
 	ref, digest, err := export(epter, opts)
 	if err != nil {
-		return errors.Errorf("export image from %s to %s failed, got error: %s", imageID, outputDest, err)
+		return errors.Wrapf(err, "export image from %s to %s failed", imageID, outputDest)
 	}
 	if ref != nil {
 		eLog.Debugf("Export image with reference %s", ref.Name())
@@ -133,10 +133,6 @@ func export(e Exporter, exOpts ExportOptions) (reference.Canonical, digest.Diges
 		return nil, "", errors.Wrapf(err, "get dest or src reference by export ID %v failed", exOpts.ExportID)
 	}
 
-	if err != nil {
-		return nil, "", errors.Wrapf(err, "Error initializing destination %s", transports.ImageName(destRef))
-	}
-
 	if manifestBytes, err = cp.Image(exOpts.Ctx, policyContext, destRef, srcRef, cpOpts); err != nil {
 		return nil, "", errors.Wrap(err, "copying layers and metadata failed")
 	}
@@ -175,9 +171,9 @@ func parseExporter(opts ExportOptions, src, destSpec string, localStore *store.S
 	}
 
 	// 2. Init exporter reference
-	iErr := ept.Init(opts, src, destSpec, localStore)
-	if iErr != nil {
-		return nil, errors.Errorf(`fail to Init exporter with error: %v"`, iErr)
+	err := ept.Init(opts, src, destSpec, localStore)
+	if err != nil {
+		return nil, errors.Wrap(err, `fail to Init exporter"`)
 	}
 	return ept, nil
 }
@@ -204,4 +200,22 @@ func NewPolicyContext(sc *types.SystemContext) (*signature.PolicyContext, error)
 	}
 
 	return policyContext, nil
+}
+
+// FormatTransport for formatting transport with corresponding path
+func FormatTransport(transport, path string) string {
+	if transport == DockerTransport {
+		return fmt.Sprintf("%s://%s", transport, path)
+	}
+	return fmt.Sprintf("%s:%s", transport, path)
+}
+
+// IsClientExporter used to determinate exporter whether need to send the image to client
+func IsClientExporter(exporter string) bool {
+	clientExporters := map[string]bool{
+		DockerArchiveTransport: true,
+		IsuladTransport:        true,
+	}
+	_, ok := clientExporters[exporter]
+	return ok
 }

@@ -73,7 +73,7 @@ func prepareLoadTar(dir *fs.Dir) error {
 		return nil
 	}
 
-	if err := tw.WriteHeader(hdr); err != nil {
+	if err = tw.WriteHeader(hdr); err != nil {
 		return nil
 	}
 
@@ -120,7 +120,7 @@ func clean(dir *fs.Dir) {
 }
 
 func TestLoad(t *testing.T) {
-	manifestJson :=
+	manifestJSON :=
 		`[
 			{
 				"Config":"76a4dd2d5d6a18323ac8d90f959c3c8562bf592e2a559bab9b462ab600e9e5fc.json",
@@ -133,7 +133,7 @@ func TestLoad(t *testing.T) {
 				]
 			}
 		]`
-	dir := prepareForLoad(t, manifestJson)
+	dir := prepareForLoad(t, manifestJSON)
 	assert.Equal(t, dir != nil, true)
 	defer clean(dir)
 
@@ -150,7 +150,7 @@ func TestLoad(t *testing.T) {
 }
 
 func TestLoadMultipleImages(t *testing.T) {
-	manifestJson :=
+	manifestJSON :=
 		`[
 			{
 				"Config": "e4db68de4ff27c2adfea0c54bbb73a61a42f5b667c326de4d7d5b19ab71c6a3b.json",
@@ -181,7 +181,7 @@ func TestLoadMultipleImages(t *testing.T) {
 				]
 			}
 		]`
-	dir := prepareForLoad(t, manifestJson)
+	dir := prepareForLoad(t, manifestJSON)
 	assert.Equal(t, dir != nil, true)
 	defer clean(dir)
 

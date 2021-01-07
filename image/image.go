@@ -44,6 +44,7 @@ import (
 
 	constant "isula.org/isula-build"
 	dockerfile "isula.org/isula-build/builder/dockerfile/parser"
+	"isula.org/isula-build/exporter"
 	"isula.org/isula-build/pkg/docker"
 	"isula.org/isula-build/store"
 	"isula.org/isula-build/util"
@@ -146,16 +147,14 @@ func PullAndGetImageInfo(opt *PrepareImageOptions) (types.ImageReference, *stora
 	var errPull error
 	for _, strImage := range candidates {
 		var (
-			srcRef    types.ImageReference
-			imageName string
-			pErr      error
+			srcRef types.ImageReference
+			pErr   error
 		)
 
-		if transport == util.DockerArchiveTransport {
-			imageName = transport + ":" + strImage
+		imageName := exporter.FormatTransport(transport, strImage)
+		if transport == exporter.DockerArchiveTransport {
 			srcRef, pErr = alltransports.ParseImageName(imageName + ":@" + strconv.Itoa(opt.ManifestIndex))
 		} else {
-			imageName = transport + strImage
 			srcRef, pErr = alltransports.ParseImageName(imageName)
 		}
 		if pErr != nil {
@@ -252,11 +251,11 @@ func getLocalImageNameFromRef(store storage.Store, srcRef types.ImageReference) 
 		return "", errors.Errorf("reference to image is empty")
 	}
 
-	if srcRef.Transport().Name() == util.DockerArchiveTransport {
+	if srcRef.Transport().Name() == exporter.DockerArchiveTransport {
 		return stringid.GenerateRandomID() + ":" + stringid.GenerateRandomID(), nil
 	}
 
-	if srcRef.Transport().Name() != "docker" {
+	if srcRef.Transport().Name() != exporter.DockerTransport {
 		return "", errors.Errorf("the %s transport is not supported yet", srcRef.Transport().Name())
 	}
 
@@ -478,7 +477,7 @@ func FindImage(store *store.Store, image string) (types.ImageReference, *storage
 
 	ref, img, err := ParseImagesToReference(store, names)
 	if err != nil {
-		return nil, nil, errors.Errorf("locating image %q failed with err: %v", image, err)
+		return nil, nil, errors.Wrapf(err, "locating image %q failed", image)
 	}
 	return ref, img, nil
 }
@@ -499,7 +498,7 @@ func FindImageLocally(store *store.Store, image string) (types.ImageReference, *
 	// 3. parse to image reference
 	ref, img, err := ParseImagesToReference(store, []string{localName})
 	if err != nil {
-		return nil, nil, errors.Errorf("locating image %q locally failed with err: %v", image, err)
+		return nil, nil, errors.Wrapf(err, "locating image %q locally failed", image)
 	}
 	return ref, img, nil
 }
@@ -534,7 +533,7 @@ func ParseImagesToReference(store *store.Store, names []string) (types.ImageRefe
 			// For support export archive file, we need provide reference.Named field when names is the format of name[:tag] not the image ID
 			pRef, pErr := reference.Parse(name)
 			if pErr != nil {
-				return nil, nil, errors.Errorf("error parse name %q: %v", name, pErr)
+				return nil, nil, errors.Wrapf(err, "error parse name %q", name)
 			}
 			namedRef, isNamed := pRef.(reference.Named)
 			if !isNamed {
@@ -544,7 +543,7 @@ func ParseImagesToReference(store *store.Store, names []string) (types.ImageRefe
 			var nErr error
 			ref, nErr = is.Transport.NewStoreReference(store, namedRef, img2.ID)
 			if nErr != nil {
-				return nil, nil, errors.Errorf("error get reference from store %v", nErr)
+				return nil, nil, errors.Wrap(err, "error get reference from store")
 			}
 		}
 		break
@@ -606,11 +605,11 @@ func tryResolveNameWithTransport(name string) (string, string) {
 	if len(splits) == 2 {
 		if trans := transports.Get(splits[0]); trans != nil {
 			switch trans.Name() {
-			case "docker":
+			case exporter.DockerTransport:
 				// trim prefix if dest like docker://registry.example.com format
 				dest := strings.TrimPrefix(splits[1], "//")
 				return dest, trans.Name()
-			case util.DockerArchiveTransport:
+			case exporter.DockerArchiveTransport:
 				dest := strings.TrimSpace(splits[1])
 				return dest, trans.Name()
 			}
@@ -626,7 +625,7 @@ func tryResolveNameWithDockerReference(name string) (string, string, error) {
 		return "", "", errors.Wrapf(err, "error parsing image name %q", name)
 	}
 	if named.String() == name {
-		return name, util.DefaultTransport, nil
+		return name, exporter.DockerTransport, nil
 	}
 
 	domain := reference.Domain(named)
@@ -642,7 +641,7 @@ func tryResolveNameWithDockerReference(name string) (string, string, error) {
 		}
 		defaultPrefix := pathPrefix + string(os.PathSeparator)
 		if strings.HasPrefix(repoPath, defaultPrefix) && path.Join(domain, repoPath[len(defaultPrefix):])+tag+digest == name {
-			return name, util.DefaultTransport, nil
+			return name, exporter.DockerTransport, nil
 		}
 	}
 
@@ -681,5 +680,5 @@ func tryResolveNameInRegistries(name string, sc *types.SystemContext) ([]string,
 		candidate := path.Join(registry, middle, name)
 		candidates = append(candidates, candidate)
 	}
-	return candidates, util.DefaultTransport
+	return candidates, exporter.DockerTransport
 }

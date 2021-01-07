@@ -104,8 +104,8 @@ func NewBuildCmd() *cobra.Command {
 
 	buildCmd.PersistentFlags().StringVarP(&buildOpts.file, "filename", "f", "", "Path for Dockerfile")
 	buildCmd.PersistentFlags().StringVarP(&buildOpts.output, "output", "o", "", "Destination of output images")
-	buildCmd.PersistentFlags().BoolVarP(&buildOpts.proxyFlag, "proxy", "", true, "Inherit proxy environment variables from host")
-	buildCmd.PersistentFlags().VarP(&buildOpts.buildStatic, "build-static", "", "Static build with the given option")
+	buildCmd.PersistentFlags().BoolVar(&buildOpts.proxyFlag, "proxy", true, "Inherit proxy environment variables from host")
+	buildCmd.PersistentFlags().Var(&buildOpts.buildStatic, "build-static", "Static build with the given option")
 	buildCmd.PersistentFlags().StringArrayVar(&buildOpts.buildArgs, "build-arg", []string{}, "Arguments used during build time")
 	buildCmd.PersistentFlags().StringArrayVar(&buildOpts.capAddList, "cap-add", []string{}, "Add Linux capabilities for RUN command")
 	buildCmd.PersistentFlags().StringVar(&buildOpts.imageIDFile, "iidfile", "", "Write image ID to the file")
@@ -242,12 +242,12 @@ func checkAbsPath(path string) (string, error) {
 func modifyLocalTransporter(transport string, absPath string, segments []string) error {
 	const validIsuladFieldsLen = 3
 	switch transport {
-	case "docker-archive":
+	case exporter.DockerArchiveTransport:
 		newSeg := util.CopyStrings(segments)
 		newSeg[1] = absPath
 		buildOpts.output = strings.Join(newSeg, ":")
 		return nil
-	case "isulad":
+	case exporter.IsuladTransport:
 		if len(segments) != validIsuladFieldsLen {
 			return errors.Errorf("invalid isulad output format: %v", buildOpts.output)
 		}
@@ -269,7 +269,7 @@ func checkAndProcessOutput() error {
 
 	transport := segments[0]
 	// just build, not need to export to any destination
-	if !util.IsClientExporter(transport) {
+	if !exporter.IsClientExporter(transport) {
 		return nil
 	}
 

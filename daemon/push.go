@@ -24,7 +24,6 @@ import (
 	constant "isula.org/isula-build"
 	pb "isula.org/isula-build/api/services"
 	"isula.org/isula-build/exporter"
-	"isula.org/isula-build/exporter/docker"
 	"isula.org/isula-build/image"
 	"isula.org/isula-build/pkg/logger"
 	"isula.org/isula-build/store"
@@ -91,9 +90,11 @@ func pushHandler(ctx context.Context, options pushOptions) func() error {
 			ExportID:      options.pushID,
 		}
 
-		transport := docker.DockerExporter.Name()
-		if err := exporter.Export(options.imageName, transport+"://"+options.imageName, exOpts, options.localStore); err != nil {
-			return errors.Wrapf(err, "Push Image %s output to %s failed", options.imageName, transport)
+		if err := exporter.Export(options.imageName, exporter.FormatTransport(exporter.DockerTransport, options.imageName),
+			exOpts, options.localStore); err != nil {
+			logrus.WithField(util.LogKeySessionID, options.pushID).
+				Errorf("Push image %q of format %q failed with %v", options.imageName, exporter.DockerTransport, err)
+			return errors.Wrapf(err, "push image %q of format %q failed", options.imageName, exporter.DockerTransport)
 		}
 
 		return nil
