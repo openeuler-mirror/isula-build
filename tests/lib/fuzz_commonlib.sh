@@ -21,13 +21,14 @@
 # $1: the full path of log
 function check_result() {
     local log=$1
+    local time="[$(date '+%Y-%m-%d %H:%M:%S')]"
     result=$(grep "crash" "$log" | tail -1 | awk '{print $10}')
     result=${result%%,}
     if [[ $result -eq 0 ]]; then
-        echo "PASS: No crash found"
+        echo "PASS$time: No crash found"
         return 0
     else
-        echo "FAIL: Crash found at $(date), See detials in $log"
+        echo "FAIL$time: Crash found, See detials in $log"
         return 1
     fi
 }

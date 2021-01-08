@@ -22,8 +22,9 @@ function normal() {
 function fuzz() {
     failed=0
     while IFS= read -r testfile; do
-        printf "%-45s" "test $(basename "$testfile"): "
-        if ! bash "$testfile" "$1"; then
+        printf "%-45s" "test $(basename "$testfile"): " | tee -a ${top_dir}/tests/fuzz.log
+        bash "$testfile" "$1" | tee -a ${top_dir}/tests/fuzz.log
+        if [ $PIPESTATUS -ne 0 ]; then
             failed=1
         fi
         # delete tmp files to avoid "no space left" problem
