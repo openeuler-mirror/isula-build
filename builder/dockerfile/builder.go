@@ -563,11 +563,11 @@ func parseOutputTag(output string) string {
 
 	var tag string
 	switch {
-	case (outputFields[0] == "docker-daemon" || outputFields[0] == "isulad") && len(outputFields) > 1:
+	case (outputFields[0] == exporter.DockerDaemonTransport || outputFields[0] == exporter.IsuladTransport) && len(outputFields) > 1:
 		tag = strings.Join(outputFields[1:], ":")
-	case outputFields[0] == "docker-archive" && len(outputFields) > archiveOutputWithoutTagLen:
+	case outputFields[0] == exporter.DockerArchiveTransport && len(outputFields) > archiveOutputWithoutTagLen:
 		tag = strings.Join(outputFields[archiveOutputWithoutTagLen:], ":")
-	case outputFields[0] == "docker" && len(outputFields) > 1:
+	case outputFields[0] == exporter.DockerTransport && len(outputFields) > 1:
 		repoAndTag := strings.Join(outputFields[1:], ":")
 		// repo format regexp, "//registry.example.com/" for example
 		repo := regexp.MustCompile(`^\/\/[\w\.\-\:]+\/`).FindString(repoAndTag)

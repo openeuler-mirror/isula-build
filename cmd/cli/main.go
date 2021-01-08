@@ -109,7 +109,7 @@ func addCommands(cmd *cobra.Command) {
 		NewInfoCmd(),
 		completionCmd,
 	)
-	if os.Getenv("ISULABUILD_CLI_EXPERIMENTAL") == "enabled" {
+	if util.CheckCliExperimentalEnabled() {
 		cmd.AddCommand(
 			NewManifestCmd(),
 		)

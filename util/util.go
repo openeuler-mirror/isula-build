@@ -47,12 +47,6 @@ type LogFieldKey string
 type BuildDirKey string
 
 const (
-	// DefaultTransport is default transport
-	DefaultTransport = "docker://"
-
-	// DockerArchiveTransport is default transport for docker archive file
-	DockerArchiveTransport = "docker-archive"
-
 	// LogKeySessionID describes the key field with sessionID for logrus
 	LogKeySessionID = "sessionID"
 
@@ -72,17 +66,6 @@ func init() {
 		"index.docker.io": "library",
 		"docker.io":       "library",
 	}
-	clientExporters = map[string]bool{
-		"docker-archive": true,
-		"oci-archive":    true,
-		"isulad":         true,
-	}
-}
-
-// IsClientExporter used to determinate exporter whether need to send the image to client
-func IsClientExporter(exporter string) bool {
-	_, ok := clientExporters[exporter]
-	return ok
 }
 
 // GetIgnorePatternMatcher returns docker ignore matcher

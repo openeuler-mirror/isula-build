@@ -77,7 +77,7 @@ func TestPush(t *testing.T) {
 	for _, tc := range testCases {
 		err := d.Daemon.backend.Push(tc.pushRequest, stream)
 		if tc.testName == "localNotExist" {
-			assert.ErrorContains(t, err, "error: locating image")
+			assert.ErrorContains(t, err, "failed to parse image")
 		}
 		if tc.testName == "manifestNotExist" {
 			assert.ErrorContains(t, err, "file does not exist")

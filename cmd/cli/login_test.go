@@ -99,7 +99,7 @@ func TestGetPassFromStdin(t *testing.T) {
 			wantErr: true,
 		},
 		{
-			name:    "TC2 - abnormal input length",
+			name:    "TC3 - abnormal input length",
 			args:    args{r: strings.NewReader(string(bytes.Repeat([]byte("a"), 129)))},
 			wantErr: true,
 		},

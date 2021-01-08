@@ -28,9 +28,9 @@ import (
 	pb "isula.org/isula-build/api/services"
 	"isula.org/isula-build/builder/dockerfile"
 	"isula.org/isula-build/builder/dockerfile/container"
+	"isula.org/isula-build/exporter"
 	"isula.org/isula-build/image"
 	"isula.org/isula-build/store"
-	"isula.org/isula-build/util"
 )
 
 const instancesData = "instancesdata"
@@ -200,7 +200,7 @@ type instanceInfo struct {
 func (l *manifestList) addImage(ctx context.Context, store *store.Store, imageSpec string) (digest.Digest, error) {
 	img, _, err := image.ResolveFromImage(&image.PrepareImageOptions{
 		Ctx:           ctx,
-		FromImage:     util.DefaultTransport + imageSpec,
+		FromImage:     exporter.FormatTransport(exporter.DockerTransport, imageSpec),
 		SystemContext: image.GetSystemContext(),
 		Store:         store,
 	})

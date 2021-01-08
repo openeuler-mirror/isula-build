@@ -25,8 +25,8 @@ import (
 	"gotest.tools/fs"
 
 	constant "isula.org/isula-build"
+	"isula.org/isula-build/exporter"
 	"isula.org/isula-build/store"
-	"isula.org/isula-build/util"
 )
 
 func TestFindImageWhenImageNameIsEmpty(t *testing.T) {
@@ -65,7 +65,7 @@ func TestTryResolveNameWithDockerReference(t *testing.T) {
 	var testcases = []testcase{
 		{
 			name:        "docker.io/library/busybox:latest",
-			expectTrans: util.DefaultTransport,
+			expectTrans: exporter.DockerTransport,
 			errStr:      "",
 		}, {
 			name:        "busybox:latest",
@@ -122,5 +122,5 @@ registries = []
 	name := "busybox:latest"
 	candidates, transport := tryResolveNameInRegistries(name, nil)
 	assert.Assert(t, cmp.Contains(candidates, "localhost/busybox:latest"))
-	assert.Equal(t, transport, util.DefaultTransport)
+	assert.Equal(t, transport, exporter.DockerTransport)
 }

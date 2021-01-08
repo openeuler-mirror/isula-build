@@ -46,7 +46,7 @@ var _isuladExporter = isuladExporter{
 }
 
 func (d *isuladExporter) Name() string {
-	return "isulad"
+	return exporter.IsuladTransport
 }
 
 func (d *isuladExporter) Init(opts exporter.ExportOptions, src, destSpec string, localStore *store.Store) error {
@@ -55,12 +55,12 @@ func (d *isuladExporter) Init(opts exporter.ExportOptions, src, destSpec string,
 	const partsNum = 2
 	parts := strings.SplitN(destSpec, ":", partsNum)
 	if len(parts) != partsNum {
-		return errors.Errorf(`invalid dest spec %q, expected colon-separated exporter:reference`, destSpec)
+		return errors.Errorf(`invalid dest spec %q, expected colon-separated exporter:reference in transport %q`, destSpec, d.Name())
 	}
 
 	srcReference, _, err := image.FindImage(localStore, src)
 	if err != nil {
-		return errors.Errorf("find src image: %q failed, got error: %v", src, err)
+		return errors.Wrapf(err, "find src image: %q failed with transport %q", src, d.Name())
 	}
 
 	randomID := stringid.GenerateNonCryptoID()[:constant.DefaultIDLen]
@@ -74,7 +74,7 @@ func (d *isuladExporter) Init(opts exporter.ExportOptions, src, destSpec string,
 	logrus.Infof("Process isulad output %s", destSpec)
 	destReference, err := alltransports.ParseImageName(destSpec)
 	if err != nil {
-		return errors.Errorf("parse dest spec: %q failed, got error: %v", destSpec, err)
+		return errors.Wrapf(err, "parse dest spec: %q failed with transport %q", destSpec, d.Name())
 	}
 
 	d.Lock()

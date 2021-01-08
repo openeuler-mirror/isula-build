@@ -47,7 +47,7 @@ var DockerArchiveExporter = dockerArchiveExporter{
 }
 
 func (d *dockerArchiveExporter) Name() string {
-	return "docker-archive"
+	return exporter.DockerArchiveTransport
 }
 
 func (d *dockerArchiveExporter) Init(opts exporter.ExportOptions, src, destSpec string, localStore *store.Store) error {
@@ -63,11 +63,11 @@ func (d *dockerArchiveExporter) Init(opts exporter.ExportOptions, src, destSpec 
 	if parts := strings.Split(destSpec, ":"); len(parts) > partsNum {
 		srcReference, _, err = image.FindImageLocally(localStore, src)
 		if err != nil {
-			return errors.Errorf("find src image: %q failed, got error: %v", src, err)
+			return errors.Wrapf(err, "find src image: %q failed with transport %q", src, d.Name())
 		}
 		destReference, err = alltransports.ParseImageName(destSpec)
 		if err != nil {
-			return errors.Errorf("parse dest spec: %q failed, got error: %v", destSpec, err)
+			return errors.Wrapf(err, "parse dest spec: %q failed with transport %q", destSpec, d.Name())
 		}
 		d.Lock()
 		d.items[opts.ExportID] = exporter.Bus{
@@ -85,7 +85,7 @@ func (d *dockerArchiveExporter) Init(opts exporter.ExportOptions, src, destSpec 
 	if DockerArchiveExporter.GetArchiveWriter(opts.ExportID) == nil {
 		archWriter, wErr := archive.NewWriter(opts.SystemContext, archiveFilePath)
 		if wErr != nil {
-			return errors.Errorf("create archive writer failed: %v", wErr)
+			return errors.Wrapf(wErr, "create archive writer failed")
 		}
 		DockerArchiveExporter.InitArchiveWriter(opts.ExportID, archWriter)
 	}
@@ -100,12 +100,12 @@ func (d *dockerArchiveExporter) Init(opts exporter.ExportOptions, src, destSpec 
 	// As a result, we will get error of no image matching reference found.
 	srcReference, _, err = image.FindImageLocally(localStore, src)
 	if err != nil {
-		return errors.Errorf("find src image: %q failed, got error: %v", src, err)
+		return errors.Wrapf(err, "find src image: %q failed with transport %q", src, d.Name())
 	}
 
 	imageReferenceForDest, _, err := image.ParseImagesToReference(localStore, []string{src})
 	if err != nil {
-		return errors.Errorf("parse image: %q to reference failed, got error: %v", src, err)
+		return errors.Wrapf(err, "parse image: %q to reference failed with transport %q", src, d.Name())
 	}
 	archiveWriter := DockerArchiveExporter.GetArchiveWriter(opts.ExportID)
 	nameAndTag, ok := imageReferenceForDest.DockerReference().(reference.NamedTagged)
@@ -117,7 +117,7 @@ func (d *dockerArchiveExporter) Init(opts exporter.ExportOptions, src, destSpec 
 		destReference, err = archiveWriter.NewReference(nil)
 	}
 	if err != nil {
-		return errors.Errorf("parse dest spec: %q failed, got error: %v", destSpec, err)
+		return errors.Wrapf(err, "parse dest spec: %q failed", destSpec)
 	}
 
 	d.Lock()

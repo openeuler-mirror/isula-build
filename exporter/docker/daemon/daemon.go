@@ -40,22 +40,18 @@ var _dockerDaemonExporter = dockerDaemonExporter{
 }
 
 func (d *dockerDaemonExporter) Name() string {
-	return "docker-daemon"
+	return exporter.DockerDaemonTransport
 }
 
 func (d *dockerDaemonExporter) Init(opts exporter.ExportOptions, src, destSpec string, localStore *store.Store) error {
 	srcReference, _, err := image.FindImage(localStore, src)
 	if err != nil {
-		return errors.Errorf("find src image: %q failed, got error: %v", src, err)
+		return errors.Wrapf(err, "find src image: %q failed with transport %q", src, d.Name())
 	}
 
 	destReference, err := alltransports.ParseImageName(destSpec)
 	if err != nil {
-		return errors.Errorf("parse dest spec: %q failed, got error: %v", destSpec, err)
-	}
-
-	if err != nil {
-		return errors.Errorf("parse dest spec: %q failed, got error: %v", destSpec, err)
+		return errors.Wrapf(err, "parse dest spec: %q failed with transport %q", destSpec, d.Name())
 	}
 
 	d.Lock()
