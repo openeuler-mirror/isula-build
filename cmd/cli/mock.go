@@ -336,11 +336,22 @@ func (f *mockDaemon) remove(_ context.Context, in *pb.RemoveRequest, opts ...grp
 
 func (f *mockDaemon) push(_ context.Context, in *pb.PushRequest, opts ...grpc.CallOption) (pb.Control_PushClient, error) {
 	f.pushReq = in
+
+	invalidImageName := "registry.example.com/library/image-:test"
+	if f.pushReq.ImageName == invalidImageName {
+		return &mockPushClient{}, errors.New("invalid format of image name")
+	}
+
 	return &mockPushClient{}, nil
 }
 
 func (f *mockDaemon) pull(_ context.Context, in *pb.PullRequest, opts ...grpc.CallOption) (pb.Control_PullClient, error) {
 	f.pullReq = in
+
+	if f.pullReq.ImageName == "registry.example.com/library/image-:test" {
+		return &mockPullClient{}, errors.New("invalid format of image name")
+	}
+
 	return &mockPullClient{}, nil
 }
 

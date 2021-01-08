@@ -20,6 +20,7 @@ import (
 	"github.com/containers/storage"
 	"github.com/containers/storage/pkg/reexec"
 	"github.com/containers/storage/pkg/stringid"
+	"github.com/pkg/errors"
 	"golang.org/x/sync/errgroup"
 	"google.golang.org/grpc"
 	"gotest.tools/assert"
@@ -39,6 +40,9 @@ func (c *controlPushServer) Context() context.Context {
 }
 
 func (c *controlPushServer) Send(response *pb.PushResponse) error {
+	if response.Response == "error" {
+		return errors.New("error happened")
+	}
 	return nil
 }
 
@@ -49,21 +53,25 @@ func init() {
 
 func TestPush(t *testing.T) {
 	d := prepare(t)
-	stream := &controlPushServer{}
+	defer tmpClean(d)
 
-	testCases := []struct {
-		testName    string
+	testcases := []struct {
+		name        string
 		pushRequest *pb.PushRequest
+		wantErr     bool
+		errString   string
 	}{
 		{
-			testName: "localNotExist",
+			name: "localNotExist",
 			pushRequest: &pb.PushRequest{
 				PushID:    stringid.GenerateNonCryptoID()[:constant.DefaultIDLen],
 				ImageName: "255.255.255.255/no-repository/no-name",
 			},
+			wantErr:   true,
+			errString: "failed to parse image",
 		},
 		{
-			testName: "manifestNotExist",
+			name: "manifestNotExist",
 			pushRequest: &pb.PushRequest{
 				PushID:    stringid.GenerateNonCryptoID()[:constant.DefaultIDLen],
 				ImageName: "127.0.0.1/no-repository/no-name:latest",
@@ -74,31 +82,48 @@ func TestPush(t *testing.T) {
 	options := &storage.ImageOptions{}
 	d.Daemon.localStore.CreateImage(stringid.GenerateRandomID(), []string{"127.0.0.1/no-repository/no-name:latest"}, "", "", options)
 
-	for _, tc := range testCases {
-		err := d.Daemon.backend.Push(tc.pushRequest, stream)
-		if tc.testName == "localNotExist" {
-			assert.ErrorContains(t, err, "failed to parse image")
-		}
-		if tc.testName == "manifestNotExist" {
-			assert.ErrorContains(t, err, "file does not exist")
-		}
+	for _, tc := range testcases {
+		t.Run(tc.name, func(t *testing.T) {
+			stream := &controlPushServer{}
+
+			err := d.Daemon.backend.Push(tc.pushRequest, stream)
+			if tc.wantErr == true {
+				assert.ErrorContains(t, err, tc.errString)
+			}
+		})
+
 	}
 
-	tmpClean(d)
 }
 
 func TestPushHandler(t *testing.T) {
-	stream := &controlPushServer{}
-	cliLogger := logger.NewCliLogger(constant.CliLogBufferLen)
-
 	ctx := context.TODO()
 	eg, _ := errgroup.WithContext(ctx)
-	eg.Go(pushMessageHandler(stream, cliLogger))
-	eg.Go(func() error {
-		cliLogger.Print("Push Response")
-		cliLogger.CloseContent()
-		return nil
-	})
+
+	eg.Go(pushHandlerPrint("Push Response"))
+	eg.Go(pushHandlerPrint(""))
+	eg.Go(pushHandlerPrint("error"))
 
 	eg.Wait()
+}
+
+func pushHandlerPrint(message string) func() error {
+	return func() error {
+		stream := &controlPushServer{}
+		cliLogger := logger.NewCliLogger(constant.CliLogBufferLen)
+
+		ctx := context.TODO()
+		eg, _ := errgroup.WithContext(ctx)
+
+		eg.Go(pushMessageHandler(stream, cliLogger))
+		eg.Go(func() error {
+			cliLogger.Print(message)
+			cliLogger.CloseContent()
+			return nil
+		})
+
+		eg.Wait()
+
+		return nil
+	}
 }

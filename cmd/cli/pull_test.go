@@ -21,23 +21,83 @@ import (
 )
 
 func TestPullCommand(t *testing.T) {
-	pullCmd := NewPullCmd()
-	args := []string{"openeuler:latest"}
-	err := pullCommand(pullCmd, args)
-	assert.ErrorContains(t, err, "isula_build.sock")
-}
+	testcases := []struct {
+		name      string
+		args      []string
+		cli       Cli
+		wantErr   bool
+		errString string
+	}{
+		{
+			name:      "normal case",
+			args:      []string{"openeuler:latest"},
+			wantErr:   true,
+			errString: "isula_build.sock",
+		},
+		{
+			name:      "abnormal case with multiple args",
+			args:      []string{"aaa", "bbb"},
+			wantErr:   true,
+			errString: "pull requires exactly one argument",
+		},
+		{
+			name:      "abnormal case with empty args",
+			args:      []string{""},
+			wantErr:   true,
+			errString: "repository name must have at least one component",
+		},
+		{
+			name:      "abnormal case with invalid args",
+			args:      []string{"busybox-:latest"},
+			wantErr:   true,
+			errString: "invalid reference format",
+		},
+	}
 
-func TestPullCommandMultipleArgs(t *testing.T) {
-	pullCmd := NewPullCmd()
-	args := []string{"aaa", "bbb"}
-	err := pullCommand(pullCmd, args)
-	assert.ErrorContains(t, err, "pull requires exactly one argument")
+	for _, tc := range testcases {
+		t.Run(tc.name, func(t *testing.T) {
+			pullCmd := NewPullCmd()
+			err := pullCommand(pullCmd, tc.args)
+			if tc.wantErr {
+				assert.ErrorContains(t, err, tc.errString)
+			}
+		})
+	}
 }
 
 func TestRunPull(t *testing.T) {
 	ctx := context.Background()
 	mockPull := newMockDaemon()
 	cli := newMockClient(&mockGrpcClient{pullFunc: mockPull.pull})
-	err := runPull(ctx, &cli, "")
-	assert.NilError(t, err)
+
+	testcases := []struct {
+		name      string
+		imageName string
+		wantErr   bool
+		errString string
+	}{
+		{
+			name:      "normal case",
+			imageName: "registry.example.com/library/image:test",
+			wantErr:   false,
+		},
+		{
+			name:      "abnormal case with wrong image format",
+			imageName: "registry.example.com/library/image-:test",
+			wantErr:   true,
+			errString: "invalid format of image name",
+		},
+	}
+
+	for _, tc := range testcases {
+		t.Run(tc.name, func(t *testing.T) {
+			err := runPull(ctx, &cli, tc.imageName)
+			if tc.wantErr == false {
+				assert.NilError(t, err)
+			}
+			if tc.wantErr == true {
+				assert.ErrorContains(t, err, tc.errString)
+			}
+		})
+	}
 }
