@@ -1,14 +1,24 @@
 # isula-build
 
-isula-build is a tool provided by iSula team for building container images. It can quickly build the container image according to the given `Dockerfile`. 
+isula-build is a tool provided by iSula team for building container images. It can quickly build the container image according to the given `Dockerfile`.
 
 The binary file `isula-build` is a CLI tool and `isula-builder` runs as a daemon responding all the requests from client.
 
 It provides a command line tool that can be used to
 
-- build an image from a Dockerfile
-- list all images in local store
-- remove specified images
+- build an image from a Dockerfile(build)
+- list all images in local store(image)
+- import a basic container image(import)
+- load image layers(load)
+- remove specified images(rm)
+- exporting images layers(save)
+- tag local images(tag)
+- pull image from remote repository(pull)
+- push image to remote repository(push)
+- view operating environment and system info(info)
+- login remote image repository(login)
+- logout remote image repository(logout)
+- query isula-build version(version)
 
 We also
 
@@ -16,6 +26,9 @@ We also
 - support extended file attributes, e.g., linux security, IMA, EVM, user, trusted
 - support different image formats, e.g., docker-archive, isulad
 
+## Documentation
+- [guide](./doc/manual_en.md).
+- [more usage guide](./doc/manual_en.md#usage-guidelines).
 
 ## Getting Started
 
@@ -23,7 +36,7 @@ We also
 
 #### Install from source
 
-For compiling from source on openEuler, these packages are required on your OS: 
+For compiling from source on openEuler, these packages are required on your OS:
 
 - make
 - golang (version 1.13 or higher)
@@ -35,7 +48,6 @@ For compiling from source on openEuler, these packages are required on your OS:
 - libseccomp-devel
 - git
 - bzip2
-- go-md2man
 - systemd-devel
 
 You can install them on openEuler with `yum`:
@@ -50,10 +62,6 @@ Get the source code with `git`:
 git clone https://gitee.com/openeuler/isula-build.git
 ```
 
-Please note that `isula-build` uses Go Modules to manage vendoring packages. Before compiling please make sure you can connect to the default goproxy server.
-
-If you are working behind a proxy, please refer to [Go Module Proxy](https://proxy.golang.org) by setting `GOPROXY=yourproxy`.
-
 Enter the source code directory and begin compiling:
 
 ```sh
@@ -61,25 +69,15 @@ cd isula-build
 sudo make
 ```
 
-After compiling success, you can install the binaries of `isula-build` to `/usr/bin/` simply with:
+After compiling success, you can install the binaries and default configuration files simply with:
 
 ```sh
 sudo make install
 ```
 
-To run the server of `isula-build` for the first time, the default configuration files should be installed:  
-
-```sh
-sudo mkdir -p /etc/isula-build/ && \
-install -p -m 600 ./cmd/daemon/config/configuration.toml /etc/isula-build/configuration.toml && \
-install -p -m 600 ./cmd/daemon/config/storage.toml /etc/isula-build/storage.toml && \
-install -p -m 600 ./cmd/daemon/config/registries.toml /etc/isula-build/registries.toml && \
-install -p -m 600 ./cmd/daemon/config/policy.json /etc/isula-build/policy.json
-```
-
 #### Install as RPM package
 
-`isula-build` is now released with update pack of openEuler 20.03 LTS, you can install it by the help of yum or rpm.
+`isula-build` is now released with update pack of openEuler 20.03 LTS, you can install it by the help of yum or rpm. Before you install, please enable "update" in repo file.
 
 ##### With `yum`
 
@@ -91,14 +89,11 @@ sudo yum install -y isula-build
 
 ##### With `rpm`
 
-you can download it from [openEuler's yum repo of update](https://repo.openeuler.org/openEuler-20.03-LTS/update/) to your local machine, and intall it with such:
+you can download it from [openEuler's yum repo of update](https://repo.openeuler.org/) to your local machine, and intall it with such command:
 
 ```sh
 sudo rpm -ivh isula-build-*.rpm
 ```
-
-
-
 
 ### Run the daemon server
 
@@ -112,12 +107,18 @@ sudo systemctl enable isula-build
 sudo systemctl start isula-build
 ```
 
+#### Directly running isula-builder
+You can also run the isula-builder command on the server to start the service.
+
+```sh
+sudo isula-builder --dataroot="/var/lib/isula-build"
+```
 
 ### Example on building container images
 
 #### Requirements
 
-For building container images, `runc` is required. 
+For building container images, `runc` is required.
 
 You can get `runc` by the help of installing `docker` or `docker-runc` on your openEuler distro by:
 
@@ -125,7 +126,7 @@ You can get `runc` by the help of installing `docker` or `docker-runc` on your o
 sudo yum install docker
 ```
 
-or 
+or
 
 ```sh
 sudo yum install docker-runc
@@ -133,7 +134,7 @@ sudo yum install docker-runc
 
 #### Building image
 
-Here is an example for building a container image, for more details please refer to [usage](./doc/usage.md).
+Here is an example for building a container image, for more details please refer to [usage](./doc/manual_en.md#usage-guidelines).
 
 Create a simple buildDir and write the Dockerfile
 
@@ -178,11 +179,11 @@ Deleted: sha256:86567f7a01b04c662a9657aac436e8d63ecebb26da4252abb016d177721fa11b
 
 ### Integrates with iSulad or docker
 
-Integrates with `iSulad` or `docker` are listed in [integration](./doc/integration.md).
+Integrates with `iSulad` or `docker` are listed in [integration](./doc/manual_en.md#directly-integrating-a-container-engine).
 
 ## Precautions
 
-Constraints, limitations and the differences from `docker build` are listed in [precautions](./doc/precautions.md).
+Constraints, limitations and the differences from `docker build` are listed in [precautions](./doc/manual_en.md#precautions).
 
 ## How to Contribute
 
@@ -192,4 +193,4 @@ Please sign the [CLA](https://openeuler.org/en/cla.html) before contributing.
 
 ## Licensing
 
-isula-build is licensed under the Mulan PSL v2.
+isula-build is licensed under the **Mulan PSL v2**.
