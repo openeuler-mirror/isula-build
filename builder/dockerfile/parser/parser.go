@@ -160,7 +160,8 @@ func format(rows []*rowLine, d *directive) ([]*parser.Line, error) {
 		}
 		fields := strings.SplitN(logicLine, " ", 2)
 		const validLineLen = 2
-		if len(fields) < validLineLen {
+		// we do not allow empty raw command been passed
+		if len(fields) < validLineLen || len(fields[1]) == 0 {
 			return nil, errors.Errorf("line %q should have at least two fields", logicLine)
 		}
 		line.Command = strings.ToUpper(fields[0])
