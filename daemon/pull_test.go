@@ -19,8 +19,10 @@ import (
 	"os"
 	"testing"
 
+	"github.com/containers/storage"
 	"github.com/containers/storage/pkg/reexec"
 	"github.com/containers/storage/pkg/stringid"
+	"github.com/pkg/errors"
 	"golang.org/x/sync/errgroup"
 	"golang.org/x/sys/unix"
 	"google.golang.org/grpc"
@@ -47,6 +49,9 @@ func (c *controlPullServer) Context() context.Context {
 }
 
 func (c *controlPullServer) Send(response *pb.PullResponse) error {
+	if response.Response == "error" {
+		return errors.New("error happened")
+	}
 	return nil
 }
 
@@ -91,30 +96,80 @@ func tmpClean(options daemonTestOptions) {
 
 func TestPull(t *testing.T) {
 	d := prepare(t)
+	defer tmpClean(d)
 
-	pullID := stringid.GenerateNonCryptoID()[:constant.DefaultIDLen]
-	req := &pb.PullRequest{
-		PullID:    pullID,
-		ImageName: "255.255.255.255/no-repository/no-name",
+	options := &storage.ImageOptions{}
+	d.Daemon.localStore.CreateImage(stringid.GenerateRandomID(), []string{"image:test"}, "", "", options)
+
+	testcases := []struct {
+		name      string
+		req       *pb.PullRequest
+		wantErr   bool
+		errString string
+	}{
+		{
+			name: "abnormal case with no corresponding image in local store",
+			req: &pb.PullRequest{
+				PullID:    stringid.GenerateNonCryptoID()[:constant.DefaultIDLen],
+				ImageName: "255.255.255.255/no-repository/no-name",
+			},
+			wantErr:   true,
+			errString: "failed to get the image",
+		},
+		{
+			name: "normal case with image in local store",
+			req: &pb.PullRequest{
+				PullID:    stringid.GenerateNonCryptoID()[:constant.DefaultIDLen],
+				ImageName: "image:test",
+			},
+			wantErr: false,
+		},
 	}
-	stream := &controlPullServer{}
-	err := d.Daemon.backend.Pull(req, stream)
-	assert.ErrorContains(t, err, "failed to get the image")
-	tmpClean(d)
+
+	for _, tc := range testcases {
+		t.Run(tc.name, func(t *testing.T) {
+			stream := &controlPullServer{}
+
+			err := d.Daemon.backend.Pull(tc.req, stream)
+			if tc.wantErr == true {
+				assert.ErrorContains(t, err, tc.errString)
+			}
+			if tc.wantErr == false {
+				assert.NilError(t, err)
+			}
+		})
+	}
+
 }
 
 func TestPullHandler(t *testing.T) {
-	stream := &controlPullServer{}
-	cliLogger := logger.NewCliLogger(constant.CliLogBufferLen)
-
 	ctx := context.TODO()
 	eg, _ := errgroup.WithContext(ctx)
-	eg.Go(pullMessageHandler(stream, cliLogger))
-	eg.Go(func() error {
-		cliLogger.Print("Pull Response")
-		cliLogger.CloseContent()
-		return nil
-	})
+
+	eg.Go(pullHandlerPrint("Push Response"))
+	eg.Go(pullHandlerPrint(""))
+	eg.Go(pullHandlerPrint("error"))
 
 	eg.Wait()
+}
+
+func pullHandlerPrint(message string) func() error {
+	return func() error {
+		stream := &controlPullServer{}
+		cliLogger := logger.NewCliLogger(constant.CliLogBufferLen)
+
+		ctx := context.TODO()
+		eg, _ := errgroup.WithContext(ctx)
+
+		eg.Go(pullMessageHandler(stream, cliLogger))
+		eg.Go(func() error {
+			cliLogger.Print(message)
+			cliLogger.CloseContent()
+			return nil
+		})
+
+		eg.Wait()
+
+		return nil
+	}
 }
