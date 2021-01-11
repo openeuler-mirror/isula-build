@@ -57,6 +57,14 @@ func TestManifestCommand(t *testing.T) {
 	args = []string{"openeuler"}
 	err = manifestInspectCommand(manifestCmd, args)
 	assert.ErrorContains(t, err, "isula_build.sock")
+
+	args = []string{"openeuler", "localhost:5000/openeuler"}
+	err = manifestPushCommand(manifestCmd, args)
+	assert.ErrorContains(t, err, "isula_build.sock")
+
+	args = []string{"openeuler"}
+	err = manifestPushCommand(manifestCmd, args)
+	assert.ErrorContains(t, err, "specify the manifest list name and destination repository")
 }
 
 func TestRunManifestCreate(t *testing.T) {
@@ -82,5 +90,14 @@ func TestRunManifestInspect(t *testing.T) {
 	cli := newMockClient(&mockGrpcClient{})
 	listName := "openeuler"
 	err := runManifestInspect(ctx, &cli, listName)
+	assert.NilError(t, err)
+}
+
+func TestRunManifestPush(t *testing.T) {
+	ctx := context.Background()
+	cli := newMockClient(&mockGrpcClient{})
+	listName := "openeuler"
+	dest := "localhost:5000/openeuler"
+	err := runManifestPush(ctx, &cli, listName, dest)
 	assert.NilError(t, err)
 }

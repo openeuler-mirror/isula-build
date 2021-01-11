@@ -18,6 +18,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 
 	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
@@ -31,6 +32,7 @@ const (
 isula-build manifest create openeuler localhost:5000/openeuler_x86:latest`
 	manifestAnnotateExample = `isula-build manifest annotate --os linux --arch arm64 openeuler localhost:5000/openeuler_aarch64:latest`
 	manifestInspectExample  = `isula-build manifest inspect openeuler:latest`
+	manifestPushExample     = `isula-build manifest push openeuler:latest localhost:5000/openeuler`
 )
 
 type annotateOptions struct {
@@ -52,6 +54,7 @@ func NewManifestCmd() *cobra.Command {
 		NewManifestCreateCmd(),
 		NewManifestAnnotateCmd(),
 		NewManifestInspectCmd(),
+		NewManifestPushCmd(),
 	)
 
 	return manifestCmd
@@ -98,6 +101,19 @@ func NewManifestInspectCmd() *cobra.Command {
 	}
 
 	return inspectCmd
+}
+
+// NewManifestPushCmd returns manifest push command
+func NewManifestPushCmd() *cobra.Command {
+	pushCmd := &cobra.Command{
+		Use:                   "push MANIFEST_LIST DEST",
+		Short:                 "Push a local manifest list to a repository",
+		Example:               manifestPushExample,
+		RunE:                  manifestPushCommand,
+		DisableFlagsInUseLine: true,
+	}
+
+	return pushCmd
 }
 
 func manifestCreateCommand(c *cobra.Command, args []string) error {
@@ -200,6 +216,50 @@ func runManifestInspect(ctx context.Context, cli Cli, listName string) error {
 	}
 
 	fmt.Println(b.String())
+
+	return nil
+}
+
+func manifestPushCommand(c *cobra.Command, args []string) error {
+	if len(args) != 2 {
+		return errors.New("please specify the manifest list name and destination repository")
+	}
+
+	listName := args[0]
+	dest := args[1]
+
+	ctx := context.Background()
+	cli, err := NewClient(ctx)
+	if err != nil {
+		return err
+	}
+
+	return runManifestPush(ctx, cli, listName, dest)
+}
+
+func runManifestPush(ctx context.Context, cli Cli, listName, dest string) error {
+	resp, err := cli.Client().ManifestPush(ctx, &pb.ManifestPushRequest{
+		ManifestList: listName,
+		Dest:         dest,
+	})
+	if err != nil {
+		return err
+	}
+
+	for {
+		msg, rerr := resp.Recv()
+		if rerr != nil {
+			if rerr != io.EOF {
+				return rerr
+			}
+			break
+		}
+		if msg != nil {
+			fmt.Print(msg.Result)
+		}
+	}
+
+	fmt.Println("manifest list push succeed")
 
 	return nil
 }

@@ -23,4 +23,6 @@ import (
 	_ "isula.org/isula-build/exporter/docker/daemon"
 	// register the isulad exporter
 	_ "isula.org/isula-build/exporter/isulad"
+	// register the manifest exporter
+	_ "isula.org/isula-build/exporter/manifest"
 )

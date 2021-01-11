@@ -76,6 +76,10 @@ type mockSaveClient struct {
 	grpc.ClientStream
 }
 
+type mockManifestPushClient struct {
+	grpc.ClientStream
+}
+
 type mockGrpcClient struct {
 	imageBuildFunc  func(ctx context.Context, in *pb.BuildRequest, opts ...grpc.CallOption) (*pb.BuildResponse, error)
 	removeFunc      func(ctx context.Context, in *pb.RemoveRequest, opts ...grpc.CallOption) (pb.Control_RemoveClient, error)
@@ -241,6 +245,10 @@ func (gcli *mockGrpcClient) ManifestInspect(ctx context.Context, in *pb.Manifest
 	return resp, nil
 }
 
+func (gcli *mockGrpcClient) ManifestPush(ctx context.Context, in *pb.ManifestPushRequest, opts ...grpc.CallOption) (pb.Control_ManifestPushClient, error) {
+	return &mockManifestPushClient{}, nil
+}
+
 func (gcli *mockGrpcClient) Load(ctx context.Context, in *pb.LoadRequest, opts ...grpc.CallOption) (pb.Control_LoadClient, error) {
 	if gcli.loadFunc != nil {
 		return gcli.loadFunc(ctx, in, opts...)
@@ -290,6 +298,10 @@ func (m mockPullClient) Recv() (*pb.PullResponse, error) {
 
 func (scli *mockSaveClient) Recv() (*pb.SaveResponse, error) {
 	return &pb.SaveResponse{}, io.EOF
+}
+
+func (m mockManifestPushClient) Recv() (*pb.ManifestPushResponse, error) {
+	return &pb.ManifestPushResponse{}, io.EOF
 }
 
 func (cli *mockClient) Client() pb.ControlClient {

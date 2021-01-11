@@ -46,12 +46,13 @@ const (
 
 // ExportOptions is a struct for exporter
 type ExportOptions struct {
-	SystemContext *types.SystemContext
-	Ctx           context.Context
-	ReportWriter  io.Writer
-	DataDir       string
-	ExportID      string
-	ManifestType  string
+	SystemContext      *types.SystemContext
+	Ctx                context.Context
+	ReportWriter       io.Writer
+	DataDir            string
+	ExportID           string
+	ManifestType       string
+	ImageListSelection cp.ImageListSelection
 }
 
 // Export exports an image to an output destination
@@ -184,6 +185,8 @@ func NewCopyOptions(opts ExportOptions) *cp.Options {
 	cpOpts.SourceCtx = opts.SystemContext
 	cpOpts.DestinationCtx = opts.SystemContext
 	cpOpts.ReportWriter = opts.ReportWriter
+	cpOpts.ForceManifestMIMEType = opts.ManifestType
+	cpOpts.ImageListSelection = opts.ImageListSelection
 
 	return cpOpts
 }
