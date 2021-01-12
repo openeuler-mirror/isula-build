@@ -54,6 +54,8 @@ service Control {
     rpc ManifestAnnotate(ManifestAnnotateRequest) returns (google.protobuf.Empty);
     // ManifestInspect requests to inspect manifest list
     rpc ManifestInspect(ManifestInspectRequest) returns (ManifestInspectResponse);
+    // ManifestPush requests to push manifest list
+    rpc ManifestPush(ManifestPushRequest) returns (stream ManifestPushResponse);
 }
 
 message BuildRequest {
@@ -350,3 +352,13 @@ message ManifestInspectRequest {
 message ManifestInspectResponse {
     bytes data = 1;
 }
+
+message ManifestPushRequest {
+    string manifestList = 1;
+    string dest = 2;
+}
+
+message ManifestPushResponse {
+    string result = 1;
+}
+

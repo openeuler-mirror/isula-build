@@ -33,6 +33,9 @@ const (
 
 	// IsuladTransport use to export images to isulad
 	IsuladTransport = "isulad"
+
+	// ManifestTransport used to export manifest list
+	ManifestTransport = "manifest"
 )
 
 type exportHub struct {

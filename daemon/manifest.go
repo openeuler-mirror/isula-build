@@ -17,20 +17,29 @@ import (
 	"context"
 	"encoding/json"
 
+	"github.com/containers/image/v5/copy"
 	"github.com/containers/image/v5/manifest"
+	is "github.com/containers/image/v5/storage"
 	"github.com/containers/image/v5/transports"
+	"github.com/containers/image/v5/transports/alltransports"
+	"github.com/containers/image/v5/types"
 	"github.com/containers/storage"
 	gogotypes "github.com/gogo/protobuf/types"
 	"github.com/opencontainers/go-digest"
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
+	"golang.org/x/sync/errgroup"
 
+	constant "isula.org/isula-build"
 	pb "isula.org/isula-build/api/services"
 	"isula.org/isula-build/builder/dockerfile"
 	"isula.org/isula-build/builder/dockerfile/container"
 	"isula.org/isula-build/exporter"
 	"isula.org/isula-build/image"
+	"isula.org/isula-build/pkg/logger"
+	manifestis "isula.org/isula-build/pkg/manifest"
 	"isula.org/isula-build/store"
+	"isula.org/isula-build/util"
 )
 
 const instancesData = "instancesdata"
@@ -40,16 +49,30 @@ type manifestList struct {
 	instances map[digest.Digest]string
 }
 
+type instanceInfo struct {
+	OS, Architecture string
+	instanceDigest   *digest.Digest
+	Size             int64
+}
+
+type manifestPushOptions struct {
+	sysCtx       *types.SystemContext
+	logger       *logger.Logger
+	localStore   *store.Store
+	manifestName string
+	dest         string
+}
+
 // ManifestCreate creates manifest list
 func (b *Backend) ManifestCreate(ctx context.Context, req *pb.ManifestCreateRequest) (*pb.ManifestCreateResponse, error) {
-	if !b.daemon.opts.Experimental {
-		return &pb.ManifestCreateResponse{}, errors.New("please enable experimental to use manifest feature")
-	}
-
 	logrus.WithFields(logrus.Fields{
 		"ManifestList": req.GetManifestList(),
 		"Manifest":     req.GetManifests(),
 	}).Info("ManifestCreateRequest received")
+
+	if !b.daemon.opts.Experimental {
+		return &pb.ManifestCreateResponse{}, errors.New("please enable experimental to use manifest feature")
+	}
 
 	manifestName := req.GetManifestList()
 	manifests := req.GetManifests()
@@ -84,16 +107,16 @@ func (b *Backend) ManifestCreate(ctx context.Context, req *pb.ManifestCreateRequ
 
 // ManifestAnnotate modifies and updates manifest list
 func (b *Backend) ManifestAnnotate(ctx context.Context, req *pb.ManifestAnnotateRequest) (*gogotypes.Empty, error) {
+	logrus.WithFields(logrus.Fields{
+		"ManifestList": req.GetManifestList(),
+		"Manifest":     req.GetManifest(),
+	}).Info("ManifestAnnotateRequest received")
+
 	var emptyResp = &gogotypes.Empty{}
 
 	if !b.daemon.opts.Experimental {
 		return emptyResp, errors.New("please enable experimental to use manifest feature")
 	}
-
-	logrus.WithFields(logrus.Fields{
-		"ManifestList": req.GetManifestList(),
-		"Manifest":     req.GetManifest(),
-	}).Info("ManifestAnnotateRequest received")
 
 	manifestName := req.GetManifestList()
 	manifestImage := req.GetManifest()
@@ -109,7 +132,7 @@ func (b *Backend) ManifestAnnotate(ctx context.Context, req *pb.ManifestAnnotate
 	}
 
 	// load list from list image
-	_, list, err := loadListFromImage(b.daemon.localStore, listImage.ID)
+	list, err := loadListFromImage(b.daemon.localStore, listImage.ID)
 	if err != nil {
 		return emptyResp, err
 	}
@@ -146,13 +169,13 @@ func (b *Backend) ManifestAnnotate(ctx context.Context, req *pb.ManifestAnnotate
 
 // ManifestInspect inspects manifest list
 func (b *Backend) ManifestInspect(ctx context.Context, req *pb.ManifestInspectRequest) (*pb.ManifestInspectResponse, error) {
-	if !b.daemon.opts.Experimental {
-		return &pb.ManifestInspectResponse{}, errors.New("please enable experimental to use manifest feature")
-	}
-
 	logrus.WithFields(logrus.Fields{
 		"ManifestList": req.GetManifestList(),
 	}).Info("ManifestInspectRequest received")
+
+	if !b.daemon.opts.Experimental {
+		return &pb.ManifestInspectResponse{}, errors.New("please enable experimental to use manifest feature")
+	}
 
 	manifestName := req.GetManifestList()
 
@@ -191,10 +214,85 @@ func (b *Backend) ManifestInspect(ctx context.Context, req *pb.ManifestInspectRe
 	}, nil
 }
 
-type instanceInfo struct {
-	OS, Architecture string
-	instanceDigest   *digest.Digest
-	Size             int64
+// ManifestPush pushes manifest list to destination
+func (b *Backend) ManifestPush(req *pb.ManifestPushRequest, stream pb.Control_ManifestPushServer) error {
+	logrus.WithFields(logrus.Fields{
+		"ManifestList": req.GetManifestList(),
+		"Destination":  req.GetDest(),
+	}).Info("ManifestPushRequest received")
+
+	if !b.daemon.opts.Experimental {
+		return errors.New("please enable experimental to use manifest feature")
+	}
+
+	manifestName := req.GetManifestList()
+	cliLogger := logger.NewCliLogger(constant.CliLogBufferLen)
+	opt := manifestPushOptions{
+		sysCtx:       image.GetSystemContext(),
+		logger:       cliLogger,
+		localStore:   b.daemon.localStore,
+		manifestName: manifestName,
+		dest:         req.GetDest(),
+	}
+
+	eg, egCtx := errgroup.WithContext(stream.Context())
+	eg.Go(manifestPushHandler(egCtx, opt))
+	eg.Go(manifestPushMessageHandler(stream, cliLogger))
+	errC := make(chan error, 1)
+
+	errC <- eg.Wait()
+	defer close(errC)
+
+	err, ok := <-errC
+	if !ok {
+		logrus.WithField(util.LogKeySessionID, manifestName).Info("Channel errC closed")
+		return nil
+	}
+	if err != nil {
+		logrus.WithField(util.LogKeySessionID, manifestName).Warnf("Stream closed with: %v", err)
+		return err
+	}
+
+	return nil
+}
+
+func manifestPushHandler(ctx context.Context, options manifestPushOptions) func() error {
+	return func() error {
+		defer options.logger.CloseContent()
+
+		exOpts := exporter.ExportOptions{
+			Ctx:                ctx,
+			SystemContext:      options.sysCtx,
+			ReportWriter:       options.logger,
+			ManifestType:       manifest.DockerV2Schema2MediaType,
+			ImageListSelection: copy.CopyAllImages,
+		}
+
+		if err := exporter.Export(options.manifestName, "manifest:"+options.dest, exOpts, options.localStore); err != nil {
+			logrus.WithField(util.LogKeySessionID, options.manifestName).
+				Errorf("Push manifest %s to %s failed: %v", options.manifestName, options.dest, err)
+			return errors.Wrapf(err, "push manifest %s to %s failed", options.manifestName, options.dest)
+		}
+
+		return nil
+	}
+}
+
+func manifestPushMessageHandler(stream pb.Control_ManifestPushServer, cliLogger *logger.Logger) func() error {
+	return func() error {
+		for content := range cliLogger.GetContent() {
+			if content == "" {
+				return nil
+			}
+			if err := stream.Send(&pb.ManifestPushResponse{
+				Result: content,
+			}); err != nil {
+				return err
+			}
+		}
+
+		return nil
+	}
 }
 
 func (l *manifestList) addImage(ctx context.Context, store *store.Store, imageSpec string) (digest.Digest, error) {
@@ -315,7 +413,7 @@ func (l *manifestList) saveListToImage(store *store.Store, imageID, name string,
 	return imageID, nil
 }
 
-func loadListFromImage(store *store.Store, image string) (string, manifestList, error) {
+func loadListFromImage(store *store.Store, imageID string) (manifestList, error) {
 	list := manifestList{
 		docker: manifest.Schema2List{
 			SchemaVersion: container.SchemaVersion,
@@ -323,29 +421,58 @@ func loadListFromImage(store *store.Store, image string) (string, manifestList, 
 		},
 	}
 
-	// get list image
-	img, err := store.Image(image)
-	if err != nil {
-		return "", list, errors.Wrapf(err, "get image %v for loading manifest list error", image)
-	}
-
 	// load list.docker
-	manifestBytes, err := store.ImageBigData(img.ID, storage.ImageDigestManifestBigDataNamePrefix)
+	manifestBytes, err := store.ImageBigData(imageID, storage.ImageDigestManifestBigDataNamePrefix)
 	if err != nil {
-		return "", list, errors.Wrapf(err, "get image data for loading manifest list error")
+		return list, errors.Wrapf(err, "get image data for loading manifest list error")
 	}
 	if err = json.Unmarshal(manifestBytes, &list.docker); err != nil {
-		return "", list, errors.Wrapf(err, "parse image data to manifest list error")
+		return list, errors.Wrapf(err, "parse image data to manifest list error")
 	}
 
 	// load list.instance
-	instancesBytes, err := store.ImageBigData(img.ID, instancesData)
+	instancesBytes, err := store.ImageBigData(imageID, instancesData)
 	if err != nil {
-		return img.ID, list, errors.Wrapf(err, "get instance data for loading instance list error")
+		return list, errors.Wrapf(err, "get instance data for loading instance list error")
 	}
 	if err = json.Unmarshal(instancesBytes, &list.instances); err != nil {
-		return img.ID, list, errors.Wrapf(err, "parse instance data to instance list error")
+		return list, errors.Wrapf(err, "parse instance data to instance list error")
 	}
 
-	return img.ID, list, err
+	return list, err
+}
+
+// GetReference is used for manifest exporter getting image reference
+func GetReference(store *store.Store, manifestName string) (types.ImageReference, error) {
+	// get list image
+	_, listImage, err := image.FindImage(store, manifestName)
+	if err != nil {
+		logrus.Errorf("manifest find image err: %v", err)
+		return nil, err
+	}
+
+	// load list from list image
+	list, err := loadListFromImage(store, listImage.ID)
+	if err != nil {
+		logrus.Errorf("manifest load list from image err: %v", err)
+		return nil, err
+	}
+
+	// get list image reference
+	sr, err := is.Transport.ParseStoreReference(store, listImage.ID)
+	if err != nil {
+		return nil, errors.Wrapf(err, "parse image reference from image %v error", listImage.ID)
+	}
+
+	// get instances references
+	references := make([]types.ImageReference, 0, len(list.instances))
+	for _, instance := range list.instances {
+		ref, err := alltransports.ParseImageName(instance)
+		if err != nil {
+			return nil, errors.Wrapf(err, "parse image reference from instance %v error", instance)
+		}
+		references = append(references, ref)
+	}
+
+	return manifestis.Reference(sr, references), nil
 }
