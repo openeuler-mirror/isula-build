@@ -29,10 +29,10 @@ import (
 
 const (
 	manifestCreateExample = `isula-build manifest create openeuler
-isula-build manifest create openeuler localhost:5000/openeuler_x86:latest`
-	manifestAnnotateExample = `isula-build manifest annotate --os linux --arch arm64 openeuler localhost:5000/openeuler_aarch64:latest`
+isula-build manifest create openeuler localhost:5000/openeuler_x86:latest localhost:5000/openeuler_aarch64:latest`
+	manifestAnnotateExample = `isula-build manifest annotate --os linux --arch arm64 openeuler:latest localhost:5000/openeuler_aarch64:latest`
 	manifestInspectExample  = `isula-build manifest inspect openeuler:latest`
-	manifestPushExample     = `isula-build manifest push openeuler:latest localhost:5000/openeuler`
+	manifestPushExample     = `isula-build manifest push openeuler:latest localhost:5000/openeuler:latest`
 )
 
 type annotateOptions struct {
@@ -76,7 +76,7 @@ func NewManifestCreateCmd() *cobra.Command {
 // NewManifestAnnotateCmd returns manifest annotate command
 func NewManifestAnnotateCmd() *cobra.Command {
 	annotateCmd := &cobra.Command{
-		Use:     "annotate [FLAGS] MANIFEST_LIST MANIFEST",
+		Use:     "annotate MANIFEST_LIST MANIFEST",
 		Short:   "Annotate a local manifest list",
 		Example: manifestAnnotateExample,
 		RunE:    manifestAnnotateCommand,
@@ -106,7 +106,7 @@ func NewManifestInspectCmd() *cobra.Command {
 // NewManifestPushCmd returns manifest push command
 func NewManifestPushCmd() *cobra.Command {
 	pushCmd := &cobra.Command{
-		Use:                   "push MANIFEST_LIST DEST",
+		Use:                   "push MANIFEST_LIST DESTINATION",
 		Short:                 "Push a local manifest list to a repository",
 		Example:               manifestPushExample,
 		RunE:                  manifestPushCommand,
