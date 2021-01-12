@@ -24,44 +24,67 @@ func TestPushCommand(t *testing.T) {
 	testcases := []struct {
 		name      string
 		args      []string
-		cli       Cli
+		format    string
 		wantErr   bool
 		errString string
 	}{
 		{
-			name:      "normal case",
+			name:      "normal case with image format docker",
 			args:      []string{"openeuler:latest"},
+			format:    "docker",
 			wantErr:   true,
 			errString: "isula_build.sock",
 		},
 		{
 			name:      "abnormal case with multiple args",
 			args:      []string{"aaa", "bbb"},
+			format:    "oci",
 			wantErr:   true,
 			errString: "push requires exactly one argument",
 		},
 		{
 			name:      "abnormal case with empty args",
 			args:      []string{""},
+			format:    "docker",
 			wantErr:   true,
 			errString: "repository name must have at least one component",
 		},
 		{
 			name:      "abnormal case with invalid args",
 			args:      []string{"busybox-:latest"},
+			format:    "oci",
 			wantErr:   true,
 			errString: "invalid reference format",
+		},
+		{
+			name:      "normal case with image format oci",
+			args:      []string{"openeuler:latest"},
+			format:    "oci",
+			wantErr:   true,
+			errString: "isula_build.sock",
+		},
+		{
+			name:      "abnormal case with wrong image format dock",
+			args:      []string{"openeuler:latest"},
+			format:    "dock",
+			wantErr:   true,
+			errString: "wrong image format",
 		},
 	}
 
 	for _, tc := range testcases {
 		t.Run(tc.name, func(t *testing.T) {
-			pullCmd := NewPushCmd()
-			err := pushCommand(pullCmd, tc.args)
-			if tc.wantErr {
-				assert.ErrorContains(t, err, tc.errString)
+			{
+				pushCmd := NewPushCmd()
+				pushOpts.format = tc.format
+
+				err := pushCommand(pushCmd, tc.args)
+				if tc.wantErr {
+					assert.ErrorContains(t, err, tc.errString)
+				}
 			}
 		})
+
 	}
 }
 
