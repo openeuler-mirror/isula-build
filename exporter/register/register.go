@@ -25,4 +25,8 @@ import (
 	_ "isula.org/isula-build/exporter/isulad"
 	// register the manifest exporter
 	_ "isula.org/isula-build/exporter/manifest"
+	// register the oci exporter
+	_ "isula.org/isula-build/exporter/oci"
+	// register the oci-archive exporter
+	_ "isula.org/isula-build/exporter/oci/archive"
 )

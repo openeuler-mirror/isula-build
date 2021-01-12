@@ -31,6 +31,12 @@ const (
 	// DockerDaemonTransport used to export images to docker daemon
 	DockerDaemonTransport = "docker-daemon"
 
+	// OCITransport used to export oci image format images to registry
+	OCITransport = "oci"
+
+	// OCIArchiveTransport used to export oci image format images to local tarball
+	OCIArchiveTransport = "oci-archive"
+
 	// IsuladTransport use to export images to isulad
 	IsuladTransport = "isulad"
 

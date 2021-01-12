@@ -28,8 +28,10 @@ import (
 	"time"
 
 	"github.com/containers/image/v5/docker/reference"
+	"github.com/containers/image/v5/manifest"
 	securejoin "github.com/cyphar/filepath-securejoin"
 	"github.com/opencontainers/go-digest"
+	imgspecv1 "github.com/opencontainers/image-spec/specs-go/v1"
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
 
@@ -56,6 +58,7 @@ type BuildOptions struct {
 	ProxyFlag     bool
 	Tag           string
 	AdditionalTag string
+	Format        string
 }
 
 // Builder is the object to build a Dockerfile
@@ -79,8 +82,10 @@ type Builder struct {
 	stageBuilders    []*stageBuilder
 	// stageAliasMap hold the stage index which has been renamed
 	// e.g. FROM foo AS bar  ->  map[string]int{"bar":1}
-	stageAliasMap map[string]int
-	rsaKey        *rsa.PrivateKey
+	stageAliasMap      map[string]int
+	rsaKey             *rsa.PrivateKey
+	manifestType       string
+	outputManifestType []string
 }
 
 // NewBuilder init a builder
@@ -119,10 +124,17 @@ func NewBuilder(ctx context.Context, store *store.Store, req *pb.BuildRequest, r
 		ProxyFlag:  req.GetProxy(),
 		Iidfile:    req.GetIidfile(),
 		Output:     []string{req.GetOutput()},
+		Format:     req.GetFormat(),
 	}
 	b.parseStaticBuildOpts(req)
 	tag, additionalTag, err := parseTag(req.Output, req.AdditionalTag)
 	if err != nil {
+		return nil, err
+	}
+	if err = b.parseFormat(b.buildOpts.Format); err != nil {
+		return nil, err
+	}
+	if err = b.parseOutputManifest(b.buildOpts.Output); err != nil {
 		return nil, err
 	}
 	b.buildOpts.Tag, b.buildOpts.AdditionalTag = tag, additionalTag
@@ -144,6 +156,44 @@ func NewBuilder(ctx context.Context, store *store.Store, req *pb.BuildRequest, r
 	}
 
 	return b, nil
+}
+
+func (b *Builder) parseFormat(format string) error {
+	if err := exporter.CheckImageFormat(format); err != nil {
+		return err
+	}
+
+	if format == exporter.OCITransport {
+		b.manifestType = imgspecv1.MediaTypeImageManifest
+	}
+
+	return nil
+}
+
+func (b *Builder) parseOutputManifest(output []string) error {
+	const outputFieldLen = 2
+
+	for i, o := range output {
+		if o == "" {
+			continue
+		}
+		segments := strings.SplitN(o, ":", outputFieldLen)
+		if len(segments) != outputFieldLen {
+			return errors.Errorf(`invalid output %q, expected colon-separated exporter:reference`, o)
+		}
+
+		transport := segments[0]
+		if transport == exporter.OCITransport {
+			// When transport is oci, still, we need to set b.buildOpts.Output[i] starting with prefix "docker://". We only need to set the related b.outputManifestType.
+			// As a result, we can push oci format image into registry. When with prefix "oci://", image is exported to local dir, which is not what we expect.
+			// See github.com/containers/image package for more information.
+			b.outputManifestType = append(b.outputManifestType, imgspecv1.MediaTypeImageManifest)
+			b.buildOpts.Output[i] = fmt.Sprintf("%s:%s", exporter.DockerTransport, segments[1])
+		}
+		b.outputManifestType = append(b.outputManifestType, manifest.DockerV2Schema2MediaType)
+	}
+
+	return nil
 }
 
 func parseTag(output, additionalTag string) (string, string, error) {
@@ -483,13 +533,17 @@ func (b *Builder) export(imageID string) error {
 	}
 
 	var retErr error
-	for _, o := range b.buildOpts.Output {
+	for i, o := range b.buildOpts.Output {
+		if o == "" {
+			continue
+		}
 		exOpts := exporter.ExportOptions{
 			Ctx:           b.ctx,
 			SystemContext: image.GetSystemContext(),
 			ReportWriter:  b.cliLog,
 			ExportID:      b.buildID,
 			DataDir:       b.dataDir,
+			ManifestType:  b.outputManifestType[i],
 		}
 		if exErr := exporter.Export(imageID, o, exOpts, b.localStore); exErr != nil {
 			b.Logger().Errorf("Image %s output to %s failed with: %v", imageID, o, exErr)
@@ -565,9 +619,9 @@ func parseOutputTag(output string) string {
 	switch {
 	case (outputFields[0] == exporter.DockerDaemonTransport || outputFields[0] == exporter.IsuladTransport) && len(outputFields) > 1:
 		tag = strings.Join(outputFields[1:], ":")
-	case outputFields[0] == exporter.DockerArchiveTransport && len(outputFields) > archiveOutputWithoutTagLen:
+	case exporter.CheckArchiveFormat(outputFields[0]) == nil && len(outputFields) > archiveOutputWithoutTagLen:
 		tag = strings.Join(outputFields[archiveOutputWithoutTagLen:], ":")
-	case outputFields[0] == exporter.DockerTransport && len(outputFields) > 1:
+	case exporter.CheckImageFormat(outputFields[0]) == nil && len(outputFields) > 1:
 		repoAndTag := strings.Join(outputFields[1:], ":")
 		// repo format regexp, "//registry.example.com/" for example
 		repo := regexp.MustCompile(`^\/\/[\w\.\-\:]+\/`).FindString(repoAndTag)

@@ -251,7 +251,7 @@ func getLocalImageNameFromRef(store storage.Store, srcRef types.ImageReference) 
 		return "", errors.Errorf("reference to image is empty")
 	}
 
-	if srcRef.Transport().Name() == exporter.DockerArchiveTransport {
+	if err := exporter.CheckArchiveFormat(srcRef.Transport().Name()); err == nil {
 		return stringid.GenerateRandomID() + ":" + stringid.GenerateRandomID(), nil
 	}
 
@@ -609,7 +609,7 @@ func tryResolveNameWithTransport(name string) (string, string) {
 				// trim prefix if dest like docker://registry.example.com format
 				dest := strings.TrimPrefix(splits[1], "//")
 				return dest, trans.Name()
-			case exporter.DockerArchiveTransport:
+			case exporter.DockerArchiveTransport, exporter.OCIArchiveTransport:
 				dest := strings.TrimSpace(splits[1])
 				return dest, trans.Name()
 			}

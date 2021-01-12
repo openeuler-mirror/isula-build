@@ -27,6 +27,7 @@ import (
 
 	constant "isula.org/isula-build"
 	pb "isula.org/isula-build/api/services"
+	"isula.org/isula-build/exporter"
 	"isula.org/isula-build/util"
 )
 
@@ -34,6 +35,7 @@ type saveOptions struct {
 	images []string
 	path   string
 	saveID string
+	format string
 }
 
 var saveOpts saveOptions
@@ -54,6 +56,11 @@ func NewSaveCmd() *cobra.Command {
 	}
 
 	saveCmd.PersistentFlags().StringVarP(&saveOpts.path, "output", "o", "", "Path to save the tarball")
+	if util.CheckCliExperimentalEnabled() {
+		saveCmd.PersistentFlags().StringVarP(&saveOpts.format, "format", "f", "oci", "Format of image saving to local tarball")
+	} else {
+		saveOpts.format = exporter.DockerTransport
+	}
 
 	return saveCmd
 }
@@ -61,6 +68,16 @@ func NewSaveCmd() *cobra.Command {
 func saveCommand(cmd *cobra.Command, args []string) error {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
+
+	if len(args) == 0 {
+		return errors.New("save accepts at least one image")
+	}
+	if err := exporter.CheckImageFormat(saveOpts.format); err != nil {
+		return err
+	}
+	if err := checkSavePath(); err != nil {
+		return err
+	}
 
 	cli, err := NewClient(ctx)
 	if err != nil {
@@ -70,17 +87,10 @@ func saveCommand(cmd *cobra.Command, args []string) error {
 	return runSave(ctx, cli, args)
 }
 
-func runSave(ctx context.Context, cli Cli, args []string) error {
-	if len(args) == 0 {
-		return errors.New("save accepts at least one image")
-	}
-
+func checkSavePath() error {
 	if len(saveOpts.path) == 0 {
 		return errors.New("output path should not be empty")
 	}
-
-	saveOpts.saveID = stringid.GenerateNonCryptoID()[:constant.DefaultIDLen]
-	saveOpts.images = args
 
 	if strings.Contains(saveOpts.path, ":") {
 		return errors.Errorf("colon in path %q is not supported", saveOpts.path)
@@ -98,10 +108,18 @@ func runSave(ctx context.Context, cli Cli, args []string) error {
 		return errors.Errorf("output file already exist: %q, try to remove existing tarball or rename output file", saveOpts.path)
 	}
 
+	return nil
+}
+
+func runSave(ctx context.Context, cli Cli, args []string) error {
+	saveOpts.saveID = stringid.GenerateNonCryptoID()[:constant.DefaultIDLen]
+	saveOpts.images = args
+
 	saveStream, err := cli.Client().Save(ctx, &pb.SaveRequest{
 		Images: saveOpts.images,
 		Path:   saveOpts.path,
 		SaveID: saveOpts.saveID,
+		Format: saveOpts.format,
 	})
 	if err != nil {
 		return err
