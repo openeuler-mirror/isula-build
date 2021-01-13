@@ -45,4 +45,5 @@ function main() {
     esac
 }
 
+export "ISULABUILD_CLI_EXPERIMENTAL"="enabled"
 main "$@"

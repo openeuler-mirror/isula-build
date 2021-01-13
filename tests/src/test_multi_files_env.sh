@@ -19,7 +19,9 @@ source "$top_dir"/tests/lib/common.sh
 image_name=multi-files-env
 context_dir="$top_dir"/tests/data/multi-files-env
 test_build_without_output "$image_name" "$context_dir"
+test_build_without_output_with_oci_format "$image_name" "$context_dir"
 test_build_with_docker_archive_output "$image_name" "$context_dir"
+test_build_with_oci_archive_output "$image_name" "$context_dir"
 test_build_with_docker_daemon_output "$image_name" "$context_dir"
 test_build_with_isulad_output "$image_name" "$context_dir"
 

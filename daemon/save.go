@@ -42,6 +42,7 @@ type saveOptions struct {
 	saveID     string
 	outputPath string
 	oriImgList []string
+	format     string
 }
 
 func (b *Backend) getSaveOptions(req *pb.SaveRequest) saveOptions {
@@ -52,19 +53,33 @@ func (b *Backend) getSaveOptions(req *pb.SaveRequest) saveOptions {
 		saveID:     req.GetSaveID(),
 		outputPath: req.GetPath(),
 		oriImgList: req.GetImages(),
-		logEntry:   logrus.WithFields(logrus.Fields{"SaveID": req.GetSaveID()}),
+		format:     req.GetFormat(),
+		logEntry:   logrus.WithFields(logrus.Fields{"SaveID": req.GetSaveID(), "Format": req.GetFormat()}),
 	}
 }
 
 // Save receives a save request and save the image(s) into tarball
 func (b *Backend) Save(req *pb.SaveRequest, stream pb.Control_SaveServer) error {
+	logrus.WithFields(logrus.Fields{
+		"SaveID": req.GetSaveID(),
+		"Format": req.GetFormat(),
+	}).Info("SaveRequest received")
+
 	var (
 		ok  bool
 		err error
 	)
 
 	opts := b.getSaveOptions(req)
-	opts.logEntry.Info("SaveRequest received")
+
+	switch opts.format {
+	case exporter.DockerTransport:
+		opts.format = exporter.DockerArchiveTransport
+	case exporter.OCITransport:
+		opts.format = exporter.OCIArchiveTransport
+	default:
+		return errors.New("wrong image format provided")
+	}
 
 	defer func() {
 		if err != nil {
@@ -116,10 +131,10 @@ func exportHandler(ctx context.Context, opts saveOptions) func() error {
 				ReportWriter:  opts.logger,
 			}
 
-			if err := exporter.Export(imageID, exporter.FormatTransport(exporter.DockerArchiveTransport, opts.outputPath),
+			if err := exporter.Export(imageID, exporter.FormatTransport(opts.format, opts.outputPath),
 				exOpts, opts.localStore); err != nil {
-				opts.logEntry.Errorf("Save Image %s output to %s failed with: %v", imageID, exporter.DockerArchiveTransport, err)
-				return errors.Wrapf(err, "save Image %s output to %s failed", imageID, exporter.DockerArchiveTransport)
+				opts.logEntry.Errorf("Save Image %s output to %s failed with: %v", imageID, opts.format, err)
+				return errors.Wrapf(err, "save Image %s output to %s failed", imageID, opts.format)
 			}
 		}
 

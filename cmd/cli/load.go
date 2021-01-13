@@ -49,8 +49,8 @@ func NewLoadCmd() *cobra.Command {
 		RunE:    loadCommand,
 	}
 
-	loadCmd.PersistentFlags().
-		StringVarP(&loadOpts.path, "input", "i", "", "Path to local tarball")
+	loadCmd.PersistentFlags().StringVarP(&loadOpts.path, "input", "i", "", "Path to local tarball")
+
 	return loadCmd
 }
 

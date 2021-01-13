@@ -85,6 +85,8 @@ message BuildRequest {
     string entityID = 12;
     // encrypted indicated the build args are encrypted
     bool encrypted = 13;
+    // format is the built image format
+    string format = 14;
 }
 
 message ImportRequest {
@@ -225,6 +227,8 @@ message PushRequest {
     string pushID = 1;
     // imageName contains repository and tag
     string imageName = 2;
+    // format is the format of image that pushed to registry, for now support docker and oci
+    string format = 3;
 }
 
 message PushResponse {
@@ -253,6 +257,8 @@ message SaveRequest {
     repeated string images = 2;
     // path is location for output tarball
     string path = 3;
+    // format is the format of image saved to archive file, such as docker-archive, oci-archive
+    string format = 4;
 }
 
 message SaveResponse {

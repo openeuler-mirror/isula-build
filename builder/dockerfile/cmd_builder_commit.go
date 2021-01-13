@@ -134,6 +134,7 @@ func (c *cmdBuilder) commit(ctx context.Context) (string, error) {
 	}
 
 	imageCopyOptions := image.NewImageCopyOptions(c.stage.builder.cliLog)
+	imageCopyOptions.ForceManifestMIMEType = c.stage.builder.manifestType
 
 	if _, err = cp.Image(ctx, policyContext, dest, &srcContainerReference, imageCopyOptions); err != nil {
 		return "", errors.Wrapf(err, "error copying layers and metadata for container %q", c.stage.containerID)

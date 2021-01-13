@@ -73,7 +73,7 @@ func prepareLoadTar(dir *fs.Dir) error {
 		return nil
 	}
 
-	if err = tw.WriteHeader(hdr); err != nil {
+	if wErr := tw.WriteHeader(hdr); wErr != nil {
 		return nil
 	}
 
@@ -138,7 +138,7 @@ func TestLoad(t *testing.T) {
 	defer clean(dir)
 
 	path := dir.Join("load.tar")
-	repoTags, err := getRepoTagFromImageTar(daemon.opts.DataRoot, path)
+	repoTags, err := tryToParseImageFormatFromTarball(daemon.opts.DataRoot, &loadOptions{path: path})
 	assert.NilError(t, err)
 	assert.Equal(t, repoTags[0][0], "hello:latest")
 
@@ -186,7 +186,7 @@ func TestLoadMultipleImages(t *testing.T) {
 	defer clean(dir)
 
 	path := dir.Join("load.tar")
-	repoTags, err := getRepoTagFromImageTar(daemon.opts.DataRoot, path)
+	repoTags, err := tryToParseImageFormatFromTarball(daemon.opts.DataRoot, &loadOptions{path: path})
 	assert.NilError(t, err)
 	assert.Equal(t, repoTags[0][0], "registry.example.com/sayhello:first")
 	assert.Equal(t, repoTags[1][0], "registry.example.com/sayhello:second")

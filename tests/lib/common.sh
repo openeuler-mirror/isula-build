@@ -49,18 +49,35 @@ function cleanup() {
     rm -f /tmp/buildlog-*
 }
 
-# test build image without output
+# test build image without output with default docker format
 function test_build_without_output() {
-    if ! isula-build ctr-img build --tag "$1":latest "$2" > /tmp/buildlog-client 2>&1; then
+    if ! isula-build ctr-img build --format docker --tag "$1":latest "$2" > /tmp/buildlog-client 2>&1; then
         echo "FAIL"
-        echo "LOG DIR:/tmp/buildlog-client and /tmp/buildlog-daemon (build without output)"
+        echo "LOG DIR:/tmp/buildlog-client and /tmp/buildlog-daemon (build  with docker format without output)"
         kill -15 "${pidofbuilder}"
         exit 1
     fi
 
     if ! isula-build ctr-img rm "$1":latest > /tmp/buildlog-client 2>&1; then
         echo "FAIL"
-        echo "LOG DIR:/tmp/buildlog-client and /tmp/buildlog-daemon (build without output)"
+        echo "LOG DIR:/tmp/buildlog-client and /tmp/buildlog-daemon (build  with docker format without output)"
+        kill -15 "${pidofbuilder}"
+        exit 1
+    fi
+}
+
+# test build image without output with oci format
+function test_build_without_output_with_oci_format() {
+    if ! isula-build ctr-img build --format oci --tag "$1":latest "$2" > /tmp/buildlog-client 2>&1; then
+        echo "FAIL"
+        echo "LOG DIR:/tmp/buildlog-client and /tmp/buildlog-daemon (build with oci format without output)"
+        kill -15 "${pidofbuilder}"
+        exit 1
+    fi
+
+    if ! isula-build ctr-img rm "$1":latest > /tmp/buildlog-client 2>&1; then
+        echo "FAIL"
+        echo "LOG DIR:/tmp/buildlog-client and /tmp/buildlog-daemon (build with oci format without output)"
         kill -15 "${pidofbuilder}"
         exit 1
     fi
@@ -80,6 +97,25 @@ function test_build_with_docker_archive_output() {
     if ! isula-build ctr-img rm "$1":latest > /tmp/buildlog-client 2>&1; then
         echo "FAIL"
         echo "LOG DIR:/tmp/buildlog-client and /tmp/buildlog-daemon (build with docker-archive output)"
+        kill -15 "${pidofbuilder}"
+        exit 1
+    fi
+}
+
+# test build image with oci-archive output
+function test_build_with_oci_archive_output() {
+    if ! isula-build ctr-img build --output=oci-archive:/tmp/"$1".tar:"$1":latest "$2" > /tmp/buildlog-client 2>&1; then
+        echo "FAIL"
+        echo "LOG DIR:/tmp/buildlog-client and /tmp/buildlog-daemon (build with oci-archive output)"
+        kill -15 "${pidofbuilder}"
+        exit 1
+    else
+        rm -f /tmp/"$1".tar
+    fi
+
+    if ! isula-build ctr-img rm "$1":latest > /tmp/buildlog-client 2>&1; then
+        echo "FAIL"
+        echo "LOG DIR:/tmp/buildlog-client and /tmp/buildlog-daemon (build with oci-archive output)"
         kill -15 "${pidofbuilder}"
         exit 1
     fi
@@ -131,4 +167,55 @@ function test_build_with_isulad_output() {
         kill -15 "${pidofbuilder}"
         exit 1
     fi
+}
+
+# test isula build base command
+function test_isula_build_base_command() {
+    show_and_run_command "Build docker format image:" \
+    " isula-build ctr-img build --tag "$1"-docker:latest --output=docker-archive:/tmp/"$1"-docker.tar:"$1"-docker:latest "$2""
+
+    show_and_run_command "Build oci format image:" \
+    "isula-build ctr-img build --tag "$1"-oci:latest --output=oci-archive:/tmp/"$1"-oci.tar:"$1"-oci:latest "$2""
+
+    show_and_run_command "List all images:" \
+    "isula-build ctr-img images"
+    
+    show_and_run_command "List docker format image:" \
+    "isula-build ctr-img images "$1"-docker:latest"
+
+    show_and_run_command "List oci format image:" \
+    "isula-build ctr-img images "$1"-oci:latest"
+
+    rm -f /tmp/"$1"-docker.tar /tmp/"$1"-oci.tar
+
+    show_and_run_command "Save image with docker format:" \
+    "isula-build ctr-img save -f docker "$1"-docker:latest -o /tmp/"$1"-docker.tar"
+
+    show_and_run_command "Save image with oci format:" \
+    "isula-build ctr-img save -f oci "$1"-oci:latest -o /tmp/"$1"-oci.tar"
+
+    show_and_run_command "Load docker format images:" \
+    "isula-build ctr-img load -i /tmp/"$1"-docker.tar"
+
+    show_and_run_command "Load oci format images:" \
+    "isula-build ctr-img load -i /tmp/"$1"-oci.tar"
+
+    show_and_run_command "Save multipile images with docker format:" \
+    "isula-build ctr-img save -f docker "$1"-docker:latest "$1"-oci:latest -o /tmp/"$1"-all.tar"
+
+    rm -f /tmp/"$1"-docker.tar /tmp/"$1"-oci.tar /tmp/"$1"-all.tar
+
+    show_and_run_command "Remove images:" \
+    "isula-build ctr-img rm "$1"-docker:latest "$1"-oci:latest"
+}
+
+function show_and_run_command() {
+    printf "%-45s" "$1"
+    if ! $2 > /tmp/buildlog-client 2>&1; then
+        echo "FAIL"
+        echo "LOG DIR:/tmp/buildlog-client and /tmp/buildlog-daemon, failed when running command: $2"
+        kill -15 "${pidofbuilder}"
+        exit 1
+    fi
+    echo "PASS"
 }

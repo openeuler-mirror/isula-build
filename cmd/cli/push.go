@@ -25,7 +25,15 @@ import (
 
 	constant "isula.org/isula-build"
 	pb "isula.org/isula-build/api/services"
+	"isula.org/isula-build/exporter"
+	"isula.org/isula-build/util"
 )
+
+type pushOptions struct {
+	format string
+}
+
+var pushOpts pushOptions
 
 const (
 	pushExample = `isula-build ctr-img push registry.example.com/repository:tag`
@@ -39,6 +47,11 @@ func NewPushCmd() *cobra.Command {
 		Example: pushExample,
 		RunE:    pushCommand,
 	}
+	if util.CheckCliExperimentalEnabled() {
+		pushCmd.PersistentFlags().StringVarP(&pushOpts.format, "format", "f", "oci", "Format for image pushing to a registry")
+	} else {
+		pushOpts.format = exporter.DockerTransport
+	}
 	return pushCmd
 }
 
@@ -47,6 +60,9 @@ func pushCommand(c *cobra.Command, args []string) error {
 		return errors.New("push requires exactly one argument")
 	}
 	if _, err := dockerref.Parse(args[0]); err != nil {
+		return err
+	}
+	if err := exporter.CheckImageFormat(pushOpts.format); err != nil {
 		return err
 	}
 
@@ -65,6 +81,7 @@ func runPush(ctx context.Context, cli Cli, imageName string) error {
 	pushStream, err := cli.Client().Push(ctx, &pb.PushRequest{
 		PushID:    pushID,
 		ImageName: imageName,
+		Format:    pushOpts.format,
 	})
 	if err != nil {
 		return err

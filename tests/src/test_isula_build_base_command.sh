@@ -9,20 +9,18 @@
 # IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY OR FIT FOR A PARTICULAR
 # PURPOSE.
 # See the Mulan PSL v2 for more details.
-# Author: Danni Xia
-# Create: 2020-08-27
-# Description: dockerfile test add-chown-basic
+# Author: Weizheng Xing
+# Create: 2021-01-12
+# Description: test isula-build base commands
 
 top_dir=$(git rev-parse --show-toplevel)
 source "$top_dir"/tests/lib/common.sh
 
-image_name=add-chown-basic
-context_dir="$top_dir"/tests/data/add-chown-basic
-test_build_without_output "$image_name" "$context_dir"
-test_build_without_output_with_oci_format "$image_name" "$context_dir"
-test_build_with_docker_archive_output "$image_name" "$context_dir"
-test_build_with_oci_archive_output "$image_name" "$context_dir"
-test_build_with_docker_daemon_output "$image_name" "$context_dir"
-test_build_with_isulad_output "$image_name" "$context_dir"
+image_name=build-from-scratch
+context_dir="$top_dir"/tests/data/build-from-scratch
+
+echo ""
+
+test_isula_build_base_command "$image_name" "$context_dir"
 
 echo "PASS"

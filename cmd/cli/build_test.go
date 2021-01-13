@@ -25,6 +25,7 @@ import (
 	"gotest.tools/fs"
 
 	constant "isula.org/isula-build"
+	"isula.org/isula-build/exporter"
 	_ "isula.org/isula-build/exporter/register"
 	"isula.org/isula-build/util"
 )
@@ -46,15 +47,32 @@ func TestRunBuildWithLocalDockerfile(t *testing.T) {
 	err := newBuildOptions(args)
 	assert.NilError(t, err)
 	buildOpts.output = "docker-daemon:isula:latest"
-	_, err = runBuild(ctx, &cli)
 
-	assert.NilError(t, err)
-	assert.Equal(t, mockBuild.dockerfile(t), dockerfile)
-	wd, err := os.Getwd()
-	assert.NilError(t, err)
-	realWd, err := filepath.EvalSymlinks(wd)
-	assert.NilError(t, err)
-	assert.Equal(t, mockBuild.contextDir(t), realWd)
+	testcases := []struct {
+		format string
+	}{
+		{
+			format: "docker",
+		},
+		{
+			format: "oci",
+		},
+	}
+	for _, tc := range testcases {
+		t.Run(tc.format, func(t *testing.T) {
+			buildOpts.format = tc.format
+			_, err = runBuild(ctx, &cli)
+
+			assert.NilError(t, err)
+			assert.Equal(t, mockBuild.dockerfile(t), dockerfile)
+			wd, err := os.Getwd()
+			assert.NilError(t, err)
+			realWd, err := filepath.EvalSymlinks(wd)
+			assert.NilError(t, err)
+			assert.Equal(t, mockBuild.contextDir(t), realWd)
+		})
+	}
+
 }
 
 func TestRunStatus(t *testing.T) {
@@ -95,11 +113,27 @@ func TestRunBuildWithDefaultDockerFile(t *testing.T) {
 	err = newBuildOptions(args)
 	assert.NilError(t, err)
 	buildOpts.output = "docker-daemon:isula:latest"
-	_, err = runBuild(ctx, &cli)
 
-	assert.NilError(t, err)
-	assert.Equal(t, mockBuild.dockerfile(t), dockerfile)
-	assert.Equal(t, mockBuild.contextDir(t), realWd)
+	testcases := []struct {
+		format string
+	}{
+		{
+			format: "docker",
+		},
+		{
+			format: "oci",
+		},
+	}
+	for _, tc := range testcases {
+		t.Run(tc.format, func(t *testing.T) {
+			buildOpts.format = tc.format
+			_, err = runBuild(ctx, &cli)
+
+			assert.NilError(t, err)
+			assert.Equal(t, mockBuild.dockerfile(t), dockerfile)
+			assert.Equal(t, mockBuild.contextDir(t), realWd)
+		})
+	}
 }
 
 // Test runBuild with non archive exporter
@@ -109,6 +143,7 @@ func TestRunBuildWithNArchiveExporter(t *testing.T) {
 	type testcase struct {
 		exporter string
 		descSpec string
+		format   string
 	}
 	dockerfile := `
 		FROM alpine:latest
@@ -137,10 +172,17 @@ func TestRunBuildWithNArchiveExporter(t *testing.T) {
 		{
 			exporter: "docker-daeomn",
 			descSpec: "docker-daemon:isula:latest",
+			format:   "docker",
+		},
+		{
+			exporter: exporter.OCIArchiveTransport,
+			descSpec: "oci-archive:isula:latest",
+			format:   "oci",
 		},
 	}
 	for _, tc := range testcases {
 		buildOpts.output = tc.descSpec
+		buildOpts.format = tc.format
 		gotImageID, err := runBuild(ctx, &cli)
 		assert.NilError(t, err)
 		assert.Equal(t, gotImageID, imageID)
@@ -154,6 +196,7 @@ func TestRunBuildWithArchiveExporter(t *testing.T) {
 	type testcase struct {
 		exporter string
 		descSpec string
+		format   string
 	}
 	dockerfile := `
 		FROM alpine:latest
@@ -179,12 +222,19 @@ func TestRunBuildWithArchiveExporter(t *testing.T) {
 
 	var testcases = []testcase{
 		{
-			exporter: "docker-archive",
+			exporter: exporter.DockerArchiveTransport,
 			descSpec: "docker-archive:/tmp/image:isula:latest",
+			format:   "docker",
+		},
+		{
+			exporter: exporter.OCIArchiveTransport,
+			descSpec: "oci-archive:/tmp/image:isula:latest",
+			format:   "oci",
 		},
 	}
 	for _, tc := range testcases {
 		buildOpts.output = tc.descSpec
+		buildOpts.format = tc.format
 		gotImageID, err := runBuild(ctx, &cli)
 		assert.NilError(t, err)
 		assert.Equal(t, gotImageID, imageID)

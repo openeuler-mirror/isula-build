@@ -43,6 +43,7 @@ import (
 
 type buildOptions struct {
 	file          string
+	format        string
 	output        string
 	buildArgs     []string
 	capAddList    []string
@@ -103,6 +104,11 @@ func NewBuildCmd() *cobra.Command {
 	}
 
 	buildCmd.PersistentFlags().StringVarP(&buildOpts.file, "filename", "f", "", "Path for Dockerfile")
+	if util.CheckCliExperimentalEnabled() {
+		buildCmd.PersistentFlags().StringVar(&buildOpts.format, "format", "oci", "Image format of the built image")
+	} else {
+		buildOpts.format = exporter.DockerTransport
+	}
 	buildCmd.PersistentFlags().StringVarP(&buildOpts.output, "output", "o", "", "Destination of output images")
 	buildCmd.PersistentFlags().BoolVar(&buildOpts.proxyFlag, "proxy", true, "Inherit proxy environment variables from host")
 	buildCmd.PersistentFlags().Var(&buildOpts.buildStatic, "build-static", "Static build with the given option")
@@ -242,7 +248,7 @@ func checkAbsPath(path string) (string, error) {
 func modifyLocalTransporter(transport string, absPath string, segments []string) error {
 	const validIsuladFieldsLen = 3
 	switch transport {
-	case exporter.DockerArchiveTransport:
+	case exporter.DockerArchiveTransport, exporter.OCIArchiveTransport:
 		newSeg := util.CopyStrings(segments)
 		newSeg[1] = absPath
 		buildOpts.output = strings.Join(newSeg, ":")
@@ -319,6 +325,9 @@ func runBuild(ctx context.Context, cli Cli) (string, error) {
 		digest          string
 	)
 
+	if err = exporter.CheckImageFormat(buildOpts.format); err != nil {
+		return "", err
+	}
 	if err = checkAndProcessOutput(); err != nil {
 		return "", err
 	}
@@ -353,6 +362,7 @@ func runBuild(ctx context.Context, cli Cli) (string, error) {
 		Iidfile:       buildOpts.imageIDFile,
 		AdditionalTag: buildOpts.additionalTag,
 		Encrypted:     encrypted,
+		Format:        buildOpts.format,
 	})
 	if err != nil {
 		return "", err

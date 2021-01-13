@@ -31,11 +31,13 @@ import (
 )
 
 type pushOptions struct {
-	sysCtx     *types.SystemContext
-	logger     *logger.Logger
-	localStore *store.Store
-	pushID     string
-	imageName  string
+	sysCtx       *types.SystemContext
+	logger       *logger.Logger
+	localStore   *store.Store
+	pushID       string
+	imageName    string
+	format       string
+	manifestType string
 }
 
 // Push receives a push request and push the image to remote repository
@@ -43,6 +45,7 @@ func (b *Backend) Push(req *pb.PushRequest, stream pb.Control_PushServer) error 
 	logrus.WithFields(logrus.Fields{
 		"PushID":    req.GetPushID(),
 		"ImageName": req.GetImageName(),
+		"Format":    req.GetFormat(),
 	}).Info("PushRequest received")
 
 	cliLogger := logger.NewCliLogger(constant.CliLogBufferLen)
@@ -53,7 +56,18 @@ func (b *Backend) Push(req *pb.PushRequest, stream pb.Control_PushServer) error 
 		localStore: b.daemon.localStore,
 		pushID:     req.GetPushID(),
 		imageName:  req.GetImageName(),
+		format:     req.GetFormat(),
 	}
+
+	if err := exporter.CheckImageFormat(opt.format); err != nil {
+		return err
+	}
+
+	manifestType, gErr := exporter.GetManifestType(opt.format)
+	if gErr != nil {
+		return gErr
+	}
+	opt.manifestType = manifestType
 
 	eg, egCtx := errgroup.WithContext(stream.Context())
 
@@ -88,6 +102,7 @@ func pushHandler(ctx context.Context, options pushOptions) func() error {
 			SystemContext: options.sysCtx,
 			ReportWriter:  options.logger,
 			ExportID:      options.pushID,
+			ManifestType:  options.manifestType,
 		}
 
 		if err := exporter.Export(options.imageName, exporter.FormatTransport(exporter.DockerTransport, options.imageName),

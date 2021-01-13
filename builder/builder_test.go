@@ -79,11 +79,11 @@ func TestNewBuilder(t *testing.T) {
 		wantErr bool
 	}{
 		{
-			name: "ctr-img",
+			name: "ctr-img docker",
 			args: args{
 				ctx:      context.Background(),
 				store:    &localStore,
-				req:      &pb.BuildRequest{BuildType: constant.BuildContainerImageType},
+				req:      &pb.BuildRequest{BuildType: constant.BuildContainerImageType, Format: "docker"},
 				buildDir: tmpDir.Path(),
 				runDir:   tmpDir.Path(),
 			},
@@ -91,11 +91,23 @@ func TestNewBuilder(t *testing.T) {
 			wantErr: false,
 		},
 		{
-			name: "No supported type",
+			name: "ctr-img oci",
+			args: args{
+				ctx:      context.Background(),
+				store:    &localStore,
+				req:      &pb.BuildRequest{BuildType: constant.BuildContainerImageType, Format: "oci"},
+				buildDir: tmpDir.Path(),
+				runDir:   tmpDir.Path(),
+			},
+			want:    &dockerfile.Builder{},
+			wantErr: false,
+		},
+		{
+			name: "unsupported type",
 			args: args{
 				ctx:   context.Background(),
 				store: &localStore,
-				req:   &pb.BuildRequest{BuildType: "Unknown"},
+				req:   &pb.BuildRequest{BuildType: "Unknown", Format: "docker"},
 			},
 			want:    nil,
 			wantErr: true,

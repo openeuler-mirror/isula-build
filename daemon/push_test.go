@@ -66,6 +66,7 @@ func TestPush(t *testing.T) {
 			pushRequest: &pb.PushRequest{
 				PushID:    stringid.GenerateNonCryptoID()[:constant.DefaultIDLen],
 				ImageName: "255.255.255.255/no-repository/no-name",
+				Format:    "docker",
 			},
 			wantErr:   true,
 			errString: "failed to parse image",
@@ -75,6 +76,7 @@ func TestPush(t *testing.T) {
 			pushRequest: &pb.PushRequest{
 				PushID:    stringid.GenerateNonCryptoID()[:constant.DefaultIDLen],
 				ImageName: "127.0.0.1/no-repository/no-name:latest",
+				Format:    "oci",
 			},
 		},
 	}
