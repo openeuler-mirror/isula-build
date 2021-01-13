@@ -26,6 +26,11 @@
     * [login: 登录远端镜像仓库](#login-登录远端镜像仓库)
     * [logout: 退出远端镜像仓库](#logout-退出远端镜像仓库)
     * [version: 版本查询](#version-版本查询)
+    * [manifest: manifest列表管理（实验特性）](#manifest-manifest列表管理)
+        * [create: manifest列表创建](#create-manifest列表创建)
+        * [annotate: manifest列表更新](#annotate-manifest列表更新)
+        * [inspect: manifest列表查询](#inspect-manifest列表查询)
+        * [push: 将manifest列表推送到远程仓库](#push-将manifest列表推送到远程仓库)
 * [直接集成容器引擎](#直接集成容器引擎)
     * [与iSulad集成](#与isulad集成)
     * [与Docker集成](#与docker集成)
@@ -99,14 +104,15 @@ isula-build采用服务端/客户端模式，其中，isula-build为客户端，
 
 - /etc/isula-build/configuration.toml：isula-builder 总体配置文件，用于设置 isula-builder 日志级别、持久化目录和运行时目录、OCI runtime等。其中各参数含义如下：
 
-| 配置项    | 是否可选 | 配置项含义                        | 配置项取值                                      |
-| --------- | -------- | --------------------------------- | ----------------------------------------------- |
-| debug     | 可选     | 设置是否打开debug日志             | true：打开debug日志；false：关闭debug日志    |
-| loglevel  | 可选     | 设置日志级别                      | debug， info，warn，error               |
-| run_root  | 必选     | 设置运行时数据根目录              | 运行时数据根目录路径，例如/var/run/isula-build/ |
-| data_root | 必选     | 设置本地持久化目录                | 本地持久化目录路径，例如/var/lib/isula-build/   |
-| runtime   | 可选     | 设置runtime种类，目前仅支持runc   | runc                                            |
-| group     | 可选     | 设置本地套接字isula_build.sock文件属组使得加入该组的非特权用户可以操作isula-build | isula |
+| 配置项       | 是否可选 | 配置项含义                                                   | 配置项取值                                      |
+| ------------ | -------- | ------------------------------------------------------------ | ----------------------------------------------- |
+| debug        | 可选     | 设置是否打开debug日志                                        | true：打开debug日志；false：关闭debug日志       |
+| loglevel     | 可选     | 设置日志级别                                                 | debug， info，warn，error                       |
+| run_root     | 必选     | 设置运行时数据根目录                                         | 运行时数据根目录路径，例如/var/run/isula-build/ |
+| data_root    | 必选     | 设置本地持久化目录                                           | 本地持久化目录路径，例如/var/lib/isula-build/   |
+| runtime      | 可选     | 设置runtime种类，目前仅支持runc                              | runc                                            |
+| group        | 可选     | 设置本地套接字isula_build.sock文件属组使得加入该组的非特权用户可以操作isula-build | isula                                           |
+| experimental | 可选     | 设置是否开启实验特性                                         | true：开启实验特性；false：关闭实验特性         |
 
 
 - /etc/isula-build/storage.toml: 本地持久化存储的配置文件，包含所使用的存储驱动的配置。
@@ -183,6 +189,7 @@ sudo systemctl daemon-reload
 - --storage-driver：底层存储驱动类型。
 - --storage-opt: 底层存储驱动配置。
 - --group: 设置本地套接字isula_build.sock文件属组使得加入该组的非特权用户可以操作isula-build，默认为“isula”。
+- --experimental: 是否开启实验特性，默认为false。
 
 > **说明：**
 >
@@ -232,10 +239,12 @@ isula-build 客户端提供了一系列命令用于构建和管理容器镜像�
 - login，登录远端容器镜像仓库。
 - logout，退出远端容器镜像仓库。
 - version，查看isula-build和isula-builder的版本号。
+- manifest(实验特性)，管理manifest列表。
 
 > **说明：**
 >
 > - isula-build completion 和 isula-builder completion 命令用于生成bash命令补全脚本。该命令为命令行框架隐式提供，不会显示在help信息中。
+> - isula-build客户端不包含配置文件，当用户需要使用isula-build实验特性时，需要在客户端通过命令`export ISULABUILD_CLI_EXPERIMENTAL=enabled`配置环境变量ISULABUILD_CLI_EXPERIMENTAL来开启实验特性。
 
 以下按照上述维度依次详细介绍这些命令行指令的使用。
 
@@ -773,6 +782,104 @@ $ sudo isula-build info -HV
    OS/Arch:       linux/amd64
 ```
 
+### manifest: manifest列表管理
+
+manifest列表包含不同系统架构对应的镜像信息，通过使用manifest列表，用户可以在不同的架构中使用相同的manifest（例如openeuler:latest）获取对应架构的镜像，manifest包含create、annotate、inspect和push子命令。
+> **说明：**
+>
+> - manifest为实验特性，使用时需开启客户端和服务端的实验选项，方式详见客户端总体说明和配置服务章节。
+
+
+#### create: manifest列表创建
+
+manifest的子命令create用于创建manifest列表，命令原型为：
+
+```
+isula-build manifest create MANIFEST_LIST MANIFEST [MANIFEST...]
+```
+
+用户可以指定manifest列表的名称以及需要加入到列表中的远程镜像，若不指定任何远程镜像，则会创建一个空的manifest列表。
+
+使用示例如下：
+
+```sh
+$ sudo isula-build manifest create openeuler localhost:5000/openeuler_x86:latest localhost:5000/openeuler_aarch64:latest
+```
+
+#### annotate: manifest列表更新
+
+manifest的子命令annotate用于更新manifest列表，命令原型为：
+
+```
+isula-build manifest annotate MANIFEST_LIST MANIFEST [flags]
+```
+
+用户可以指定需要更新的manifest列表以及其中的镜像，通过flags指定需要更新的选项，此命令也可用于添加新的镜像到列表中。
+
+其中annotate包含如下flags：
+
+- --arch： string，重写镜像适用架构
+- --os： string，重写镜像适用系统
+- --os-features： string列表，指定镜像需要的OS特性，很少使用
+- --variant： string，指定列表中记录镜像的变量
+
+使用示例如下：
+
+```sh
+$ sudo isula-build manifest annotate --os linux --arch arm64 openeuler:latest localhost:5000/openeuler_aarch64:latest
+```
+
+#### inspect: manifest列表查询
+
+manifest子命令inspect用于查询manifest列表信息，命令原型为：
+
+```
+isula-build manifest inspect MANIFEST_LIST
+```
+
+使用示例如下：
+
+```sh
+$ sudo isula-build manifest inspect openeuler:latest
+{
+    "schemaVersion": 2,
+    "mediaType": "application/vnd.docker.distribution.manifest.list.v2+json",
+    "manifests": [
+        {
+            "mediaType": "application/vnd.docker.distribution.manifest.v2+json",
+            "size": 527,
+            "digest": "sha256:bf510723d2cd2d4e3f5ce7e93bf1e52c8fd76831995ac3bd3f90ecc866643aff",
+            "platform": {
+                "architecture": "amd64",
+                "os": "linux"
+            }
+        },
+        {
+            "mediaType": "application/vnd.docker.distribution.manifest.v2+json",
+            "size": 527,
+            "digest": "sha256:f814888b4bb6149bd39ba8375a1932fb15071b4dbffc7f76c7b602b06abbb820",
+            "platform": {
+                "architecture": "arm64",
+                "os": "linux"
+            }
+        }
+    ]
+}
+```
+
+#### push: 将manifest列表推送到远程仓库
+
+manifest子命令push用于将manifest列表推送到远程仓库，命令原型为：
+
+```
+isula-build manifest push MANIFEST_LIST DESTINATION
+```
+
+使用示例如下：
+
+```sh
+$ sudo isula-build manifest push openeuler:latest localhost:5000/openeuler:latest
+```
 
 ## 直接集成容器引擎
 
@@ -899,6 +1006,15 @@ busybox                                             2.0                 2d414a5c
 | **命令** | **参数**  | **说明**                             |
 | -------- | --------- | ------------------------------------ |
 | logout   | -a, --all | 布尔值，是否登出所有已登陆的镜像仓库 |
+
+**表7** manifest annotate命令参数列表
+
+| **命令**          | **说明**      | **参数**                                   |
+| ----------------- | ------------- | ------------------------------------------ |
+| manifest annotate | --arch        | string，重写镜像适用架构                   |
+|                   | --os          | string，重写镜像适用系统                   |
+|                   | --os-features | string列表，指定镜像需要的OS特性，很少使用 |
+|                   | --variant     | string，指定列表中记录镜像的变量           |
 
 ### 通信矩阵
 

@@ -26,6 +26,11 @@
     * [login: Logging In to the Remote Image Repository](#login-logging-in-to-the-remote-image-repository)
     * [logout: Logging Out of the Remote Image Repository](#logout-logging-out-of-the-remote-image-repository)
     * [version: Querying the isula-build Version](#version-querying-the-isula-build-version)
+    * [manifest: Manage manifest list(experimental feature)](#manifest-Manage-manifest-list)
+        * [create: Create a manifest list](#create-Create-a-manifest-list)
+        * [annotate: Update a manifest list](#annotate-Update-a-manifest-list)
+        * [inspect: Inspect a manifest list](#inspect-Inspect-a-manifest-list)
+        * [push: Push manifest list to repository](#push-Push-manifest-list-to-repository)
 * [Directly Integrating a Container Engine](#directly-integrating-a-container-engine)
     * [Integration with iSulad](#integration-with-isulad)
     * [Integration with Docker](#integration-with-docker)
@@ -107,6 +112,7 @@ Currently, the isula-build server contains the following configuration file:
 | data_root | Mandatory | Sets the local persistency directory. | For example, /var/lib/isula-build/ |
 | runtime | Optional | Sets the runtime type. Currently, only runc is supported. | runc                                            |
 | group | Optional | Sets an owner group for the local socket file isula_build.sock so that non-privileged users in the group can use isula-build. | isula |
+| experimental | Optional | Indicates whether to enable experimental features. | true: Enable experimental features. false: Disable experimental features. |
 
 - /etc/isula-build/storage.toml: configuration file for local persistent storage, including the configuration of the storage driver in use.
 
@@ -182,6 +188,7 @@ You can also run the isula-builder command on the server to start the service. T
 - --storage-driver: underlying storage driver type.
 - --storage-opt: underlying storage driver configuration.
 - --group: an owner group for the local socket file isula_build.sock so that non-privileged users in the group can use isula-build. The default owner group is "isula".
+- --experimental: whether to enable experimental features.
 
 > **Note:**
 >
@@ -231,10 +238,12 @@ The isula-build client provides a series of commands for building and managing c
 - login: logs in to the remote container image repository.
 - logout: logs out of the remote container image repository.
 - version: displays the versions of isula-build and isula-builder.
+- manifest(experimental feature): manage manifest list.
 
 > **Note:**
 >
 > - The isula-build completion and isula-builder completion commands are used to generate the bash command completion script. This command is implicitly provided by the command line framework and is not displayed in the help information.
+> - isula-build client does not have any configuration file. When users want to use isula-build experimental features, they need to enable the environment variable ISULABUILD_CLI_EXPERIMENTAL on the client by command `export ISULABUILD_CLI_EXPERIMENTAL=enabled`.
 
 The following describes how to use these commands in detail.
 
@@ -775,6 +784,107 @@ You can run the version command to view the current version information.
    OS/Arch:       linux/amd64
 ```
 
+### manifest: Manage manifest list
+
+manifest list includes images refer to different architectures. By using manifest list, users could use the same manifest name(for example: openeuler:latest) in different architectures to get the corresponding image. Manifest includes subcommands create/annotate/inspcet/push.
+
+> **NOTE:**
+>
+> - manifest is experimental feature, users need to enable experimental features both on client and server, see client overview and configuring the isula-build service sections for details.
+
+####   create: Create a manifest list
+
+manifest create subcommand is used to create manifest list. The command is as follows:
+
+```
+isula-build manifest create MANIFEST_LIST MANIFEST [MANIFEST...]
+```
+
+Users could specify manifest list name and images added to list, if no image is specified, an empty list will be created.
+
+Example:
+
+```sh
+$ sudo isula-build manifest create openeuler localhost:5000/openeuler_x86:latest localhost:5000/openeuler_aarch64:latest
+```
+
+#### annotate: Update a manifest list
+
+manifest annotate subcommand is used to update manifest list. The command is as follows:
+
+```
+isula-build manifest annotate MANIFEST_LIST MANIFEST [flags]
+```
+
+Users could specify the manifest list and the image needed to update, with options by flags. This command could also be used to add new image to the list.
+
+Currently, the following flags are supported:
+
+```
+Flags：
+  --arch string           Set architecture
+  --os string             Set operating system
+  --os-features strings   Set operating system feature
+  --variant string        Set architecture variant
+```
+
+Example:
+
+```sh
+$ sudo isula-build manifest annotate --os linux --arch arm64 openeuler:latest localhost:5000/openeuler_aarch64:latest
+```
+
+####  inspect: Inspect a manifest list
+
+manifest inspect subcommand is used to inspect manifest list. The command is as follows:
+
+```
+isula-build manifest inspect MANIFEST_LIST
+```
+
+Example:
+
+```sh
+$ sudo isula-build manifest inspect openeuler:latest
+{
+    "schemaVersion": 2,
+    "mediaType": "application/vnd.docker.distribution.manifest.list.v2+json",
+    "manifests": [
+        {
+            "mediaType": "application/vnd.docker.distribution.manifest.v2+json",
+            "size": 527,
+            "digest": "sha256:bf510723d2cd2d4e3f5ce7e93bf1e52c8fd76831995ac3bd3f90ecc866643aff",
+            "platform": {
+                "architecture": "amd64",
+                "os": "linux"
+            }
+        },
+        {
+            "mediaType": "application/vnd.docker.distribution.manifest.v2+json",
+            "size": 527,
+            "digest": "sha256:f814888b4bb6149bd39ba8375a1932fb15071b4dbffc7f76c7b602b06abbb820",
+            "platform": {
+                "architecture": "arm64",
+                "os": "linux"
+            }
+        }
+    ]
+}
+```
+
+#### push: Push manifest list to repository
+
+manifest push subcommand is used to push manifest list to remote repository. The command is as follows:
+
+```
+isula-build manifest push MANIFEST_LIST DESTINATION
+```
+
+Example:
+
+```sh
+$ sudo isula-build manifest push openeuler:latest localhost:5000/openeuler:latest
+```
 
 ## Directly Integrating a Container Engine
 
@@ -903,6 +1013,15 @@ The `isula-build` compatible with [Dockerfile specification](https://docs.docker
 | **Command** | **Parameter** | **Description** |
 | -------- | --------- | ------------------------------------ |
 | logout | -a, --all | Boolean, which indicates whether to log out of all logged-in image repositories. |
+
+**Table 7** Parameters in the manifest annotate command
+
+| **Command**       | **Parameter** | **Description**              |
+| ----------------- | ------------- | ---------------------------- |
+| manifest annotate | --arch        | Set architecture             |
+|                   | --os          | Set operating system         |
+|                   | --os-features | Set operating system feature |
+|                   | --variant     | Set architecture variant     |
 
 ### Communication Matrix
 
