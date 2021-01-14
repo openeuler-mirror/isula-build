@@ -71,7 +71,7 @@ func TestCreateConfigsAndManifests(t *testing.T) {
 		LayerID:     "dacfba0cd5c0d28f33d41fb9a9c8bf2b0c53689da136aeba6dfecf347125fa23",
 	}
 
-	containerRef := NewContainerReference(localStore, metadata, false)
+	containerRef := NewContainerReference(&localStore, metadata, false)
 	dimage, dmanifest, err := containerRef.createConfigsAndManifests()
 	assert.NilError(t, err)
 	assert.DeepEqual(t, dimage, docker.Image{
@@ -158,7 +158,7 @@ func TestPrepareRWLayers(t *testing.T) {
 		LayerID:     "dacfba0cd5c0d28f33d41fb9a9c8bf2b0c53689da136aeba6dfecf347125fa23",
 	}
 
-	containerRef := NewContainerReference(localStore, metadata, false)
+	containerRef := NewContainerReference(&localStore, metadata, false)
 	_, err := containerRef.getContainerLayers()
 	assert.ErrorContains(t, err, "unable to read layer")
 }

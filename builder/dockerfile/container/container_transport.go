@@ -25,7 +25,6 @@ import (
 	"github.com/containers/image/v5/image"
 	is "github.com/containers/image/v5/storage"
 	"github.com/containers/image/v5/types"
-	"github.com/containers/storage"
 	"github.com/containers/storage/pkg/archive"
 	"github.com/opencontainers/go-digest"
 	v1 "github.com/opencontainers/image-spec/specs-go/v1"
@@ -34,12 +33,13 @@ import (
 	constant "isula.org/isula-build"
 	mimetypes "isula.org/isula-build/image"
 	"isula.org/isula-build/pkg/docker"
+	"isula.org/isula-build/store"
 	"isula.org/isula-build/util"
 )
 
 // Reference is the struct of a commit container's metadata
 type Reference struct {
-	store                 storage.Store
+	store                 *store.Store
 	compression           archive.Compression
 	name                  reference.Named
 	containerID           string
@@ -79,7 +79,7 @@ type ReferenceMetadata struct {
 }
 
 // NewContainerReference return a container reference
-func NewContainerReference(store storage.Store, metadata *ReferenceMetadata, exporting bool) Reference {
+func NewContainerReference(store *store.Store, metadata *ReferenceMetadata, exporting bool) Reference {
 	ref := Reference{
 		store:                 store,
 		exporting:             exporting,

@@ -20,7 +20,6 @@ import (
 	"time"
 
 	"github.com/containers/image/v5/docker/reference"
-	"github.com/containers/storage"
 	v1 "github.com/opencontainers/image-spec/specs-go/v1"
 	"golang.org/x/sys/unix"
 	"gotest.tools/assert"
@@ -32,12 +31,12 @@ import (
 )
 
 var (
-	mStore    storage.Store
+	mStore    *store.Store
 	buildTime time.Time
 )
 
 func init() {
-	mStore = NewMockStore()
+	mStore = &store.Store{Store: newMockStore()}
 	buildTime = time.Now()
 }
 
@@ -45,7 +44,7 @@ func TestNewImage(t *testing.T) {
 	type testcase struct {
 		name       string
 		metadata   *ReferenceMetadata
-		localStore storage.Store
+		localStore *store.Store
 		exporting  bool
 		isErr      bool
 		errStr     string
@@ -236,7 +235,7 @@ func TestNewImage(t *testing.T) {
 				if err != nil {
 					defer sStore.Shutdown(false)
 				}
-				tc.localStore = sStore
+				tc.localStore = &sStore
 			}
 			cf := NewContainerReference(tc.localStore, tc.metadata, tc.exporting)
 			ctx := context.TODO()

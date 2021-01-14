@@ -22,12 +22,12 @@ import (
 	"path/filepath"
 
 	"github.com/containers/image/v5/types"
-	"github.com/containers/storage"
 	"github.com/containers/storage/pkg/archive"
 	"github.com/opencontainers/go-digest"
 	"github.com/pkg/errors"
 
 	constant "isula.org/isula-build"
+	"isula.org/isula-build/store"
 )
 
 type containerImageSource struct {
@@ -38,7 +38,7 @@ type containerImageSource struct {
 	manifestType string
 	config       []byte
 	manifest     []byte
-	store        storage.Store
+	store        *store.Store
 	compression  archive.Compression
 	configDigest digest.Digest
 	exporting    bool
