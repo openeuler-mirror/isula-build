@@ -35,7 +35,7 @@ const (
 
 var (
 	localStore store.Store
-	rootDir    = "/tmp/isula-build/container"
+	rootDir    = "/tmp/isula-build/"
 )
 
 func init() {
