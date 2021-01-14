@@ -52,11 +52,12 @@ func TestPrintInfo(t *testing.T) {
 			RegistriesInsecure: []string{"localhost:5000"},
 			RegistriesBlock:    nil,
 		},
-		DataRoot:   "/var/lib/isula-build/",
-		RunRoot:    "/var/run/isula-build/",
-		OCIRuntime: "runc",
-		BuilderNum: 0,
-		GoRoutines: 10,
+		DataRoot:     "/var/lib/isula-build/",
+		RunRoot:      "/var/run/isula-build/",
+		OCIRuntime:   "runc",
+		BuilderNum:   0,
+		GoRoutines:   10,
+		Experimental: false,
 	}
 	printInfo(infoData)
 }

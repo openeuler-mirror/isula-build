@@ -331,6 +331,8 @@ message InfoResponse {
     int64 goRoutines = 8;
     // memstat is memory information counted by runtime
     MemStat memStat = 9;
+    // experimental indicates whether experimental feature is enabled
+    bool experimental = 10;
 }
 
 message ManifestCreateRequest {
