@@ -150,6 +150,7 @@ func printInfo(infoData *pb.InfoResponse) {
 	fmt.Println("  RunRoot:     ", infoData.RunRoot)
 	fmt.Println("  Builders:    ", infoData.BuilderNum)
 	fmt.Println("  Goroutines:  ", infoData.GoRoutines)
+	fmt.Println("  Experimental:", infoData.Experimental)
 	fmt.Println("Store:")
 	fmt.Println("  Storage Driver:    ", infoData.StorageInfo.StorageDriver)
 	fmt.Println("  Backing Filesystem:", infoData.StorageInfo.StorageBackingFs)

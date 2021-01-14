@@ -81,6 +81,7 @@ func (b *Backend) Info(ctx context.Context, req *pb.InfoRequest) (*pb.InfoRespon
 		OCIRuntime:   b.daemon.opts.RuntimePath,
 		BuilderNum:   int64(len(b.daemon.builders)),
 		GoRoutines:   int64(runtime.NumGoroutine()),
+		Experimental: b.daemon.opts.Experimental,
 	}
 
 	if req.Verbose {
