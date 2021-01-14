@@ -22,8 +22,8 @@ import (
 	"github.com/containers/image/v5/types"
 	"github.com/pkg/errors"
 
-	manifest "isula.org/isula-build/daemon"
 	"isula.org/isula-build/exporter"
+	"isula.org/isula-build/pkg/manifest"
 	"isula.org/isula-build/store"
 )
 
@@ -46,7 +46,7 @@ func (d *manifestExporter) Name() string {
 }
 
 func (d *manifestExporter) Init(opts exporter.ExportOptions, src, destSpec string, localStore *store.Store) error {
-	srcReference, err := manifest.GetReference(localStore, src)
+	srcReference, err := manifest.Reference(localStore, src)
 	if err != nil {
 		return errors.Wrapf(err, "find src image: %q failed with transport %q", src, d.Name())
 	}

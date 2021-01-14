@@ -24,7 +24,6 @@ import (
 	"github.com/spf13/cobra"
 
 	pb "isula.org/isula-build/api/services"
-	_ "isula.org/isula-build/exporter/register"
 )
 
 const (
@@ -177,7 +176,7 @@ func runManifestAnnotate(ctx context.Context, cli Cli, listName, manifestName st
 		return err
 	}
 
-	fmt.Println("manifest annotate succeed")
+	fmt.Println("Annotate manifest succeed")
 
 	return nil
 }
@@ -259,7 +258,7 @@ func runManifestPush(ctx context.Context, cli Cli, listName, dest string) error 
 		}
 	}
 
-	fmt.Println("manifest list push succeed")
+	fmt.Printf("Push manifest list %s succeed\n", listName)
 
 	return nil
 }

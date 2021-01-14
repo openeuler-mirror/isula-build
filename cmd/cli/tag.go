@@ -15,6 +15,7 @@ package main
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
@@ -59,6 +60,8 @@ func runTag(ctx context.Context, cli Cli, args []string) error {
 		Image: args[0],
 		Tag:   args[1],
 	})
+
+	fmt.Printf("Tag %v to image %v succeed\n", args[1], args[0])
 
 	return err
 }
