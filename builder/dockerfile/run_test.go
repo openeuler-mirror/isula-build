@@ -47,6 +47,7 @@ func TestCmdBuilderRun(t *testing.T) {
 				},
 			},
 		},
+		container: "TestCmdBuilderRun",
 	}
 
 	cb := newCmdBuilder(context.Background(), &parser.Line{}, sb, nil, nil)
@@ -182,9 +183,9 @@ func TestSetupRuntimeSpecWithCaps(t *testing.T) {
 	cb := newCmdBuilder(context.Background(), &parser.Line{}, sb, nil, nil)
 
 	tests := []struct {
-		name    string
-		caps    []string
-		isErr   bool
+		name  string
+		caps  []string
+		isErr bool
 	}{
 		{
 			name: "1 cap null",

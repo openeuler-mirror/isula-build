@@ -24,6 +24,10 @@ import (
 )
 
 func TestFormatTransport(t *testing.T) {
+	tmpDir := fs.NewDir(t, t.Name())
+	ociArchiveFilePath := tmpDir.Join("test.tar")
+	defer tmpDir.Remove()
+
 	testcases := []struct {
 		name      string
 		transport string
@@ -39,7 +43,7 @@ func TestFormatTransport(t *testing.T) {
 		{
 			name:      "oci-archive format transport",
 			transport: OCIArchiveTransport,
-			path:      fs.NewDir(t, t.Name()).Join("test.tar"),
+			path:      ociArchiveFilePath,
 			result:    "oci-archive:",
 		},
 	}

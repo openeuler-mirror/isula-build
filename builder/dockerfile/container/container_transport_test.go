@@ -22,6 +22,7 @@ import (
 	"github.com/containers/image/v5/docker/reference"
 	"github.com/containers/storage"
 	v1 "github.com/opencontainers/image-spec/specs-go/v1"
+	"golang.org/x/sys/unix"
 	"gotest.tools/assert"
 	"gotest.tools/fs"
 
@@ -219,7 +220,11 @@ func TestNewImage(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			if tc.localStore == nil {
 				ctxDir := fs.NewDir(t, "store")
-				defer ctxDir.Remove()
+				defer func() {
+					unix.Unmount(ctxDir.Join("data", "overlay"), 0)
+					ctxDir.Remove()
+				}()
+
 				dataRoot := filepath.Join(ctxDir.Path(), "/data")
 				runRoot := filepath.Join(ctxDir.Path(), "/run")
 				store.SetDefaultStoreOptions(store.DaemonStoreOptions{

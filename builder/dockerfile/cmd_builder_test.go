@@ -219,8 +219,10 @@ func TestCmdBuilderCommit(t *testing.T) {
 		Raw:     "s=1111",
 	}
 
+	tmpDir := fs.NewDir(t, t.Name())
 	ctx := context.WithValue(context.Background(), util.LogFieldKey(util.LogKeySessionID), "0123456789")
-	ctx = context.WithValue(ctx, util.BuildDirKey(util.BuildDir), "/tmp/isula-build-test")
+	ctx = context.WithValue(ctx, util.BuildDirKey(util.BuildDir), tmpDir.Path())
+
 	s := &stageBuilder{
 		localStore: &localStore,
 		builder: &Builder{
@@ -241,6 +243,7 @@ func TestCmdBuilderCommit(t *testing.T) {
 		err = cb.stage.localStore.DeleteContainer(container.ID)
 		assert.NilError(t, err)
 		s.builder.cleanup()
+		tmpDir.Remove()
 	}()
 	assert.NilError(t, err)
 	assert.Assert(t, container != nil)
@@ -535,8 +538,9 @@ VOLUME ["/$vol1","${vol2}/test"]`,
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			dir := fs.NewDir(t, "TestExecuteVolume")
+			dir := fs.NewDir(t, t.Name())
 			defer dir.Remove()
+
 			s := &stageBuilder{
 				builder: &Builder{
 					buildOpts:    BuildOptions{BuildArgs: tt.buildArgs},
@@ -853,8 +857,9 @@ func TestExecuteWorkDir(t *testing.T) {
 	logrus.SetLevel(logrus.DebugLevel)
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			dir := fs.NewDir(t, "TestExecuteWorkDir")
+			dir := fs.NewDir(t, t.Name())
 			defer dir.Remove()
+			
 			s := &stageBuilder{
 				builder: &Builder{
 					buildOpts:    BuildOptions{BuildArgs: tt.buildArgs},
