@@ -18,11 +18,16 @@ import (
 	"io"
 
 	"github.com/containers/image/v5/manifest"
+	is "github.com/containers/image/v5/storage"
 	"github.com/containers/image/v5/transports"
+	"github.com/containers/image/v5/transports/alltransports"
 	"github.com/containers/image/v5/types"
 	digest "github.com/opencontainers/go-digest"
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
+
+	"isula.org/isula-build/image"
+	"isula.org/isula-build/store"
 )
 
 // manifestImageReference is image ImageReference implementation which used for manifest
@@ -38,12 +43,42 @@ type manifestImageSource struct {
 	imageSourceByBlobDigest     map[digest.Digest]types.ImageSource // mapping of blob digest to image source
 }
 
-// Reference returns manifestImageReference by given storage reference and instance references
-func Reference(sr types.ImageReference, references []types.ImageReference) types.ImageReference {
+// Reference is used for manifest exporter getting image reference
+func Reference(store *store.Store, manifestName string) (types.ImageReference, error) {
+	// get list image
+	_, listImage, err := image.FindImage(store, manifestName)
+	if err != nil {
+		logrus.Errorf("Manifest find image err: %v", err)
+		return nil, err
+	}
+
+	// load list from list image
+	list, err := LoadListFromImage(store, listImage.ID)
+	if err != nil {
+		logrus.Errorf("Manifest load list from image err: %v", err)
+		return nil, err
+	}
+
+	// get list image reference
+	sr, err := is.Transport.ParseStoreReference(store, listImage.ID)
+	if err != nil {
+		return nil, errors.Wrapf(err, "parse image reference from image %v error", listImage.ID)
+	}
+
+	// get instances references
+	references := make([]types.ImageReference, 0, len(list.instances))
+	for _, instance := range list.instances {
+		ref, err := alltransports.ParseImageName(instance)
+		if err != nil {
+			return nil, errors.Wrapf(err, "parse image reference from instance %v error", instance)
+		}
+		references = append(references, ref)
+	}
+
 	return &manifestImageReference{
 		ImageReference: sr,
 		references:     references,
-	}
+	}, nil
 }
 
 // NewImageSource returns a types.ImageSource for this reference
