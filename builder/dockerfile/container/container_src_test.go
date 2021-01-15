@@ -45,7 +45,7 @@ func TestReference(t *testing.T) {
 		LayerID:     "dacfba0cd5c0d28f33d41fb9a9c8bf2b0c53689da136aeba6dfecf347125fa23",
 	}
 
-	imageRef := NewContainerReference(localStore, metadata, false)
+	imageRef := NewContainerReference(&localStore, metadata, false)
 	cis := containerImageSource{
 		ref: &imageRef,
 	}
