@@ -25,7 +25,7 @@ import (
 
 	"github.com/containers/storage/pkg/idtools"
 	securejoin "github.com/cyphar/filepath-securejoin"
-	"gotest.tools/assert"
+	"gotest.tools/v3/assert"
 
 	constant "isula.org/isula-build"
 	"isula.org/isula-build/util"

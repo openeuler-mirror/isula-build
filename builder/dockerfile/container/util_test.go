@@ -22,8 +22,8 @@ import (
 
 	"github.com/containers/storage/pkg/archive"
 	"github.com/opencontainers/go-digest"
-	"gotest.tools/assert"
-	"gotest.tools/fs"
+	"gotest.tools/v3/assert"
+	"gotest.tools/v3/fs"
 
 	mimetypes "isula.org/isula-build/image"
 	"isula.org/isula-build/pkg/docker"

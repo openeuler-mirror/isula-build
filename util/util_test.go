@@ -27,7 +27,7 @@ import (
 
 	"github.com/containers/storage/pkg/idtools"
 	"github.com/containers/storage/pkg/system"
-	"gotest.tools/assert"
+	"gotest.tools/v3/assert"
 
 	constant "isula.org/isula-build"
 )

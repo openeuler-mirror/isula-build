@@ -28,7 +28,7 @@ import (
 	"github.com/containers/storage/pkg/reexec"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/sys/unix"
-	"gotest.tools/assert"
+	"gotest.tools/v3/assert"
 
 	constant "isula.org/isula-build"
 	dockerfile "isula.org/isula-build/builder/dockerfile/parser"

@@ -17,7 +17,7 @@ import (
 	"context"
 	"testing"
 
-	"gotest.tools/assert"
+	"gotest.tools/v3/assert"
 )
 
 func TestImageCommand(t *testing.T) {

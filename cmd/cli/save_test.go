@@ -18,14 +18,14 @@ import (
 	"fmt"
 	"testing"
 
-	"gotest.tools/assert"
-	"gotest.tools/fs"
+	"gotest.tools/v3/assert"
+	"gotest.tools/v3/fs"
 )
 
 func TestSaveCommand(t *testing.T) {
 	tmpDir := fs.NewDir(t, t.Name())
 	defer tmpDir.Remove()
-	
+
 	alreadyExistFile := fs.NewFile(t, tmpDir.Join("alreadyExist.tar"))
 	defer alreadyExistFile.Remove()
 

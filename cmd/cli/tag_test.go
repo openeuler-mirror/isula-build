@@ -14,7 +14,7 @@ import (
 	"context"
 	"testing"
 
-	"gotest.tools/assert"
+	"gotest.tools/v3/assert"
 )
 
 func TestTagCommand(t *testing.T) {

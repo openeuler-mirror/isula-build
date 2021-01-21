@@ -20,7 +20,7 @@ import (
 
 	"github.com/containers/storage/pkg/reexec"
 	"golang.org/x/sys/unix"
-	"gotest.tools/assert"
+	"gotest.tools/v3/assert"
 )
 
 func init() {

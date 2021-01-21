@@ -23,8 +23,8 @@ import (
 	"github.com/containers/storage/pkg/stringid"
 	"github.com/docker/docker/pkg/signal"
 	"github.com/sirupsen/logrus"
-	"gotest.tools/assert"
-	"gotest.tools/fs"
+	"gotest.tools/v3/assert"
+	"gotest.tools/v3/fs"
 
 	constant "isula.org/isula-build"
 	"isula.org/isula-build/image"
@@ -859,7 +859,7 @@ func TestExecuteWorkDir(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			dir := fs.NewDir(t, t.Name())
 			defer dir.Remove()
-			
+
 			s := &stageBuilder{
 				builder: &Builder{
 					buildOpts:    BuildOptions{BuildArgs: tt.buildArgs},

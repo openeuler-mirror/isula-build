@@ -269,7 +269,7 @@ Copyright The containerd Authors.
 
 Please see above.
 
-**Software**: github.com/containers/image/v5 v5.4.4  
+**Software**: github.com/containers/image/v5 v5.9.0  
 
 **Copyright notice:**  
 Copyright (C) 2004, 2006 The Linux Foundation and its contributors.  
@@ -282,7 +282,7 @@ Copyright The containerd Authors.
 
 Please see above.  
 
-**Software**: github.com/containers/storage v1.20.2  
+**Software**: github.com/containers/storage v1.23.7  
 
 **Copyright notice:**  
 Copyright (C) 2004, 2006 The Linux Foundation and its contributors.  
@@ -354,7 +354,7 @@ Copyright (c) 2013 Damien Le Berrigaud and Nick Wade
 
 Please see above.  
 
-**Software**: github.com/docker/docker v1.14.0-0.20190319215453-e7b5f7dbe98c  
+**Software**: github.com/docker/docker v20.10.2+incompatible  
 
 **Copyright notice:**  
 Copyright (C) 2014-2018 Docker Inc  
@@ -464,7 +464,7 @@ CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
 OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-**Software**: github.com/sirupsen/logrus v1.6.0  
+**Software**: github.com/sirupsen/logrus v1.7.0  
 
 **Copyright notice:**  
 
@@ -519,3 +519,12 @@ Copyright 2019 gRPC authors
 
 Please see above.  
 
+**Software**: gotest.tools/v3 v.3.0.3
+
+**Copyright notice:**  
+Copyright 2018 gotest.tools authors
+Copyright (c) 2013, Patrick Mezard
+
+**License:** Apache License Version 2.0
+
+Please see above.

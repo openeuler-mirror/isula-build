@@ -22,8 +22,8 @@ import (
 	"github.com/containers/image/v5/docker/reference"
 	v1 "github.com/opencontainers/image-spec/specs-go/v1"
 	"golang.org/x/sys/unix"
-	"gotest.tools/assert"
-	"gotest.tools/fs"
+	"gotest.tools/v3/assert"
+	"gotest.tools/v3/fs"
 
 	"isula.org/isula-build/image"
 	"isula.org/isula-build/store"

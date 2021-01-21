@@ -22,8 +22,8 @@ import (
 
 	"github.com/containers/storage/pkg/reexec"
 	"golang.org/x/sys/unix"
-	"gotest.tools/assert"
-	"gotest.tools/fs"
+	"gotest.tools/v3/assert"
+	"gotest.tools/v3/fs"
 
 	constant "isula.org/isula-build"
 	pb "isula.org/isula-build/api/services"

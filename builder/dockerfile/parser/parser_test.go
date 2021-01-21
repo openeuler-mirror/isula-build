@@ -21,8 +21,8 @@ import (
 	"strings"
 	"testing"
 
-	"gotest.tools/assert"
-	"gotest.tools/fs"
+	"gotest.tools/v3/assert"
+	"gotest.tools/v3/fs"
 
 	"isula.org/isula-build/pkg/parser"
 )
@@ -135,7 +135,7 @@ func TestFormatWithSpacesAfterEscapeToken(t *testing.T) {
 			lines, err := format(rows, d)
 			assert.NilError(t, err)
 			for i, v := range tc.expect {
-				assert.Equal(t, 1 + len(lines[i].Command + lines[i].Raw), v)
+				assert.Equal(t, 1+len(lines[i].Command+lines[i].Raw), v)
 			}
 
 		})
@@ -178,7 +178,7 @@ func TestParse(t *testing.T) {
 			errStr: "no instructions in Dockerfile",
 		},
 		{
-			name:   "busybox_no_command",
+			name: "busybox_no_command",
 		},
 		{
 			name:   "env_before_from",

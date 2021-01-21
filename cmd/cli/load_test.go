@@ -18,8 +18,8 @@ import (
 	"path/filepath"
 	"testing"
 
-	"gotest.tools/assert"
-	"gotest.tools/fs"
+	"gotest.tools/v3/assert"
+	"gotest.tools/v3/fs"
 )
 
 func TestLoadCmd(t *testing.T) {
