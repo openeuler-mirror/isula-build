@@ -16,7 +16,7 @@ package dockerfile
 import (
 	"testing"
 
-	"gotest.tools/assert"
+	"gotest.tools/v3/assert"
 
 	"isula.org/isula-build/pkg/parser"
 )

@@ -21,7 +21,7 @@ import (
 
 	"github.com/opencontainers/runtime-spec/specs-go"
 	"github.com/opencontainers/runtime-tools/generate"
-	"gotest.tools/assert"
+	"gotest.tools/v3/assert"
 
 	constant "isula.org/isula-build"
 	"isula.org/isula-build/pkg/docker"

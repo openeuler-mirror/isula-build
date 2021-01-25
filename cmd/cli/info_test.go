@@ -17,7 +17,7 @@ import (
 	"context"
 	"testing"
 
-	"gotest.tools/assert"
+	"gotest.tools/v3/assert"
 	pb "isula.org/isula-build/api/services"
 )
 

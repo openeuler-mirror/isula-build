@@ -19,7 +19,7 @@ import (
 	"testing"
 	"time"
 
-	"gotest.tools/assert"
+	"gotest.tools/v3/assert"
 
 	constant "isula.org/isula-build"
 )

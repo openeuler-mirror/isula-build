@@ -18,7 +18,7 @@ import (
 	"testing"
 
 	gogotypes "github.com/gogo/protobuf/types"
-	"gotest.tools/assert"
+	"gotest.tools/v3/assert"
 
 	"isula.org/isula-build/pkg/version"
 )

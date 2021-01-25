@@ -18,7 +18,7 @@ import (
 	"os"
 	"testing"
 
-	"gotest.tools/fs"
+	"gotest.tools/v3/fs"
 
 	constant "isula.org/isula-build"
 )

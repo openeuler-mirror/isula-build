@@ -22,7 +22,7 @@ import (
 	"github.com/containers/image/v5/docker/reference"
 	"github.com/containers/storage/pkg/reexec"
 	"github.com/opencontainers/go-digest"
-	"gotest.tools/assert"
+	"gotest.tools/v3/assert"
 
 	"isula.org/isula-build/pkg/docker"
 	"isula.org/isula-build/store"

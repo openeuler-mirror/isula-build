@@ -16,7 +16,7 @@ package parser
 import (
 	"testing"
 
-	"gotest.tools/assert"
+	"gotest.tools/v3/assert"
 )
 
 func TestDump(t *testing.T) {
