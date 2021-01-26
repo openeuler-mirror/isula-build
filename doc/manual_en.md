@@ -52,7 +52,7 @@ The isula-build uses the server/client mode. The isula-build functions as a clie
 
 > **Note:**
 >
-> - Currently, isula-build supports only Docker images.
+> - Currently, isula-build supports OCI image format([OCI Image Format Specification](https://github.com/opencontainers/image-spec/blob/master/spec.md)) and Docker image format([Image Manifest Version 2, Schema 2](https://docs.docker.com/registry/spec/manifest-v2-2/)). Using command `export ISULABUILD_CLI_EXPERIMENTAL=enabled` to open the experimental feature for supporting OCI image format. When experimental feature is disabled, isula-build will take Docker image format as the default image format. Instead, isula-build will take OCI image format as the default image format.
 
 ## Installation
 
@@ -270,6 +270,7 @@ The build command contains the following flags:
 - --build-static: key value, which is used to build binary equivalence. Currently, the following key values are included:
    - build-time: string, which indicates that a fixed timestamp is used to build a container image. The timestamp format is YYYY-MM-DD HH-MM-SS.
 - -f, --filename: string, which indicates the path of the Dockerfiles. If this parameter is not specified, the current path is used.
+- --format: string, which indicates the image format: oci | docker (ISULABUILD_CLI_EXPERIMENTAL needed to be enabled).
 - --iidfile: string, which indicates the ID of the image output to a local file.
 - -o, --output: string, which indicates the image export mode and path.
 - --proxy: Boolean, which inherits the proxy environment variable on the host. The default value is true.
@@ -335,6 +336,16 @@ For container image build, isula-build supports the same Dockerfile. If the buil
 
   In this way, the container images and image IDs built in the same environment for multiple times are the same.
 
+**\--format**
+This option can be used when opening the experiment feature, and OCI image format will taken as the default image format. You can choose corresponding image format for building, for example, building oci image format image and docker image format image are listed below.
+  ```sh
+  $ export ISULABUILD_CLI_EXPERIMENTAL=enabled; sudo isula-build ctr-img build -f Dockerfile --format oci .
+  ```
+
+  ```sh
+  $ export ISULABUILD_CLI_EXPERIMENTAL=enabled; sudo isula-build ctr-img build -f Dockerfile --format docker .
+  ```
+
 **\--iidfile**
 
 Run the following command to output the ID of the built image to a file:
@@ -370,9 +381,16 @@ Currently, -o and –output support the following formats:
 - isula-build and Docker must be on the same node.
   - The tag must be configured.
 
-- `docker://registry.example.com/repository:tag`: directly pushes the successfully built image to the remote image repository, for example, `-o docker://localhost:5000/library/busybox:latest`.
+- `docker://registry.example.com/repository:tag`: directly pushes the successfully built image to the remote image repository in Docker image format, for example, `-o docker://localhost:5000/library/busybox:latest`.
+
 
 - `docker-archive:<path>/<filename>:image:tag`: saves the successfully built image to the local host in Docker image format, for example, `-o docker-archive:/root/image.tar:busybox:latest`.
+
+When experiment feature is enabled, you can build image in OCI image format with:
+- `oci://registry.example.com/repository:tag`: directly pushes the successfully built image to the remote image repository in OCI image format(OCI image format should be supported by the remote repository), for example, `-o oci://localhost:5000/library/busybox:latest`.
+
+- `oci-archive:<path>/<filename>:image:tag`: saves the successfully built image to the local host in OCI image format, for example, `-o oci-archive:/root/image.tar:busybox:latest`.
+
 
 In addition to flags, the build subcommand also supports an argument whose type is string and meaning is context, that is, the context of the Dockerfile build environment. The default value of this parameter is the current path where isula-build is executed. This path affects the path retrieved by the ADD and COPY commands of .dockerignore and Dockerfile.
 
@@ -420,7 +438,7 @@ $ sudo isula-build ctr-img build --cap-add CAP_SYS_ADMIN --cap-add CAP_SYS_PTRAC
 > - The stage name can contain a maximum of 64 characters.
 > - isula-build does not support resource restriction on a single Dockerfile build. If resource restriction is required, you can configure a resource limit on the isula-builder.
 > - Currently, isula-build does not support a remote URL as the data source of the ADD command in the Dockerfile.
-> - The local tarball exported using the 'docker-archive' type is not compressed, you can manually compress the file as required.
+> - The local tarball exported using the 'docker-archive' and 'oci-archive' type are not compressed, you can manually compress the file as required.
 
 #### image: Viewing Local Persistent Build Images
 
@@ -508,8 +526,8 @@ Loaded image as c07ddb44daa97e9e8d2d68316b296cc9343ab5f3d2babc5e6e03b80cd580478e
 
 > **Note:**
 >
-> - The isula-build load command can only be used to import a compressed image file that contains a single cascade image.
 > - isula-build allows you to import a container image with a maximum size of 50 GB.
+> - isula-build automatically recgonizes the image format and loads it from the image layers file.
 
 #### rm: Deleting a Local Persistent Image
 
@@ -539,6 +557,11 @@ You can run the save command to export the cascade images to the local disk. The
 ```
 isula-build ctr-img save [REPOSITORY:TAG]|imageID -o xx.tar
 ```
+
+Currently, the following flags are supported:
+
+- -f, --format: which indicates the exported image format: oci | docker (ISULABUILD_CLI_EXPERIMENTAL needed to be enabled)
+- -o, --output: which indicates the local path for storing the exported images.
 
 The following example shows how to export an image in `image/tag` format:
 
@@ -590,7 +613,7 @@ Save success with image: [busybox:latest nginx:latest]
 >**NOTE:**
 >
 >- Save exports an image in .tar format by default. If necessary, you can save the image and then manually compress it.
->- When exporting an image, specify the image integrity in the format of IMAGE_NAME:IMAGE_TAG.
+>- When exporting an image using image name, specify the entire image name with format: REPOSITORY:TAG.
 
 
 #### tag: Tagging Local Persistent Images
@@ -647,6 +670,10 @@ Run the push command to push a local image to a remote repository. Command forma
 ```
 isula-build ctr-img push REPOSITORY[:TAG]
 ```
+
+Currently, the following flags are supported:
+
+- -f, --format: which indicates the pushed image format: oci | docker (ISULABUILD_CLI_EXPERIMENTAL needed to be enabled)
 
 Example:
 
@@ -821,7 +848,7 @@ Users could specify the manifest list and the image needed to update, with optio
 Currently, the following flags are supported:
 
 ```
-Flags：
+Flags:
   --arch string           Set architecture
   --os string             Set operating system
   --os-features strings   Set operating system feature
@@ -976,6 +1003,7 @@ The `isula-build` compatible with [Dockerfile specification](https://docs.docker
 | ctr-img build | --build-arg | String list, which contains variables required during the build. |
 | | --build-static | Key value, which is used to build binary equivalence. Currently, the following key values are included: - build-time: string, which indicates that a fixed timestamp is used to build a container image. The timestamp format is YYYY-MM-DD HH-MM-SS. |
 | | -f, --filename | String, which indicates the path of the Dockerfiles. If this parameter is not specified, the current path is used. |
+| | --format | String, which indicates the image format: oci \| docker (ISULABUILD_CLI_EXPERIMENTAL needed to be enabled). |
 | | --iidfile | String, which indicates the ID of the image output to a local file. |
 | | -o, --output | String, which indicates the image export mode and path.|
 | | --proxy | Boolean, which inherits the proxy environment variable on the host. The default value is true. |
@@ -986,35 +1014,42 @@ The `isula-build` compatible with [Dockerfile specification](https://docs.docker
 
 | **Command** | **Parameter** | **Description** |
 | ------------ | ----------- | --------------------------------- |
-| ctr-img load | -i, --input | String, Path of the local .tar package to be imported|
+| ctr-img load | -i, --input | String, Path of the local .tar package to be imported.|
 
-**Table 3** Parameters in the ctr-img rm command
+**Table 3** Parameters in the ctr-img push command
+
+| **Command** | **Parameter** | **Description** |
+| ------------ | ----------- | --------------------------------- |
+| ctr-img push | -f, --format | String, which indicated the pushed image format: oci \| docker (ISULABUILD_CLI_EXPERIMENTAL needed to be enabled).|
+
+**Table 4** Parameters in the ctr-img rm command
 
 | **Command** | **Parameter** | **Description** |
 | ---------- | ----------- | --------------------------------------------- |
 | ctr-img rm | -a, --all | Boolean, which is used to delete all local persistent images. |
 | | -p, --prune | Boolean, which is used to delete all images that are stored persistently on the local host and do not have tags. |
 
-**Table 4** Parameters in the ctr-img save command
+**Table 5** Parameters in the ctr-img save command
 
 | **Command** | **Parameter** | **Description** |
 | ------------ | ------------ | ---------------------------------- |
 | ctr-img save | -o, --output | String, which indicates the local path for storing the exported images.|
+| ctr-img save | -f, --format | String, which indicates the exported image format: oci \| docker (ISULABUILD_CLI_EXPERIMENTAL needed to be enabled).|
 
-**Table 5** Parameters in the login command
+**Table 6** Parameters in the login command
 
 | **Command** | **Parameter** | **Description** |
 | -------- | -------------------- | ------------------------------------------------------- |
 | login | -p, --password-stdin | Boolean, which indicates whether to read the password through stdin. or enter the password in interactive mode. |
 | | -u, --username | String, which indicates the username for logging in to the image repository.|
 
-**Table 6** Parameters in the logout command
+**Table 7** Parameters in the logout command
 
 | **Command** | **Parameter** | **Description** |
 | -------- | --------- | ------------------------------------ |
 | logout | -a, --all | Boolean, which indicates whether to log out of all logged-in image repositories. |
 
-**Table 7** Parameters in the manifest annotate command
+**Table 8** Parameters in the manifest annotate command
 
 | **Command**       | **Parameter** | **Description**              |
 | ----------------- | ------------- | ---------------------------- |
