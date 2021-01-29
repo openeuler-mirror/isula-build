@@ -1,30 +1,32 @@
-From 1c39c596b5d4a07f88edbc8200a9952e357561f2 Mon Sep 17 00:00:00 2001
-From: lixiang <lixiang172@huawei.com>
-Date: Fri, 4 Sep 2020 09:42:31 +0800
-Subject: [PATCH] isula-build:remove docker releated path for authentication
+From d92dfab842cb72f695b704dfc8bf889378864432 Mon Sep 17 00:00:00 2001
+From: build <build@obs.com>
+Date: Tue, 26 Jan 2021 15:43:01 +0800
+Subject: [PATCH] isula-build:remove docker related path for authentication
 
-reason: remove docker releated authentication path ${HOME}/.docker/config.json and ${HOME}/.dockercfg
-
-Signed-off-by: lixiang <lixiang172@huawei.com>
+reason: remove docker related authentication path ${HOME}/.docker/config.json and ${HOME}/.dockercfg
 ---
- .../containers/image/v5/pkg/docker/config/config.go           | 4 ----
- 1 file changed, 4 deletions(-)
+ .../containers/image/v5/pkg/docker/config/config.go        | 7 -------
+ 1 file changed, 7 deletions(-)
 
 diff --git a/vendor/github.com/containers/image/v5/pkg/docker/config/config.go b/vendor/github.com/containers/image/v5/pkg/docker/config/config.go
-index 1a2ed7c3..125e21d9 100644
+index cf82ee8..1165d15 100644
 --- a/vendor/github.com/containers/image/v5/pkg/docker/config/config.go
 +++ b/vendor/github.com/containers/image/v5/pkg/docker/config/config.go
-@@ -159,10 +159,6 @@ func getAuthFilePaths(sys *types.SystemContext) []authPath {
- 		// Logging the error as a warning instead and moving on to pulling the image
- 		logrus.Warnf("%v: Trying to pull image in the event that it is a public image.", err)
+@@ -146,14 +146,7 @@ func getAuthFilePaths(sys *types.SystemContext) []authPath {
+ 		paths = append(paths,
+ 			authPath{path: filepath.Join(dockerConfig, "config.json"), legacyFormat: false},
+ 		)
+-	} else {
+-		paths = append(paths,
+-			authPath{path: filepath.Join(homedir.Get(), dockerHomePath), legacyFormat: false},
+-		)
  	}
 -	paths = append(paths,
--		authPath{path: filepath.Join(homedir.Get(), dockerHomePath), legacyFormat: false},
 -		authPath{path: filepath.Join(homedir.Get(), dockerLegacyHomePath), legacyFormat: true},
 -	)
  	return paths
  }
  
 -- 
-2.19.1
+2.27.0
 
