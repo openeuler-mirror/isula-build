@@ -590,12 +590,19 @@ func ResolveName(name string, sc *types.SystemContext, store *store.Store) ([]st
 }
 
 func tryResolveNameInStore(name string, store *store.Store) string {
+	defaultTag := "latest"
+
 	logrus.Infof("Try to find image: %s in local storage", name)
 	img, err := store.Image(name)
+	if err == nil {
+		return img.ID
+	}
+
+	logrus.Infof("Try to find image: %s:%s in local storage", name, defaultTag)
+	img, err = store.Image(fmt.Sprintf("%s:%s", name, defaultTag))
 	if err != nil {
 		return ""
 	}
-
 	return img.ID
 }
 
