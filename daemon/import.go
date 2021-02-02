@@ -121,7 +121,9 @@ func (b *Backend) Import(req *pb.ImportRequest, stream pb.Control_ImportServer) 
 			return errors.Wrapf(err, "error locating image %q in local storage after import", transports.ImageName(dstRef))
 		}
 		imageID = img.ID
-		img.Names = append(img.Names, reference)
+		if reference != "" {
+			img.Names = append(img.Names, reference)
+		}
 		newNames := util.CopyStringsWithoutSpecificElem(img.Names, tmpName)
 		if err = localStore.SetNames(img.ID, newNames); err != nil {
 			return errors.Wrapf(err, "failed to prune temporary name from image %q", imageID)

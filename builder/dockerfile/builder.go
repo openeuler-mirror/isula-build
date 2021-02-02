@@ -637,7 +637,7 @@ func parseOutputTag(output string) string {
 // CheckAndExpandTag checks tag name. If it not include a tag, "latest" will be added.
 func CheckAndExpandTag(tag string) (reference.Named, string, error) {
 	if tag == "" {
-		return nil, "<none>:<none>", nil
+		return nil, "", nil
 	}
 
 	newTag := tag
