@@ -58,7 +58,6 @@ func (c *controlPullServer) Send(response *pb.PullResponse) error {
 
 func init() {
 	reexec.Init()
-
 }
 
 func prepare(t *testing.T) daemonTestOptions {
@@ -100,7 +99,10 @@ func TestPull(t *testing.T) {
 	defer tmpClean(d)
 
 	options := &storage.ImageOptions{}
-	d.Daemon.localStore.CreateImage(stringid.GenerateRandomID(), []string{"image:test"}, "", "", options)
+	_, err := d.Daemon.localStore.CreateImage(stringid.GenerateRandomID(), []string{"image:test"}, "", "", options)
+	if err != nil {
+		t.Fatalf("create image with error: %v", err)
+	}
 
 	testcases := []struct {
 		name      string

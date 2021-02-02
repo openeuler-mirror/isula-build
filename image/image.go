@@ -689,3 +689,26 @@ func tryResolveNameInRegistries(name string, sc *types.SystemContext) ([]string,
 	}
 	return candidates, exporter.DockerTransport
 }
+
+// CheckAndAddDefaultTag checks if src is format of repository[:tag], add default tag if src without tag
+func CheckAndAddDefaultTag(imageName string, store *store.Store) (string, error) {
+	_, img, err := FindImage(store, imageName)
+	if err != nil {
+		return "", errors.Wrapf(err, "find src image: %q failed", imageName)
+	}
+
+	defaultTag := "latest"
+	for _, name := range img.Names {
+		// for imageName is the format of repository[:tag]
+		if imageName == name {
+			return imageName, nil
+		}
+		// for name is the format of repository
+		if fmt.Sprintf("%s:%s", imageName, defaultTag) == name {
+			return name, nil
+		}
+	}
+
+	// for imageName is the format of imageID
+	return imageName, nil
+}

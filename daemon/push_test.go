@@ -79,10 +79,21 @@ func TestPush(t *testing.T) {
 				Format:    "oci",
 			},
 		},
+		{
+			name: "manifestNotExist fine without tag latest",
+			pushRequest: &pb.PushRequest{
+				PushID:    stringid.GenerateNonCryptoID()[:constant.DefaultIDLen],
+				ImageName: "127.0.0.1/no-repository/no-name",
+				Format:    "oci",
+			},
+		},
 	}
 
 	options := &storage.ImageOptions{}
-	d.Daemon.localStore.CreateImage(stringid.GenerateRandomID(), []string{"127.0.0.1/no-repository/no-name:latest"}, "", "", options)
+	_, err := d.Daemon.localStore.CreateImage(stringid.GenerateRandomID(), []string{"127.0.0.1/no-repository/no-name:latest"}, "", "", options)
+	if err != nil {
+		t.Fatalf("create image with error: %v", err)
+	}
 
 	for _, tc := range testcases {
 		t.Run(tc.name, func(t *testing.T) {
