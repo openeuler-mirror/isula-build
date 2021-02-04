@@ -17,7 +17,6 @@ import (
 	"context"
 	"os"
 
-	"github.com/containers/image/v5/docker/archive"
 	"github.com/containers/image/v5/types"
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
@@ -34,7 +33,6 @@ import (
 )
 
 type saveOptions struct {
-	writer     *archive.Writer
 	sysCtx     *types.SystemContext
 	logger     *logger.Logger
 	localStore *store.Store

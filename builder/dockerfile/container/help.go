@@ -170,7 +170,7 @@ func (ref *Reference) saveLayerToStorage(path string, layer *storage.Layer) (dif
 	}()
 
 	filename := filepath.Join(path, "layer")
-	layerFile, err := os.OpenFile(filename, os.O_CREATE|os.O_WRONLY, constant.DefaultRootFileMode)
+	layerFile, err := os.OpenFile(filepath.Clean(filename), os.O_CREATE|os.O_WRONLY, constant.DefaultRootFileMode)
 	if err != nil {
 		return "", des, errors.Wrapf(err, "error opening file: %s", filename)
 	}

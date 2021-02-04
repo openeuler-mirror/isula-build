@@ -57,8 +57,6 @@ const (
 var (
 	// DefaultRegistryPathPrefix is the map for registry and path
 	DefaultRegistryPathPrefix map[string]string
-	// clientExporters to map exporter whether will export the image to client
-	clientExporters map[string]bool
 )
 
 func init() {

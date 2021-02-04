@@ -129,7 +129,7 @@ func (l *List) SaveListToImage(store *store.Store, imageID, name string) (string
 		return "", errors.Wrapf(err, "save manifest list to image %v error", imageID)
 	}
 
-	//marshal list instance information
+	// marshal list instance information
 	instancesBytes, err := json.Marshal(&l.instances)
 	if err != nil {
 		return "", errors.Wrap(err, "marshall list instances error")

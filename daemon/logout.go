@@ -47,8 +47,8 @@ func (b *Backend) Logout(ctx context.Context, req *pb.LogoutRequest) (*pb.Logout
 	}
 
 	if req.All {
-		if err := config.RemoveAllAuthentication(sysCtx); err != nil {
-			return &pb.LogoutResponse{Result: "Remove authentications failed"}, err
+		if rErr := config.RemoveAllAuthentication(sysCtx); rErr != nil {
+			return &pb.LogoutResponse{Result: "Remove authentications failed"}, rErr
 		}
 		logrus.Info("Success logout from all servers")
 
