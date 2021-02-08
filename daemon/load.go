@@ -55,8 +55,8 @@ func (b *Backend) Load(req *pb.LoadRequest, stream pb.Control_LoadServer) error 
 	)
 	opts := b.getLoadOptions(req)
 
-	if err := util.CheckLoadFile(req.Path); err != nil {
-		return err
+	if cErr := util.CheckLoadFile(req.Path); cErr != nil {
+		return cErr
 	}
 
 	repoTags, err = tryToParseImageFormatFromTarball(b.daemon.opts.DataRoot, &opts)

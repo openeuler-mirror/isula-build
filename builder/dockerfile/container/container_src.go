@@ -98,7 +98,7 @@ func (i *containerImageSource) GetBlob(ctx context.Context, blob types.BlobInfo,
 		return nil, -1, errors.Wrapf(err, "blob file %q is not exit", blobFile)
 	}
 
-	layerFile, err := os.OpenFile(blobFile, os.O_RDONLY, constant.DefaultRootFileMode)
+	layerFile, err := os.OpenFile(filepath.Clean(blobFile), os.O_RDONLY, constant.DefaultRootFileMode)
 	if err != nil {
 		return nil, -1, errors.Wrapf(err, "open the blob file %q failed", blobFile)
 	}

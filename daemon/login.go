@@ -60,8 +60,8 @@ func (b *Backend) Login(ctx context.Context, req *pb.LoginRequest) (*pb.LoginRes
 	}
 
 	if loginWithAuthFile(req) {
-		auth, err := config.GetCredentials(sysCtx, req.Server)
-		if err != nil || auth.Password == "" {
+		auth, gErr := config.GetCredentials(sysCtx, req.Server)
+		if gErr != nil || auth.Password == "" {
 			auth = types.DockerAuthConfig{}
 			return &pb.LoginResponse{Content: errTryToUseAuth}, errors.Errorf("failed to read auth file: %v", errTryToUseAuth)
 		}
