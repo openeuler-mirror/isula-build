@@ -69,8 +69,9 @@ func TestPreProcess(t *testing.T) {
 
 func TestFormat(t *testing.T) {
 	type testcase struct {
-		name   string
-		expect int
+		name    string
+		expect  int
+		wantErr bool
 	}
 	var testcases = []testcase{
 		{
@@ -89,6 +90,10 @@ func TestFormat(t *testing.T) {
 			name:   "yum_config",
 			expect: 8,
 		},
+		{
+			name:   "run_with_directive",
+			wantErr: true,
+		},
 	}
 
 	for _, tc := range testcases {
@@ -103,8 +108,13 @@ func TestFormat(t *testing.T) {
 			d, err := newDirective(bytes.NewReader(buf.Bytes()))
 			assert.NilError(t, err)
 			lines, err := format(rows, d)
-			assert.NilError(t, err)
-			assert.Equal(t, len(lines), tc.expect)
+			if (err != nil) != tc.wantErr {
+				t.Errorf("Testing failed. Expected: %v, got: %v", tc.wantErr, err)
+			}
+			if !tc.wantErr {
+				assert.NilError(t, err, file)
+				assert.Equal(t, len(lines), tc.expect)
+			}
 		})
 	}
 }
