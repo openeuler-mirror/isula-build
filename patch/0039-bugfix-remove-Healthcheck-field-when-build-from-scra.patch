@@ -1,0 +1,26 @@
+From dd2d69a851cba9619196166b78564093861ce46b Mon Sep 17 00:00:00 2001
+From: DCCooper <1866858@gmail.com>
+Date: Tue, 9 Feb 2021 19:11:05 +0800
+Subject: [PATCH] bugfix: remove Healthcheck field when build from scratch
+
+Signed-off-by: DCCooper <1866858@gmail.com>
+---
+ image/image.go | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/image/image.go b/image/image.go
+index b5b2264..bbbc7b9 100644
+--- a/image/image.go
++++ b/image/image.go
+@@ -289,7 +289,7 @@ func createScratchV2Image() *docker.Image {
+ 				ExposedPorts: make(docker.PortSet),
+ 				Env:          make([]string, 0, 0),
+ 				Cmd:          make([]string, 0, 0),
+-				Healthcheck:  &docker.HealthConfig{},
++				Healthcheck:  nil,
+ 				Volumes:      make(map[string]struct{}),
+ 				Entrypoint:   make([]string, 0, 0),
+ 				OnBuild:      make([]string, 0, 0),
+-- 
+1.8.3.1
+
