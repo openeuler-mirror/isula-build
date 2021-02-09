@@ -2,7 +2,7 @@
 
 Name: isula-build
 Version: 0.9.5
-Release: 2
+Release: 3
 Summary: A tool to build container images
 License: Mulan PSL V2
 URL: https://gitee.com/openeuler/isula-build
@@ -14,7 +14,7 @@ Source4: gen-version.sh
 Source5: series.conf
 Source6: patch.tar.gz
 BuildRequires: make btrfs-progs-devel device-mapper-devel glib2-devel gpgme-devel
-BuildRequires: libassuan-devel libseccomp-devel git bzip2 go-md2man systemd-devel
+BuildRequires: libassuan-devel libseccomp-devel git bzip2 systemd-devel
 BuildRequires: golang >= 1.13
 %if 0%{?is_systemd}
 BuildRequires: pkgconfig(systemd)
@@ -85,6 +85,12 @@ fi
 /usr/share/bash-completion/completions/isula-build
 
 %changelog
+* Tue Feb 09 2021 DCCooper <1866858@gmail.com> - 0.9.5-3
+- Type:enhancement
+- CVE:NA
+- SUG:restart
+- DESC:remove go-md2man build require
+
 * Thu Feb 4 2021 leizhongkai<leizhongkai@huawei.com> - 0.9.5-2
 - Type:enhancement
 - CVE:NA
