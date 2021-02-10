@@ -5,7 +5,7 @@ go 1.13
 require (
 	github.com/BurntSushi/toml v0.3.1
 	github.com/blang/semver v4.0.0+incompatible // indirect
-	github.com/bndr/gotabulate v1.1.3-0.20170315142410-bc555436bfd5
+	github.com/bndr/gotabulate v1.1.3-0.20210209140214-21a495b00e22
 	github.com/containerd/cgroups v0.0.0-20200710171044-318312a37340 // indirect
 	github.com/containerd/containerd v1.4.0-rc.0
 	github.com/containerd/continuity v0.0.0-20200710164510-efbc4488d8fe // indirect
