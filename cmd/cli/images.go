@@ -100,5 +100,6 @@ func formatAndPrint(images []*pb.ListResponse_ImageInfo) {
 	tabulate := gotabulate.Create(lines)
 	tabulate.SetHeaders(title)
 	tabulate.SetAlign("left")
+	tabulate.SetDenseMode()
 	fmt.Print(tabulate.Render("simple"))
 }

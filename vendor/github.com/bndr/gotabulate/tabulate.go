@@ -1,10 +1,13 @@
 package gotabulate
 
-import "fmt"
-import "bytes"
-import "github.com/mattn/go-runewidth"
-import "unicode/utf8"
-import "math"
+import (
+	"bytes"
+	"fmt"
+	"math"
+	"unicode/utf8"
+
+	"github.com/mattn/go-runewidth"
+)
 
 // Basic Structure of TableFormat
 type TableFormat struct {
@@ -84,6 +87,7 @@ type Tabulate struct {
 	WrapStrings   bool
 	WrapDelimiter rune
 	SplitConcat   string
+	DenseMode     bool
 }
 
 // Represents normalized tabulate Row
@@ -292,7 +296,7 @@ func (t *Tabulate) Render(format ...interface{}) string {
 	// Add Data Rows
 	for index, element := range t.Data {
 		lines = append(lines, t.buildRow(t.padRow(element.Elements, t.TableFormat.Padding), padded_widths, cols, t.TableFormat.DataRow))
-		if index < len(t.Data)-1 {
+		if !t.DenseMode && index < len(t.Data)-1 {
 			if element.Continuos != true && !inSlice("betweenLine", t.HideLines) {
 				lines = append(lines, t.buildLine(padded_widths, cols, t.TableFormat.LineBetweenRows))
 			}
@@ -385,7 +389,8 @@ func (t *Tabulate) SetEmptyString(empty string) {
 // Can be:
 // top - Top line of the table,
 // belowheader - Line below the header,
-// bottom - Bottom line of the table
+// bottomLine - Bottom line of the table
+// betweenLine - Between line of the table
 func (t *Tabulate) SetHideLines(hide []string) {
 	t.HideLines = hide
 }
@@ -399,6 +404,12 @@ func (t *Tabulate) SetWrapStrings(wrap bool) {
 // the cell will be split up into multiple cell
 func (t *Tabulate) SetMaxCellSize(max int) {
 	t.MaxSize = max
+}
+
+// Sets dense mode
+// Under dense mode, no space line between rows
+func (t *Tabulate) SetDenseMode() {
+	t.DenseMode = true
 }
 
 func (t *Tabulate) splitElement(e string) (bool, string) {
