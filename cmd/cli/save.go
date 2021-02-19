@@ -72,6 +72,9 @@ func saveCommand(cmd *cobra.Command, args []string) error {
 	if len(args) == 0 {
 		return errors.New("save accepts at least one image")
 	}
+	if saveOpts.format == exporter.OCITransport && len(args) >= 2 {
+		return errors.New("oci image format now only supports saving single image")
+	}
 	if err := exporter.CheckImageFormat(saveOpts.format); err != nil {
 		return err
 	}
