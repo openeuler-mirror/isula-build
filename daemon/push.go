@@ -63,6 +63,12 @@ func (b *Backend) Push(req *pb.PushRequest, stream pb.Control_PushServer) error 
 		return err
 	}
 
+	imageName, err := image.CheckAndAddDefaultTag(opt.imageName, opt.localStore)
+	if err != nil {
+		return err
+	}
+	opt.imageName = imageName
+
 	manifestType, gErr := exporter.GetManifestType(opt.format)
 	if gErr != nil {
 		return gErr

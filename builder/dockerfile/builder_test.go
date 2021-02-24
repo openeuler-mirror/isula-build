@@ -1533,7 +1533,7 @@ func TestCheckAndExpandTag(t *testing.T) {
 		{
 			name:    "test 9",
 			tag:     "",
-			output:  "<none>:<none>",
+			output:  "",
 			wantErr: false,
 		},
 		{

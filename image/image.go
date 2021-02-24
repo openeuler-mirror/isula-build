@@ -590,12 +590,19 @@ func ResolveName(name string, sc *types.SystemContext, store *store.Store) ([]st
 }
 
 func tryResolveNameInStore(name string, store *store.Store) string {
+	defaultTag := "latest"
+
 	logrus.Infof("Try to find image: %s in local storage", name)
 	img, err := store.Image(name)
+	if err == nil {
+		return img.ID
+	}
+
+	logrus.Infof("Try to find image: %s:%s in local storage", name, defaultTag)
+	img, err = store.Image(fmt.Sprintf("%s:%s", name, defaultTag))
 	if err != nil {
 		return ""
 	}
-
 	return img.ID
 }
 
@@ -681,4 +688,27 @@ func tryResolveNameInRegistries(name string, sc *types.SystemContext) ([]string,
 		candidates = append(candidates, candidate)
 	}
 	return candidates, exporter.DockerTransport
+}
+
+// CheckAndAddDefaultTag checks if src is format of repository[:tag], add default tag if src without tag
+func CheckAndAddDefaultTag(imageName string, store *store.Store) (string, error) {
+	_, img, err := FindImage(store, imageName)
+	if err != nil {
+		return "", errors.Wrapf(err, "find src image: %q failed", imageName)
+	}
+
+	defaultTag := "latest"
+	for _, name := range img.Names {
+		// for imageName is the format of repository[:tag]
+		if imageName == name {
+			return imageName, nil
+		}
+		// for name is the format of repository
+		if fmt.Sprintf("%s:%s", imageName, defaultTag) == name {
+			return name, nil
+		}
+	}
+
+	// for imageName is the format of imageID
+	return imageName, nil
 }

@@ -79,6 +79,14 @@ func (b *Backend) Save(req *pb.SaveRequest, stream pb.Control_SaveServer) error 
 		return errors.New("wrong image format provided")
 	}
 
+	for i, imageName := range opts.oriImgList {
+		nameWithTag, cErr := image.CheckAndAddDefaultTag(imageName, opts.localStore)
+		if cErr != nil {
+			return cErr
+		}
+		opts.oriImgList[i] = nameWithTag
+	}
+
 	defer func() {
 		if err != nil {
 			if rErr := os.Remove(opts.outputPath); rErr != nil && !os.IsNotExist(rErr) {
