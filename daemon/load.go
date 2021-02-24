@@ -147,7 +147,6 @@ func tryToParseImageFormatFromTarball(dataRoot string, opts *loadOptions) ([][]s
 
 func getDockerRepoTagFromImageTar(systemContext *types.SystemContext, path string) ([][]string, error) {
 	// tmp dir will be removed after NewSourceFromFileWithContext
-
 	tarfileSource, err := tarfile.NewSourceFromFileWithContext(systemContext, path)
 	if err != nil {
 		return nil, errors.Wrapf(err, "failed to get the source of loading tar file")
@@ -168,8 +167,7 @@ func getDockerRepoTagFromImageTar(systemContext *types.SystemContext, path strin
 
 func getOCIRepoTagFromImageTar(systemContext *types.SystemContext, path string) ([][]string, error) {
 	var (
-		allRepoTags [][]string
-		err         error
+		err error
 	)
 
 	srcRef, err := alltransports.ParseImageName(exporter.FormatTransport(exporter.OCIArchiveTransport, path))
@@ -179,14 +177,13 @@ func getOCIRepoTagFromImageTar(systemContext *types.SystemContext, path string) 
 
 	tarManifest, err := ociarchive.LoadManifestDescriptorWithContext(systemContext, srcRef)
 	if err != nil {
-		return nil, errors.Wrapf(err, "failed to loadmanifest descriptor of oci image format")
+		return nil, errors.Wrapf(err, "failed to load manifest descriptor of oci image format")
 	}
 
-	// If index.json has no reference name, compute the image digest instead
 	// For now, we only support load single image in archive file
 	if _, ok := tarManifest.Annotations[imgspecv1.AnnotationRefName]; ok {
-		allRepoTags = [][]string{{tarManifest.Annotations[imgspecv1.AnnotationRefName]}}
+		return [][]string{{tarManifest.Annotations[imgspecv1.AnnotationRefName]}}, nil
 	}
 
-	return allRepoTags, nil
+	return [][]string{{}}, nil
 }

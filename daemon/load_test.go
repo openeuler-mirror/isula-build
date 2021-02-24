@@ -30,6 +30,12 @@ import (
 	"isula.org/isula-build/store"
 )
 
+const (
+	loadedTarFile = "load.tar"
+	manifestJSONFile = "manifest.json"
+	indexJSONFile = "index.json"
+)
+
 var (
 	localStore store.Store
 	daemon     *Daemon
@@ -51,10 +57,10 @@ func (x *controlLoadServer) Context() context.Context {
 	return context.Background()
 }
 
-func prepareLoadTar(dir *fs.Dir) error {
-	manifest := dir.Join("manifest.json")
+func prepareLoadTar(dir *fs.Dir, jsonFile string) error {
+	manifest := dir.Join(jsonFile)
 
-	fi, err := os.Create(dir.Join("load.tar"))
+	fi, err := os.Create(dir.Join(loadedTarFile))
 	if err != nil {
 		return nil
 	}
@@ -88,9 +94,9 @@ func prepareLoadTar(dir *fs.Dir) error {
 
 }
 
-func prepareForLoad(t *testing.T, manifest string) *fs.Dir {
-	tmpDir := fs.NewDir(t, t.Name(), fs.WithFile("manifest.json", manifest))
-	if err := prepareLoadTar(tmpDir); err != nil {
+func prepareForLoad(t *testing.T, jsonFile, manifest string) *fs.Dir {
+	tmpDir := fs.NewDir(t, t.Name(), fs.WithFile(jsonFile, manifest))
+	if err := prepareLoadTar(tmpDir, jsonFile); err != nil {
 		tmpDir.Remove()
 		return nil
 	}
@@ -119,34 +125,152 @@ func clean(dir *fs.Dir) {
 	dir.Remove()
 }
 
-func TestLoad(t *testing.T) {
-	manifestJSON :=
-		`[
-			{
-				"Config":"76a4dd2d5d6a18323ac8d90f959c3c8562bf592e2a559bab9b462ab600e9e5fc.json",
-				"RepoTags":[
-					"hello:latest"
-				],
-				"Layers":[
-					"6eb4c21cc3fcb729a9df230ae522c1d3708ca66e5cf531713dbfa679837aa287.tar",
-					"37841116ad3b1eeea972c75ab8bad05f48f721a7431924bc547fc91c9076c1c8.tar"
-				]
+func TestLoadSingleImage(t *testing.T) {
+	testcases := []struct {
+		name      string
+		manifest  string
+		format    string
+		tarPath   string
+		withTag   bool
+		wantErr   bool
+		errString string
+	}{
+		{
+			name: "TC1 normal case load docker tar",
+			manifest: `[
+							{
+								"Config":"76a4dd2d5d6a18323ac8d90f959c3c8562bf592e2a559bab9b462ab600e9e5fc.json",
+								"RepoTags":[
+									"hello:latest"
+								],
+								"Layers":[
+									"6eb4c21cc3fcb729a9df230ae522c1d3708ca66e5cf531713dbfa679837aa287.tar",
+									"37841116ad3b1eeea972c75ab8bad05f48f721a7431924bc547fc91c9076c1c8.tar"
+								]
+							}
+						]`,
+			format:  "docker",
+			withTag: true,
+		},
+		{
+			name: "TC2 normal case load oci tar",
+			manifest: `{
+							"schemaVersion": 2,
+							"manifests": [
+							{
+								"mediaType": "application/vnd.oci.image.manifest.v1+json",
+								"digest": "sha256:a65db259a719d915df30c82ce554ab3880ea567e2150d6288580408c2629b802",
+								"size": 347,
+								"annotations": {
+									"org.opencontainers.image.ref.name": "hello:latest"
+								}
+							}
+							]
+						}`,
+			format:  "oci",
+			withTag: true,
+		},
+		{
+			name: "TC3 normal case load docker tar with no RepoTags",
+			manifest: `[
+							{
+								"Config":"76a4dd2d5d6a18323ac8d90f959c3c8562bf592e2a559bab9b462ab600e9e5fc.json",
+								"RepoTags":[],
+								"Layers":[
+									"6eb4c21cc3fcb729a9df230ae522c1d3708ca66e5cf531713dbfa679837aa287.tar",
+									"37841116ad3b1eeea972c75ab8bad05f48f721a7431924bc547fc91c9076c1c8.tar"
+								]
+							}
+						]`,
+			format:  "docker",
+			withTag: false,
+		},
+		{
+			name: "TC4 normal case load oci tar with no annotations",
+			manifest: `{
+							"schemaVersion": 2,
+							"manifests": [
+							{
+								"mediaType": "application/vnd.oci.image.manifest.v1+json",
+								"digest": "sha256:a65db259a719d915df30c82ce554ab3880ea567e2150d6288580408c2629b802",
+								"size": 347
+							}
+							]
+						}`,
+			format:  "oci",
+			withTag: false,
+		},
+		{
+			name: "TC5 abnormal case load docker tar with wrong manifestJSON",
+			manifest: `[
+							{
+								:"76a4dd2d5d6a18323ac8d90f959c3c8562bf592e2a559bab9b462ab600e9e5fc.json",
+								"RepoTags":[
+									"hello:latest"
+								],
+								"Layers":[
+									"6eb4c21cc3fcb729a9df230ae522c1d3708ca66e5cf531713dbfa679837aa287.tar",
+									"37841116ad3b1eeea972c75ab8bad05f48f721a7431924bc547fc91c9076c1c8.tar"
+								]
+							}
+						]`,
+			format:    "docker",
+			withTag:   true,
+			wantErr:   true,
+			errString: "error loading index",
+		},
+		{
+			name: "TC6 abnormal case with wrong tar path",
+			manifest: `[
+							{
+								"Config":"76a4dd2d5d6a18323ac8d90f959c3c8562bf592e2a559bab9b462ab600e9e5fc.json",
+								"RepoTags":[
+									"hello:latest"
+								],
+								"Layers":[
+									"6eb4c21cc3fcb729a9df230ae522c1d3708ca66e5cf531713dbfa679837aa287.tar",
+									"37841116ad3b1eeea972c75ab8bad05f48f721a7431924bc547fc91c9076c1c8.tar"
+								]
+							}
+						]`,
+
+			tarPath:   "/path/that/not/exist/load.tar",
+			format:    "docker",
+			withTag:   true,
+			wantErr:   true,
+			errString: "no such file or directory",
+		},
+	}
+
+	for _, tc := range testcases {
+		t.Run(tc.name, func(t *testing.T) {
+			var jsonFile string
+			if tc.format == "docker" {
+				jsonFile = manifestJSONFile
 			}
-		]`
-	dir := prepareForLoad(t, manifestJSON)
-	assert.Equal(t, dir != nil, true)
-	defer clean(dir)
+			if tc.format == "oci" {
+				jsonFile = indexJSONFile
+			}
+			dir := prepareForLoad(t, jsonFile, tc.manifest)
+			assert.Equal(t, dir != nil, true)
+			defer clean(dir)
 
-	path := dir.Join("load.tar")
-	repoTags, err := tryToParseImageFormatFromTarball(daemon.opts.DataRoot, &loadOptions{path: path})
-	assert.NilError(t, err)
-	assert.Equal(t, repoTags[0][0], "hello:latest")
+			path := dir.Join(loadedTarFile)
+			if tc.tarPath == "" {
+				tc.tarPath = path
+			}
+			req := &pb.LoadRequest{Path: tc.tarPath}
+			stream := &controlLoadServer{}
 
-	req := &pb.LoadRequest{Path: path}
-	stream := &controlLoadServer{}
+			err := daemon.backend.Load(req, stream)
+			if tc.wantErr {
+				assert.ErrorContains(t, err, tc.errString)
+				return
+			}
+			assert.ErrorContains(t, err, "failed to get the image")
+		})
+	}
 
-	err = daemon.backend.Load(req, stream)
-	assert.ErrorContains(t, err, "failed to get the image")
 }
 
 func TestLoadMultipleImages(t *testing.T) {
@@ -181,11 +305,11 @@ func TestLoadMultipleImages(t *testing.T) {
 				]
 			}
 		]`
-	dir := prepareForLoad(t, manifestJSON)
+	dir := prepareForLoad(t, manifestJSONFile, manifestJSON)
 	assert.Equal(t, dir != nil, true)
 	defer clean(dir)
 
-	path := dir.Join("load.tar")
+	path := dir.Join(loadedTarFile)
 	repoTags, err := tryToParseImageFormatFromTarball(daemon.opts.DataRoot, &loadOptions{path: path})
 	assert.NilError(t, err)
 	assert.Equal(t, repoTags[0][0], "registry.example.com/sayhello:first")

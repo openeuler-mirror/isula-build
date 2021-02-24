@@ -38,6 +38,8 @@ func TestSaveCommand(t *testing.T) {
 		wantErr   bool
 	}
 
+	// For normal cases, default err is "invalid socket path: unix:///var/run/isula_build.sock". 
+	// As daemon is not running as we run unit test.
 	var testcases = []testcase{
 		{
 			name:      "TC1 - normal case with format docker",
@@ -102,6 +104,22 @@ func TestSaveCommand(t *testing.T) {
 			wantErr:   true,
 			errString: "colon in path",
 			format:    "docker",
+		},
+		{
+			name:      "TC9 - normal case save multiple images with format docker",
+			path:      tmpDir.Join("test9"),
+			args:      []string{"testImage1", "testImage2"},
+			wantErr:   true,
+			errString: "isula_build.sock",
+			format:    "docker",
+		},
+		{
+			name:      "TC10 - abnormal case save multiple images with format oci",
+			path:      tmpDir.Join("test10"),
+			args:      []string{"testImage1", "testImage2"},
+			wantErr:   true,
+			errString: "oci image format now only supports saving single image",
+			format:    "oci",
 		},
 	}
 
