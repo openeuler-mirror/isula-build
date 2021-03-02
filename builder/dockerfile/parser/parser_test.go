@@ -91,7 +91,27 @@ func TestFormat(t *testing.T) {
 			expect: 8,
 		},
 		{
-			name:   "run_with_directive",
+			name:    "run_with_directive",
+			wantErr: true,
+		},
+		{
+			name:    "run_with_directive_with_space",
+			wantErr: true,
+		},
+		{
+			name:    "cmd_with_directive",
+			wantErr: true,
+		},
+		{
+			name:    "cmd_with_directive_with_space",
+			wantErr: true,
+		},
+		{
+			name:    "entrypoint_with_directive",
+			wantErr: true,
+		},
+		{
+			name:    "entrypoint_with_directive_with_space",
 			wantErr: true,
 		},
 	}
