@@ -1,0 +1,111 @@
+From af2e9918063d2797ba9f16306a4e7d2bbb0e85f7 Mon Sep 17 00:00:00 2001
+From: DCCooper <1866858@gmail.com>
+Date: Tue, 2 Mar 2021 15:48:52 +0800
+Subject: [PATCH 10/10] trim space when counting length of fields to avoid
+ panic
+
+Signed-off-by: DCCooper <1866858@gmail.com>
+---
+ builder/dockerfile/parser/parser.go           |  2 +-
+ builder/dockerfile/parser/parser_test.go      | 22 ++++++++++++++++++-
+ .../testfiles/preprocess/cmd_with_directive   |  2 ++
+ .../preprocess/cmd_with_directive_with_space  |  2 ++
+ .../preprocess/entrypoint_with_directive      |  2 ++
+ .../entrypoint_with_directive_with_space      |  2 ++
+ .../preprocess/run_with_directive_with_space  |  2 ++
+ 7 files changed, 32 insertions(+), 2 deletions(-)
+ create mode 100644 builder/dockerfile/parser/testfiles/preprocess/cmd_with_directive
+ create mode 100644 builder/dockerfile/parser/testfiles/preprocess/cmd_with_directive_with_space
+ create mode 100644 builder/dockerfile/parser/testfiles/preprocess/entrypoint_with_directive
+ create mode 100644 builder/dockerfile/parser/testfiles/preprocess/entrypoint_with_directive_with_space
+ create mode 100644 builder/dockerfile/parser/testfiles/preprocess/run_with_directive_with_space
+
+diff --git a/builder/dockerfile/parser/parser.go b/builder/dockerfile/parser/parser.go
+index 3caa516a..a21a3f59 100644
+--- a/builder/dockerfile/parser/parser.go
++++ b/builder/dockerfile/parser/parser.go
+@@ -161,7 +161,7 @@ func format(rows []*rowLine, d *directive) ([]*parser.Line, error) {
+ 		fields := strings.SplitN(logicLine, " ", 2)
+ 		const validLineLen = 2
+ 		// we do not allow empty raw command been passed
+-		if len(fields) < validLineLen || len(fields[1]) == 0 {
++		if len(fields) < validLineLen || len(strings.TrimSpace(fields[1])) == 0 {
+ 			return nil, errors.Errorf("line %q should have at least two fields", logicLine)
+ 		}
+ 		line.Command = strings.ToUpper(fields[0])
+diff --git a/builder/dockerfile/parser/parser_test.go b/builder/dockerfile/parser/parser_test.go
+index 3da5bea6..870132f1 100644
+--- a/builder/dockerfile/parser/parser_test.go
++++ b/builder/dockerfile/parser/parser_test.go
+@@ -91,7 +91,27 @@ func TestFormat(t *testing.T) {
+ 			expect: 8,
+ 		},
+ 		{
+-			name:   "run_with_directive",
++			name:    "run_with_directive",
++			wantErr: true,
++		},
++		{
++			name:    "run_with_directive_with_space",
++			wantErr: true,
++		},
++		{
++			name:    "cmd_with_directive",
++			wantErr: true,
++		},
++		{
++			name:    "cmd_with_directive_with_space",
++			wantErr: true,
++		},
++		{
++			name:    "entrypoint_with_directive",
++			wantErr: true,
++		},
++		{
++			name:    "entrypoint_with_directive_with_space",
+ 			wantErr: true,
+ 		},
+ 	}
+diff --git a/builder/dockerfile/parser/testfiles/preprocess/cmd_with_directive b/builder/dockerfile/parser/testfiles/preprocess/cmd_with_directive
+new file mode 100644
+index 00000000..545c278c
+--- /dev/null
++++ b/builder/dockerfile/parser/testfiles/preprocess/cmd_with_directive
+@@ -0,0 +1,2 @@
++FROM scratch
++CMD \
+diff --git a/builder/dockerfile/parser/testfiles/preprocess/cmd_with_directive_with_space b/builder/dockerfile/parser/testfiles/preprocess/cmd_with_directive_with_space
+new file mode 100644
+index 00000000..fc309502
+--- /dev/null
++++ b/builder/dockerfile/parser/testfiles/preprocess/cmd_with_directive_with_space
+@@ -0,0 +1,2 @@
++FROM scratch
++CMD         \
+diff --git a/builder/dockerfile/parser/testfiles/preprocess/entrypoint_with_directive b/builder/dockerfile/parser/testfiles/preprocess/entrypoint_with_directive
+new file mode 100644
+index 00000000..59369bea
+--- /dev/null
++++ b/builder/dockerfile/parser/testfiles/preprocess/entrypoint_with_directive
+@@ -0,0 +1,2 @@
++FROM scratch
++ENTRYPOINT \
+diff --git a/builder/dockerfile/parser/testfiles/preprocess/entrypoint_with_directive_with_space b/builder/dockerfile/parser/testfiles/preprocess/entrypoint_with_directive_with_space
+new file mode 100644
+index 00000000..172aa714
+--- /dev/null
++++ b/builder/dockerfile/parser/testfiles/preprocess/entrypoint_with_directive_with_space
+@@ -0,0 +1,2 @@
++FROM scratch
++ENTRYPOINT          \
+diff --git a/builder/dockerfile/parser/testfiles/preprocess/run_with_directive_with_space b/builder/dockerfile/parser/testfiles/preprocess/run_with_directive_with_space
+new file mode 100644
+index 00000000..c742c4c3
+--- /dev/null
++++ b/builder/dockerfile/parser/testfiles/preprocess/run_with_directive_with_space
+@@ -0,0 +1,2 @@
++FROM scratch
++RUN     \
+-- 
+2.27.0
+
