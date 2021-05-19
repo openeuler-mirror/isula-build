@@ -16,6 +16,7 @@ package daemon
 import (
 	"context"
 
+	dockerref "github.com/containers/image/v5/docker/reference"
 	"github.com/containers/image/v5/types"
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
@@ -51,6 +52,10 @@ func (b *Backend) Pull(req *pb.PullRequest, stream pb.Control_PullServer) error 
 		localStore: b.daemon.localStore,
 		pullID:     req.GetPullID(),
 		imageName:  req.GetImageName(),
+	}
+
+	if _, err := dockerref.Parse(opt.imageName); err != nil {
+		return err
 	}
 
 	ctx := context.WithValue(stream.Context(), util.LogFieldKey(util.LogKeySessionID), req.GetPullID())

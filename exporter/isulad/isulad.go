@@ -46,7 +46,7 @@ var _isuladExporter = isuladExporter{
 }
 
 func (d *isuladExporter) Name() string {
-	return exporter.IsuladTransport
+	return constant.IsuladTransport
 }
 
 func (d *isuladExporter) Init(opts exporter.ExportOptions, src, destSpec string, localStore *store.Store) error {

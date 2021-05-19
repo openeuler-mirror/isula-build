@@ -18,14 +18,11 @@ import (
 	"fmt"
 	"io"
 
-	dockerref "github.com/containers/image/v5/docker/reference"
-	"github.com/containers/storage/pkg/stringid"
 	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
 
 	constant "isula.org/isula-build"
 	pb "isula.org/isula-build/api/services"
-	"isula.org/isula-build/exporter"
 	"isula.org/isula-build/util"
 )
 
@@ -50,7 +47,7 @@ func NewPushCmd() *cobra.Command {
 	if util.CheckCliExperimentalEnabled() {
 		pushCmd.PersistentFlags().StringVarP(&pushOpts.format, "format", "f", "oci", "Format for image pushing to a registry")
 	} else {
-		pushOpts.format = exporter.DockerTransport
+		pushOpts.format = constant.DockerTransport
 	}
 	return pushCmd
 }
@@ -59,10 +56,8 @@ func pushCommand(c *cobra.Command, args []string) error {
 	if len(args) != 1 {
 		return errors.New("push requires exactly one argument")
 	}
-	if _, err := dockerref.Parse(args[0]); err != nil {
-		return err
-	}
-	if err := exporter.CheckImageFormat(pushOpts.format); err != nil {
+
+	if err := util.CheckImageFormat(pushOpts.format); err != nil {
 		return err
 	}
 
@@ -76,7 +71,7 @@ func pushCommand(c *cobra.Command, args []string) error {
 }
 
 func runPush(ctx context.Context, cli Cli, imageName string) error {
-	pushID := stringid.GenerateNonCryptoID()[:constant.DefaultIDLen]
+	pushID := util.GenerateNonCryptoID()[:constant.DefaultIDLen]
 
 	pushStream, err := cli.Client().Push(ctx, &pb.PushRequest{
 		PushID:    pushID,

@@ -22,6 +22,7 @@ import (
 	"github.com/containers/image/v5/types"
 	"github.com/pkg/errors"
 
+	constant "isula.org/isula-build"
 	"isula.org/isula-build/exporter"
 	"isula.org/isula-build/pkg/manifest"
 	"isula.org/isula-build/store"
@@ -42,7 +43,7 @@ var _manifestExporter = manifestExporter{
 }
 
 func (d *manifestExporter) Name() string {
-	return exporter.ManifestTransport
+	return constant.ManifestTransport
 }
 
 func (d *manifestExporter) Init(opts exporter.ExportOptions, src, destSpec string, localStore *store.Store) error {

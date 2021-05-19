@@ -315,3 +315,52 @@ func ChangeGroup(path, g string) error {
 	}
 	return nil
 }
+
+// GenerateNonCryptoID generate none crypto id with length 32
+func GenerateNonCryptoID() string {
+	b := make([]byte, 32)
+	_, err := rand.Read(b)
+	if err != nil {
+		panic(err) // This shouldn't happen
+	}
+	id := fmt.Sprintf("%x", b)
+
+	return id
+}
+
+// IsSupportExporter returns true when the specific exporter is supported
+func IsSupportExporter(name string) bool {
+	exporters := map[string]bool{
+		constant.DockerTransport:        true,
+		constant.DockerArchiveTransport: true,
+		constant.DockerDaemonTransport:  true,
+		constant.OCITransport:           true,
+		constant.OCIArchiveTransport:    true,
+		constant.IsuladTransport:        true,
+		constant.ManifestTransport:      true,
+	}
+	_, ok := exporters[name]
+
+	return ok
+}
+
+// CheckImageFormat used to check if the image format is either docker or oci
+func CheckImageFormat(format string) error {
+	switch format {
+	case constant.DockerTransport, constant.OCITransport:
+		return nil
+	default:
+		return errors.New("wrong image format provided")
+	}
+}
+
+// IsClientExporter used to determinate exporter whether need to send the image to client
+func IsClientExporter(exporter string) bool {
+	clientExporters := map[string]bool{
+		constant.DockerArchiveTransport: true,
+		constant.OCIArchiveTransport:    true,
+		constant.IsuladTransport:        true,
+	}
+	_, ok := clientExporters[exporter]
+	return ok
+}

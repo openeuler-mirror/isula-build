@@ -75,6 +75,20 @@ const (
 	BuildContainerImageType = "ctr-img"
 	// BufferSize is default buffer size for file transportation
 	BufferSize = 32 * 1024
+	// DockerTransport used to export docker image format images to registry
+	DockerTransport = "docker"
+	// DockerArchiveTransport used to export docker image format images to local tarball
+	DockerArchiveTransport = "docker-archive"
+	// DockerDaemonTransport used to export images to docker daemon
+	DockerDaemonTransport = "docker-daemon"
+	// OCITransport used to export oci image format images to registry
+	OCITransport = "oci"
+	// OCIArchiveTransport used to export oci image format images to local tarball
+	OCIArchiveTransport = "oci-archive"
+	// IsuladTransport use to export images to isulad
+	IsuladTransport = "isulad"
+	// ManifestTransport used to export manifest list
+	ManifestTransport = "manifest"
 )
 
 var (

@@ -25,7 +25,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/containers/storage/pkg/stringid"
 	"github.com/gogo/protobuf/types"
 	"github.com/opencontainers/go-digest"
 	"github.com/pkg/errors"
@@ -35,8 +34,6 @@ import (
 
 	constant "isula.org/isula-build"
 	pb "isula.org/isula-build/api/services"
-	"isula.org/isula-build/exporter"
-	_ "isula.org/isula-build/exporter/register"
 	"isula.org/isula-build/pkg/opts"
 	"isula.org/isula-build/util"
 )
@@ -107,7 +104,7 @@ func NewBuildCmd() *cobra.Command {
 	if util.CheckCliExperimentalEnabled() {
 		buildCmd.PersistentFlags().StringVar(&buildOpts.format, "format", "oci", "Image format of the built image")
 	} else {
-		buildOpts.format = exporter.DockerTransport
+		buildOpts.format = constant.DockerTransport
 	}
 	buildCmd.PersistentFlags().StringVarP(&buildOpts.output, "output", "o", "", "Destination of output images")
 	buildCmd.PersistentFlags().BoolVar(&buildOpts.proxyFlag, "proxy", true, "Inherit proxy environment variables from host")
@@ -161,7 +158,7 @@ func buildCommand(c *cobra.Command, args []string) error {
 
 func newBuildOptions(args []string) error {
 	// unique buildID for each build progress
-	buildOpts.buildID = stringid.GenerateNonCryptoID()[:constant.DefaultIDLen]
+	buildOpts.buildID = util.GenerateNonCryptoID()[:constant.DefaultIDLen]
 
 	if len(args) < 1 {
 		// use current working directory as default context directory
@@ -219,7 +216,7 @@ func checkOutput(output string) ([]string, error) {
 	if len(transport) == 0 {
 		return nil, errors.New("transport should not be empty")
 	}
-	if !exporter.IsSupport(transport) {
+	if !util.IsSupportExporter(transport) {
 		return nil, errors.Errorf("transport %q not support", transport)
 	}
 
@@ -248,12 +245,12 @@ func checkAbsPath(path string) (string, error) {
 func modifyLocalTransporter(transport string, absPath string, segments []string) error {
 	const validIsuladFieldsLen = 3
 	switch transport {
-	case exporter.DockerArchiveTransport, exporter.OCIArchiveTransport:
+	case constant.DockerArchiveTransport, constant.OCIArchiveTransport:
 		newSeg := util.CopyStrings(segments)
 		newSeg[1] = absPath
 		buildOpts.output = strings.Join(newSeg, ":")
 		return nil
-	case exporter.IsuladTransport:
+	case constant.IsuladTransport:
 		if len(segments) != validIsuladFieldsLen {
 			return errors.Errorf("invalid isulad output format: %v", buildOpts.output)
 		}
@@ -275,7 +272,7 @@ func checkAndProcessOutput() error {
 
 	transport := segments[0]
 	// just build, not need to export to any destination
-	if !exporter.IsClientExporter(transport) {
+	if !util.IsClientExporter(transport) {
 		return nil
 	}
 
@@ -325,7 +322,7 @@ func runBuild(ctx context.Context, cli Cli) (string, error) {
 		digest          string
 	)
 
-	if err = exporter.CheckImageFormat(buildOpts.format); err != nil {
+	if err = util.CheckImageFormat(buildOpts.format); err != nil {
 		return "", err
 	}
 	if err = checkAndProcessOutput(); err != nil {

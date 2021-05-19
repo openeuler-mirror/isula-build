@@ -20,8 +20,6 @@ import (
 	"os"
 	"path/filepath"
 
-	dockerref "github.com/containers/image/v5/docker/reference"
-	"github.com/containers/storage/pkg/stringid"
 	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
 
@@ -76,12 +74,6 @@ func importCommand(c *cobra.Command, args []string) error {
 }
 
 func runImport(ctx context.Context, cli Cli) error {
-	if importOpts.reference != "" {
-		if _, err := dockerref.Parse(importOpts.reference); err != nil {
-			return err
-		}
-	}
-
 	if !filepath.IsAbs(importOpts.source) {
 		pwd, err := os.Getwd()
 		if err != nil {
@@ -90,7 +82,7 @@ func runImport(ctx context.Context, cli Cli) error {
 		importOpts.source = util.MakeAbsolute(importOpts.source, pwd)
 	}
 
-	importOpts.importID = stringid.GenerateNonCryptoID()[:constant.DefaultIDLen]
+	importOpts.importID = util.GenerateNonCryptoID()[:constant.DefaultIDLen]
 
 	stream, err := cli.Client().Import(ctx, &pb.ImportRequest{
 		Source:    importOpts.source,

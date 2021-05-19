@@ -40,18 +40,6 @@ func TestPullCommand(t *testing.T) {
 			wantErr:   true,
 			errString: "pull requires exactly one argument",
 		},
-		{
-			name:      "abnormal case with empty args",
-			args:      []string{""},
-			wantErr:   true,
-			errString: "repository name must have at least one component",
-		},
-		{
-			name:      "abnormal case with invalid args",
-			args:      []string{"busybox-:latest"},
-			wantErr:   true,
-			errString: "invalid reference format",
-		},
 	}
 
 	for _, tc := range testcases {

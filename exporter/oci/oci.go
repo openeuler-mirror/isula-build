@@ -20,6 +20,7 @@ import (
 	"github.com/containers/image/v5/types"
 	"github.com/pkg/errors"
 
+	constant "isula.org/isula-build"
 	"isula.org/isula-build/exporter"
 	"isula.org/isula-build/image"
 	"isula.org/isula-build/store"
@@ -39,7 +40,7 @@ var _ociExporter = ociExporter{
 }
 
 func (o *ociExporter) Name() string {
-	return exporter.OCITransport
+	return constant.OCITransport
 }
 
 func (o *ociExporter) Init(opts exporter.ExportOptions, src, destSpec string, localStore *store.Store) error {

@@ -25,7 +25,6 @@ import (
 	"gotest.tools/v3/fs"
 
 	constant "isula.org/isula-build"
-	"isula.org/isula-build/exporter"
 	_ "isula.org/isula-build/exporter/register"
 	"isula.org/isula-build/util"
 )
@@ -175,7 +174,7 @@ func TestRunBuildWithNArchiveExporter(t *testing.T) {
 			format:   "docker",
 		},
 		{
-			exporter: exporter.OCIArchiveTransport,
+			exporter: constant.OCIArchiveTransport,
 			descSpec: "oci-archive:isula:latest",
 			format:   "oci",
 		},
@@ -222,12 +221,12 @@ func TestRunBuildWithArchiveExporter(t *testing.T) {
 
 	var testcases = []testcase{
 		{
-			exporter: exporter.DockerArchiveTransport,
+			exporter: constant.DockerArchiveTransport,
 			descSpec: "docker-archive:/tmp/image:isula:latest",
 			format:   "docker",
 		},
 		{
-			exporter: exporter.OCIArchiveTransport,
+			exporter: constant.OCIArchiveTransport,
 			descSpec: "oci-archive:/tmp/image:isula:latest",
 			format:   "oci",
 		},
