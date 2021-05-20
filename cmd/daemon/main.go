@@ -213,6 +213,35 @@ func loadConfig(path string) (config.TomlConfig, error) {
 	return conf, err
 }
 
+func checkRootSetInConfig(path string) (setRunRoot, setGraphRoot bool, err error) {
+	fi, err := os.Stat(path)
+	if err != nil {
+		return false, false, err
+	}
+
+	if !fi.Mode().IsRegular() {
+		err = errors.New("config file must be a regular file")
+		return false, false, err
+	}
+
+	if err = util.CheckFileSize(path, constant.MaxFileSize); err != nil {
+		return false, false, err
+	}
+
+	configData, err := ioutil.ReadFile(filepath.Clean(path))
+	if err != nil {
+		return false, false, err
+	}
+	conf := struct {
+		Storage struct {
+			RunRoot  string `toml:"runroot"`
+			DataRoot string `toml:"graphroot"`
+		} `toml:"storage"`
+	}{}
+	_, err = toml.Decode(string(configData), &conf)
+	return conf.Storage.RunRoot != "", conf.Storage.DataRoot != "", err
+}
+
 func mergeStorageConfig(cmd *cobra.Command) error {
 	store.SetDefaultConfigFilePath(constant.StorageConfigPath)
 	option, err := store.GetDefaultStoreOptions(true)
@@ -226,13 +255,21 @@ func mergeStorageConfig(cmd *cobra.Command) error {
 	}
 
 	var storeOpt store.DaemonStoreOptions
-	if option.RunRoot == "" {
+	storeOpt.RunRoot = option.RunRoot
+	storeOpt.DataRoot = option.GraphRoot
+
+	setRunRoot, setDataRoot, err := checkRootSetInConfig(constant.StorageConfigPath)
+	if err != nil {
+		return err
+	}
+
+	if !setRunRoot {
 		storeOpt.RunRoot, err = securejoin.SecureJoin(daemonOpts.RunRoot, "storage")
 		if err != nil {
 			return err
 		}
 	}
-	if option.GraphRoot == "" {
+	if !setDataRoot {
 		storeOpt.DataRoot, err = securejoin.SecureJoin(daemonOpts.DataRoot, "storage")
 		if err != nil {
 			return err
@@ -249,7 +286,7 @@ func mergeStorageConfig(cmd *cobra.Command) error {
 	return nil
 }
 
-func mergeConfig(conf config.TomlConfig, cmd *cobra.Command) {
+func mergeConfig(conf config.TomlConfig, cmd *cobra.Command) error {
 	if conf.Debug && !cmd.Flag("debug").Changed {
 		daemonOpts.Debug = true
 	}
@@ -271,6 +308,22 @@ func mergeConfig(conf config.TomlConfig, cmd *cobra.Command) {
 	if conf.DataRoot != "" && !cmd.Flag("dataroot").Changed {
 		daemonOpts.DataRoot = conf.DataRoot
 	}
+
+	runRoot, err := securejoin.SecureJoin(daemonOpts.RunRoot, "storage")
+	if err != nil {
+		return err
+	}
+
+	dataRoot, err := securejoin.SecureJoin(daemonOpts.DataRoot, "storage")
+	if err != nil {
+		return err
+	}
+	store.SetDefaultStoreOptions(store.DaemonStoreOptions{
+		DataRoot: dataRoot,
+		RunRoot:  runRoot,
+	})
+
+	return nil
 }
 
 func setupWorkingDirectories() error {
@@ -319,7 +372,9 @@ func checkAndValidateConfig(cmd *cobra.Command) error {
 			os.Exit(constant.DefaultFailedCode)
 		}
 
-		mergeConfig(conf, cmd)
+		if err = mergeConfig(conf, cmd); err != nil {
+			return err
+		}
 	}
 
 	// file policy.json must be exist
