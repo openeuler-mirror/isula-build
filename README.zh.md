@@ -106,7 +106,7 @@ sudo rpm -ivh isula-build-*.rpm
 如果需要使用`systemd`进行管理isula-build，请参考以下步骤：
 
 ```sh
-sudo install -p -m 640 ./isula-build.service /etc/systemd/system/isula-build.
+sudo install -p -m 640 ./isula-build.service /etc/systemd/system/isula-build.service
 sudo systemctl enable isula-build
 sudo systemctl start isula-build
 ```
