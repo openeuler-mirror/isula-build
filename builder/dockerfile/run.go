@@ -95,6 +95,16 @@ func (c *cmdBuilder) setupRuntimeSpec(command []string) (*specs.Spec, error) {
 	}
 
 	// set specific runtime spec config
+	user := c.stage.docker.Config.User
+	if user != "" {
+		pair, err := util.GetChownOptions(user, c.stage.mountpoint)
+		if err != nil {
+			return nil, err
+		}
+		g.SetProcessUID(uint32(pair.UID))
+		g.SetProcessGID(uint32(pair.GID))
+		g.SetProcessUsername(c.stage.docker.Config.User)
+	}
 	g.RemoveHostname()
 	g.SetProcessArgs(command)
 	g.SetProcessTerminal(false)
