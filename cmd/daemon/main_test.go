@@ -18,9 +18,12 @@ import (
 	"os"
 	"testing"
 
+	"gotest.tools/v3/assert"
 	"gotest.tools/v3/fs"
 
 	constant "isula.org/isula-build"
+	"isula.org/isula-build/cmd/daemon/config"
+	"isula.org/isula-build/store"
 )
 
 func TestSetupWorkingDirectories(t *testing.T) {
@@ -102,5 +105,105 @@ func TestSetupWorkingDirectories(t *testing.T) {
 				t.Errorf("testing failed! err = %v, wantErr = %v", err, tt.wantErr)
 			}
 		})
+	}
+}
+
+func TestRunAndDataRootSet(t *testing.T) {
+	dataRoot := fs.NewDir(t, t.Name())
+	runRoot := fs.NewDir(t, t.Name())
+
+	conf := config.TomlConfig{
+		Debug:    true,
+		Group:    "isula",
+		LogLevel: "debug",
+		Runtime:  "",
+		RunRoot:  "",
+		DataRoot: "",
+	}
+	cmd := newDaemonCommand()
+
+	result := store.DaemonStoreOptions{
+		DataRoot: dataRoot.Join("storage"),
+		RunRoot:  runRoot.Join("storage"),
+	}
+
+	setStorage := func(content string) func() {
+		return func() {
+			if err := mergeConfig(conf, cmd); err != nil {
+				t.Fatalf("mrege config failed with error: %v", err)
+			}
+
+			fileName := "storage.toml"
+			tmpDir := fs.NewDir(t, t.Name(), fs.WithFile(fileName, content))
+			defer tmpDir.Remove()
+
+			filePath := tmpDir.Join(fileName)
+			store.SetDefaultConfigFilePath(filePath)
+			option, err := store.GetDefaultStoreOptions(true)
+			if err != nil {
+				t.Fatalf("get default store options failed with error: %v", err)
+			}
+			
+			var storeOpt store.DaemonStoreOptions
+			storeOpt.RunRoot = option.RunRoot
+			storeOpt.DataRoot = option.GraphRoot
+			store.SetDefaultStoreOptions(storeOpt)
+		}
+
+	}
+
+	testcases := []struct {
+		name        string
+		setF        func()
+		expectation store.DaemonStoreOptions
+	}{
+		{
+			name: "TC1 - cmd set, configuration and storage not set",
+			setF: func() {
+				cmd.PersistentFlags().Set("runroot", runRoot.Path())
+				cmd.PersistentFlags().Set("dataroot", dataRoot.Path())
+				checkAndValidateConfig(cmd)
+			},
+			expectation: result,
+		},
+		{
+			name: "TC2 - cmd and storage not set, configuration set",
+			setF: func() {
+				conf.DataRoot = dataRoot.Path()
+				conf.RunRoot = runRoot.Path()
+				checkAndValidateConfig(cmd)
+			},
+			expectation: result,
+		},
+		{
+			name: "TC3 - all not set",
+			setF: setStorage("[storage]"),
+			expectation: store.DaemonStoreOptions{
+				DataRoot: "/var/lib/containers/storage",
+				RunRoot:  "/var/run/containers/storage",
+			},
+		},
+		{
+			name: "TC4 - cmd and configuration not set, storage set",
+			setF: func() {
+				config := "[storage]\nrunroot = \"" + runRoot.Join("storage") + "\"\ngraphroot = \"" + dataRoot.Join("storage") + "\""
+				sT := setStorage(config)
+				sT()
+			},
+			expectation: result,
+		},
+	}
+
+	for _, tc := range testcases {
+		t.Run(tc.name, func(t *testing.T) {
+			tc.setF()
+			storeOptions, err := store.GetDefaultStoreOptions(false)
+			if err != nil {
+				t.Fatalf("get default store options failed with error: %v", err)
+			}
+			assert.Equal(t, tc.expectation.DataRoot, storeOptions.GraphRoot)
+			assert.Equal(t, tc.expectation.RunRoot, storeOptions.RunRoot)
+		})
+
 	}
 }
