@@ -16,6 +16,7 @@ package daemon
 import (
 	"context"
 
+	dockerref "github.com/containers/image/v5/docker/reference"
 	"github.com/containers/image/v5/types"
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
@@ -59,7 +60,11 @@ func (b *Backend) Push(req *pb.PushRequest, stream pb.Control_PushServer) error 
 		format:     req.GetFormat(),
 	}
 
-	if err := exporter.CheckImageFormat(opt.format); err != nil {
+	if err := util.CheckImageFormat(opt.format); err != nil {
+		return err
+	}
+
+	if _, err := dockerref.Parse(opt.imageName); err != nil {
 		return err
 	}
 
@@ -111,11 +116,11 @@ func pushHandler(ctx context.Context, options pushOptions) func() error {
 			ManifestType:  options.manifestType,
 		}
 
-		if err := exporter.Export(options.imageName, exporter.FormatTransport(exporter.DockerTransport, options.imageName),
+		if err := exporter.Export(options.imageName, exporter.FormatTransport(constant.DockerTransport, options.imageName),
 			exOpts, options.localStore); err != nil {
 			logrus.WithField(util.LogKeySessionID, options.pushID).
-				Errorf("Push image %q of format %q failed with %v", options.imageName, exporter.DockerTransport, err)
-			return errors.Wrapf(err, "push image %q of format %q failed", options.imageName, exporter.DockerTransport)
+				Errorf("Push image %q of format %q failed with %v", options.imageName, constant.DockerTransport, err)
+			return errors.Wrapf(err, "push image %q of format %q failed", options.imageName, constant.DockerTransport)
 		}
 
 		return nil

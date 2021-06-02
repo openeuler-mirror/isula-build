@@ -209,17 +209,7 @@ func NewPolicyContext(sc *types.SystemContext) (*signature.PolicyContext, error)
 // CheckArchiveFormat used to check if save or load image format is either docker-archive or oci-archive
 func CheckArchiveFormat(format string) error {
 	switch format {
-	case DockerArchiveTransport, OCIArchiveTransport:
-		return nil
-	default:
-		return errors.New("wrong image format provided")
-	}
-}
-
-// CheckImageFormat used to check if the image format is either docker or oci
-func CheckImageFormat(format string) error {
-	switch format {
-	case DockerTransport, OCITransport:
+	case constant.DockerArchiveTransport, constant.OCIArchiveTransport:
 		return nil
 	default:
 		return errors.New("wrong image format provided")
@@ -228,7 +218,7 @@ func CheckImageFormat(format string) error {
 
 // FormatTransport for formatting transport with corresponding path
 func FormatTransport(transport, path string) string {
-	if transport == DockerTransport {
+	if transport == constant.DockerTransport {
 		return fmt.Sprintf("%s://%s", transport, path)
 	}
 	return fmt.Sprintf("%s:%s", transport, path)
@@ -238,23 +228,13 @@ func FormatTransport(transport, path string) string {
 func GetManifestType(format string) (string, error) {
 	var manifestType string
 	switch format {
-	case OCITransport:
+	case constant.OCITransport:
 		manifestType = imgspecv1.MediaTypeImageManifest
-	case DockerTransport:
+	case constant.DockerTransport:
 		manifestType = manifest.DockerV2Schema2MediaType
 	default:
-		return "", errors.Errorf("unknown format %q. Choose one of the supported formats: %s,%s", format, DockerTransport, OCITransport)
+		return "", errors.Errorf("unknown format %q. Choose one of the supported formats: %s,%s", format, constant.DockerTransport, constant.OCITransport)
 	}
 	return manifestType, nil
 }
 
-// IsClientExporter used to determinate exporter whether need to send the image to client
-func IsClientExporter(exporter string) bool {
-	clientExporters := map[string]bool{
-		DockerArchiveTransport: true,
-		OCIArchiveTransport:    true,
-		IsuladTransport:        true,
-	}
-	_, ok := clientExporters[exporter]
-	return ok
-}

@@ -24,6 +24,7 @@ import (
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
 
+	constant "isula.org/isula-build"
 	pb "isula.org/isula-build/api/services"
 	"isula.org/isula-build/builder/dockerfile/container"
 	"isula.org/isula-build/exporter"
@@ -60,7 +61,7 @@ func NewManifestList() *List {
 func (l *List) AddImage(ctx context.Context, store *store.Store, imageSpec string) (digest.Digest, error) {
 	img, _, err := image.ResolveFromImage(&image.PrepareImageOptions{
 		Ctx:           ctx,
-		FromImage:     exporter.FormatTransport(exporter.DockerTransport, imageSpec),
+		FromImage:     exporter.FormatTransport(constant.DockerTransport, imageSpec),
 		SystemContext: image.GetSystemContext(),
 		Store:         store,
 	})

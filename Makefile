@@ -22,7 +22,8 @@ BUILDTAGS := seccomp
 BUILDFLAGS := -tags "$(BUILDTAGS)"
 TMPDIR := /tmp/isula_build_tmpdir
 BEFLAG := -tmpdir=${TMPDIR}
-SAFEBUILDFLAGS := -buildid=IdByIsula -buildmode=pie -extldflags=-ftrapv -extldflags=-static -extldflags=-zrelro -extldflags=-znow $(LDFLAGS) $(BEFLAG)
+SAFEBUILDFLAGS := -buildid=IdByIsula -buildmode=pie -extldflags=-ftrapv -extldflags=-zrelro -extldflags=-znow $(BEFLAG) $(LDFLAGS)
+STATIC_LDFLAGS := -linkmode=external -extldflags=-static
 
 IMAGE_BUILDARGS := $(if $(http_proxy), --build-arg http_proxy=$(http_proxy))
 IMAGE_BUILDARGS += $(if $(https_proxy), --build-arg https_proxy=$(https_proxy))
@@ -56,7 +57,7 @@ isula-builder: ./cmd/daemon
 safe:
 	@echo "Safe building isula-build..."
 	mkdir -p ${TMPDIR}
-	$(GO_BUILD) -ldflags '$(SAFEBUILDFLAGS)' -o bin/isula-build $(BUILDFLAGS) ./cmd/cli
+	$(GO_BUILD) -ldflags '$(SAFEBUILDFLAGS) $(STATIC_LDFLAGS)' -o bin/isula-build $(BUILDFLAGS) ./cmd/cli 2>/dev/null
 	$(GO_BUILD) -ldflags '$(SAFEBUILDFLAGS)' -o bin/isula-builder $(BUILDFLAGS) ./cmd/daemon
 	@echo "Safe build isula-build done!"
 

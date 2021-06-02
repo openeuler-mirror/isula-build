@@ -152,7 +152,7 @@ func PullAndGetImageInfo(opt *PrepareImageOptions) (types.ImageReference, *stora
 		)
 
 		imageName := exporter.FormatTransport(transport, strImage)
-		if transport == exporter.DockerArchiveTransport {
+		if transport == constant.DockerArchiveTransport {
 			srcRef, pErr = alltransports.ParseImageName(imageName + ":@" + strconv.Itoa(opt.ManifestIndex))
 		} else {
 			srcRef, pErr = alltransports.ParseImageName(imageName)
@@ -255,7 +255,7 @@ func getLocalImageNameFromRef(store storage.Store, srcRef types.ImageReference) 
 		return stringid.GenerateRandomID() + ":" + stringid.GenerateRandomID(), nil
 	}
 
-	if srcRef.Transport().Name() != exporter.DockerTransport {
+	if srcRef.Transport().Name() != constant.DockerTransport {
 		return "", errors.Errorf("the %s transport is not supported yet", srcRef.Transport().Name())
 	}
 
@@ -612,11 +612,11 @@ func tryResolveNameWithTransport(name string) (string, string) {
 	if len(splits) == 2 {
 		if trans := transports.Get(splits[0]); trans != nil {
 			switch trans.Name() {
-			case exporter.DockerTransport:
+			case constant.DockerTransport:
 				// trim prefix if dest like docker://registry.example.com format
 				dest := strings.TrimPrefix(splits[1], "//")
 				return dest, trans.Name()
-			case exporter.DockerArchiveTransport, exporter.OCIArchiveTransport:
+			case constant.DockerArchiveTransport, constant.OCIArchiveTransport:
 				dest := strings.TrimSpace(splits[1])
 				return dest, trans.Name()
 			}
@@ -632,7 +632,7 @@ func tryResolveNameWithDockerReference(name string) (string, string, error) {
 		return "", "", errors.Wrapf(err, "error parsing image name %q", name)
 	}
 	if named.String() == name {
-		return name, exporter.DockerTransport, nil
+		return name, constant.DockerTransport, nil
 	}
 
 	domain := reference.Domain(named)
@@ -648,7 +648,7 @@ func tryResolveNameWithDockerReference(name string) (string, string, error) {
 		}
 		defaultPrefix := pathPrefix + string(os.PathSeparator)
 		if strings.HasPrefix(repoPath, defaultPrefix) && path.Join(domain, repoPath[len(defaultPrefix):])+tag+digest == name {
-			return name, exporter.DockerTransport, nil
+			return name, constant.DockerTransport, nil
 		}
 	}
 
@@ -687,7 +687,7 @@ func tryResolveNameInRegistries(name string, sc *types.SystemContext) ([]string,
 		candidate := path.Join(registry, middle, name)
 		candidates = append(candidates, candidate)
 	}
-	return candidates, exporter.DockerTransport
+	return candidates, constant.DockerTransport
 }
 
 // CheckAndAddDefaultTag checks if src is format of repository[:tag], add default tag if src without tag

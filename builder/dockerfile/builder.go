@@ -159,11 +159,11 @@ func NewBuilder(ctx context.Context, store *store.Store, req *pb.BuildRequest, r
 }
 
 func (b *Builder) parseFormat(format string) error {
-	if err := exporter.CheckImageFormat(format); err != nil {
+	if err := util.CheckImageFormat(format); err != nil {
 		return err
 	}
 
-	if format == exporter.OCITransport {
+	if format == constant.OCITransport {
 		b.manifestType = imgspecv1.MediaTypeImageManifest
 	}
 
@@ -183,12 +183,12 @@ func (b *Builder) parseOutputManifest(output []string) error {
 		}
 
 		transport := segments[0]
-		if transport == exporter.OCITransport {
+		if transport == constant.OCITransport {
 			// When transport is oci, still, we need to set b.buildOpts.Output[i] starting with prefix "docker://". We only need to set the related b.outputManifestType.
 			// As a result, we can push oci format image into registry. When with prefix "oci://", image is exported to local dir, which is not what we expect.
 			// See github.com/containers/image package for more information.
 			b.outputManifestType = append(b.outputManifestType, imgspecv1.MediaTypeImageManifest)
-			b.buildOpts.Output[i] = fmt.Sprintf("%s:%s", exporter.DockerTransport, segments[1])
+			b.buildOpts.Output[i] = fmt.Sprintf("%s:%s", constant.DockerTransport, segments[1])
 		}
 		b.outputManifestType = append(b.outputManifestType, manifest.DockerV2Schema2MediaType)
 	}
@@ -617,11 +617,11 @@ func parseOutputTag(output string) string {
 
 	var tag string
 	switch {
-	case (outputFields[0] == exporter.DockerDaemonTransport || outputFields[0] == exporter.IsuladTransport) && len(outputFields) > 1:
+	case (outputFields[0] == constant.DockerDaemonTransport || outputFields[0] == constant.IsuladTransport) && len(outputFields) > 1:
 		tag = strings.Join(outputFields[1:], ":")
 	case exporter.CheckArchiveFormat(outputFields[0]) == nil && len(outputFields) > archiveOutputWithoutTagLen:
 		tag = strings.Join(outputFields[archiveOutputWithoutTagLen:], ":")
-	case exporter.CheckImageFormat(outputFields[0]) == nil && len(outputFields) > 1:
+	case util.CheckImageFormat(outputFields[0]) == nil && len(outputFields) > 1:
 		repoAndTag := strings.Join(outputFields[1:], ":")
 		// repo format regexp, "//registry.example.com/" for example
 		repo := regexp.MustCompile(`^\/\/[\w\.\-\:]+\/`).FindString(repoAndTag)

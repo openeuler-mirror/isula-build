@@ -315,3 +315,97 @@ func TestSetDaemonLock(t *testing.T) {
 	_, err = SetDaemonLock(root, name)
 	assert.ErrorContains(t, err, "check if there is another daemon running")
 }
+
+func TestGenerateNonCryptoID(t *testing.T) {
+	tests := []struct {
+		name string
+		want int
+	}{
+		{
+			name: "TC1 - generate id",
+			want:64,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := GenerateNonCryptoID(); len(got) != tt.want {
+				t.Errorf("GenerateNonCryptoID() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestCheckImageFormat(t *testing.T) {
+	testcases := []struct {
+		name      string
+		format    string
+		wantErr   bool
+		errString string
+	}{
+		{
+			name:    "docker image format",
+			format:  constant.DockerTransport,
+			wantErr: false,
+		},
+		{
+			name:    "oci image format",
+			format:  constant.OCITransport,
+			wantErr: false,
+		},
+		{
+			name:    "unknown image format",
+			format:  "you guess",
+			wantErr: true,
+		},
+	}
+	for _, tc := range testcases {
+		t.Run(tc.name, func(t *testing.T) {
+			err := CheckImageFormat(tc.format)
+			if tc.wantErr {
+				assert.Error(t, err, "wrong image format provided")
+				return
+			}
+			if !tc.wantErr {
+				assert.NilError(t, err)
+			}
+		})
+	}
+}
+
+func TestIsClientExporter(t *testing.T) {
+	testcases := []struct {
+		name       string
+		exporter   string
+		wantResult bool
+	}{
+		{
+			name:       "normal docker archive exporter",
+			exporter:   constant.DockerArchiveTransport,
+			wantResult: true,
+		},
+		{
+			name:       "normal oci archive exporter",
+			exporter:   constant.OCIArchiveTransport,
+			wantResult: true,
+		},
+		{
+			name:       "normal isulad exporter",
+			exporter:   constant.IsuladTransport,
+			wantResult: true,
+		},
+		{
+			name:       "abnormal unkown",
+			exporter:   "unkown",
+			wantResult: false,
+		},
+	}
+
+	for _, tc := range testcases {
+		t.Run(tc.name, func(t *testing.T) {
+			isExporter := IsClientExporter(tc.exporter)
+			if isExporter != tc.wantResult {
+				t.Fatal("test client exporter failed")
+			}
+		})
+	}
+}

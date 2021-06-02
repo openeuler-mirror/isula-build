@@ -18,6 +18,7 @@ import (
 	"path/filepath"
 
 	cp "github.com/containers/image/v5/copy"
+	dockerref "github.com/containers/image/v5/docker/reference"
 	is "github.com/containers/image/v5/storage"
 	"github.com/containers/image/v5/tarball"
 	"github.com/containers/image/v5/transports"
@@ -48,6 +49,12 @@ func (b *Backend) Import(req *pb.ImportRequest, stream pb.Control_ImportServer) 
 	)
 	logEntry := logrus.WithFields(logrus.Fields{"ImportID": importID})
 	logEntry.Info("ImportRequest received")
+
+	if reference != "" {
+		if _, err := dockerref.Parse(reference); err != nil {
+			return err
+		}
+	}
 
 	tmpName := importID + "-import-tmp"
 	dstRef, err := is.Transport.ParseStoreReference(localStore, tmpName)

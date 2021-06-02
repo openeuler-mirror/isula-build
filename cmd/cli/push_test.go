@@ -43,20 +43,6 @@ func TestPushCommand(t *testing.T) {
 			errString: "push requires exactly one argument",
 		},
 		{
-			name:      "abnormal case with empty args",
-			args:      []string{""},
-			format:    "docker",
-			wantErr:   true,
-			errString: "repository name must have at least one component",
-		},
-		{
-			name:      "abnormal case with invalid args",
-			args:      []string{"busybox-:latest"},
-			format:    "oci",
-			wantErr:   true,
-			errString: "invalid reference format",
-		},
-		{
 			name:      "normal case with image format oci",
 			args:      []string{"openeuler:latest"},
 			format:    "oci",

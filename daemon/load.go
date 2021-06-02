@@ -127,16 +127,16 @@ func tryToParseImageFormatFromTarball(dataRoot string, opts *loadOptions) ([][]s
 
 	allRepoTags, err = getDockerRepoTagFromImageTar(systemContext, opts.path)
 	if err == nil {
-		logrus.Infof("Parse image successful with %q format", exporter.DockerTransport)
-		opts.format = exporter.DockerArchiveTransport
+		logrus.Infof("Parse image successful with %q format", constant.DockerTransport)
+		opts.format = constant.DockerArchiveTransport
 		return allRepoTags, nil
 	}
 	logrus.Warnf("Try to Parse image of docker format failed with error: %v", err)
 
 	allRepoTags, err = getOCIRepoTagFromImageTar(systemContext, opts.path)
 	if err == nil {
-		logrus.Infof("Parse image successful with %q format", exporter.OCITransport)
-		opts.format = exporter.OCIArchiveTransport
+		logrus.Infof("Parse image successful with %q format", constant.OCITransport)
+		opts.format = constant.OCIArchiveTransport
 		return allRepoTags, nil
 	}
 	logrus.Warnf("Try to parse image of oci format failed with error: %v", err)
@@ -170,7 +170,7 @@ func getOCIRepoTagFromImageTar(systemContext *types.SystemContext, path string) 
 		err error
 	)
 
-	srcRef, err := alltransports.ParseImageName(exporter.FormatTransport(exporter.OCIArchiveTransport, path))
+	srcRef, err := alltransports.ParseImageName(exporter.FormatTransport(constant.OCIArchiveTransport, path))
 	if err != nil {
 		return nil, errors.Wrapf(err, "failed to parse image name of oci image format")
 	}

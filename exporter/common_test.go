@@ -21,6 +21,8 @@ import (
 	imgspecv1 "github.com/opencontainers/image-spec/specs-go/v1"
 	"gotest.tools/v3/assert"
 	"gotest.tools/v3/fs"
+
+	"isula.org/isula-build"
 )
 
 func TestFormatTransport(t *testing.T) {
@@ -36,13 +38,13 @@ func TestFormatTransport(t *testing.T) {
 	}{
 		{
 			name:      "docker format transport",
-			transport: DockerTransport,
+			transport: constant.DockerTransport,
 			path:      "registry.example.com/library/image:test",
 			result:    "docker://registry.example.com/library/image:test",
 		},
 		{
 			name:      "oci-archive format transport",
-			transport: OCIArchiveTransport,
+			transport: constant.OCIArchiveTransport,
 			path:      ociArchiveFilePath,
 			result:    "oci-archive:",
 		},
@@ -59,43 +61,6 @@ func TestFormatTransport(t *testing.T) {
 	}
 }
 
-func TestCheckImageFormat(t *testing.T) {
-	testcases := []struct {
-		name      string
-		format    string
-		wantErr   bool
-		errString string
-	}{
-		{
-			name:    "docker image format",
-			format:  DockerTransport,
-			wantErr: false,
-		},
-		{
-			name:    "oci image format",
-			format:  OCITransport,
-			wantErr: false,
-		},
-		{
-			name:    "unknown image format",
-			format:  "you guess",
-			wantErr: true,
-		},
-	}
-	for _, tc := range testcases {
-		t.Run(tc.name, func(t *testing.T) {
-			err := CheckImageFormat(tc.format)
-			if tc.wantErr {
-				assert.Error(t, err, "wrong image format provided")
-				return
-			}
-			if !tc.wantErr {
-				assert.NilError(t, err)
-			}
-		})
-	}
-}
-
 func TestCheckArchiveFormat(t *testing.T) {
 	testcases := []struct {
 		name      string
@@ -105,12 +70,12 @@ func TestCheckArchiveFormat(t *testing.T) {
 	}{
 		{
 			name:    "docker-archive image format",
-			format:  DockerArchiveTransport,
+			format:  constant.DockerArchiveTransport,
 			wantErr: false,
 		},
 		{
 			name:    "oci-archive imagee format",
-			format:  OCIArchiveTransport,
+			format:  constant.OCIArchiveTransport,
 			wantErr: false,
 		},
 		{
@@ -143,13 +108,13 @@ func TestGetManifestType(t *testing.T) {
 	}{
 		{
 			name:     "docker format manifest type",
-			format:   DockerTransport,
+			format:   constant.DockerTransport,
 			manifest: manifest.DockerV2Schema2MediaType,
 			wantErr:  false,
 		},
 		{
 			name:     "oci format manifest type",
-			format:   OCITransport,
+			format:   constant.OCITransport,
 			manifest: imgspecv1.MediaTypeImageManifest,
 			wantErr:  false,
 		},
@@ -173,40 +138,3 @@ func TestGetManifestType(t *testing.T) {
 	}
 }
 
-func TestIsClientExporter(t *testing.T) {
-	testcases := []struct {
-		name       string
-		exporter   string
-		wantResult bool
-	}{
-		{
-			name:       "normal docker archive exporter",
-			exporter:   DockerArchiveTransport,
-			wantResult: true,
-		},
-		{
-			name:       "normal oci archive exporter",
-			exporter:   OCIArchiveTransport,
-			wantResult: true,
-		},
-		{
-			name:       "normal isulad exporter",
-			exporter:   IsuladTransport,
-			wantResult: true,
-		},
-		{
-			name:       "abnormal unkown",
-			exporter:   "unkown",
-			wantResult: false,
-		},
-	}
-
-	for _, tc := range testcases {
-		t.Run(tc.name, func(t *testing.T) {
-			isExporter := IsClientExporter(tc.exporter)
-			if isExporter != tc.wantResult {
-				t.Fatal("test client exporter failed")
-			}
-		})
-	}
-}

@@ -71,10 +71,10 @@ func (b *Backend) Save(req *pb.SaveRequest, stream pb.Control_SaveServer) error 
 	opts := b.getSaveOptions(req)
 
 	switch opts.format {
-	case exporter.DockerTransport:
-		opts.format = exporter.DockerArchiveTransport
-	case exporter.OCITransport:
-		opts.format = exporter.OCIArchiveTransport
+	case constant.DockerTransport:
+		opts.format = constant.DockerArchiveTransport
+	case constant.OCITransport:
+		opts.format = constant.OCIArchiveTransport
 	default:
 		return errors.New("wrong image format provided")
 	}

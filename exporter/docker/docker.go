@@ -21,6 +21,7 @@ import (
 	"github.com/containers/image/v5/types"
 	"github.com/pkg/errors"
 
+	constant "isula.org/isula-build"
 	"isula.org/isula-build/exporter"
 	"isula.org/isula-build/image"
 	"isula.org/isula-build/store"
@@ -41,7 +42,7 @@ var _dockerExporter = dockerExporter{
 }
 
 func (d *dockerExporter) Name() string {
-	return exporter.DockerTransport
+	return constant.DockerTransport
 }
 
 func (d *dockerExporter) Init(opts exporter.ExportOptions, src, destSpec string, localStore *store.Store) error {

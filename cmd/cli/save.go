@@ -21,13 +21,11 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/containers/storage/pkg/stringid"
 	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
 
 	constant "isula.org/isula-build"
 	pb "isula.org/isula-build/api/services"
-	"isula.org/isula-build/exporter"
 	"isula.org/isula-build/util"
 )
 
@@ -59,7 +57,7 @@ func NewSaveCmd() *cobra.Command {
 	if util.CheckCliExperimentalEnabled() {
 		saveCmd.PersistentFlags().StringVarP(&saveOpts.format, "format", "f", "oci", "Format of image saving to local tarball")
 	} else {
-		saveOpts.format = exporter.DockerTransport
+		saveOpts.format = constant.DockerTransport
 	}
 
 	return saveCmd
@@ -72,10 +70,10 @@ func saveCommand(cmd *cobra.Command, args []string) error {
 	if len(args) == 0 {
 		return errors.New("save accepts at least one image")
 	}
-	if saveOpts.format == exporter.OCITransport && len(args) >= 2 {
+	if saveOpts.format == constant.OCITransport && len(args) >= 2 {
 		return errors.New("oci image format now only supports saving single image")
 	}
-	if err := exporter.CheckImageFormat(saveOpts.format); err != nil {
+	if err := util.CheckImageFormat(saveOpts.format); err != nil {
 		return err
 	}
 	if err := checkSavePath(); err != nil {
@@ -115,7 +113,7 @@ func checkSavePath() error {
 }
 
 func runSave(ctx context.Context, cli Cli, args []string) error {
-	saveOpts.saveID = stringid.GenerateNonCryptoID()[:constant.DefaultIDLen]
+	saveOpts.saveID = util.GenerateNonCryptoID()[:constant.DefaultIDLen]
 	saveOpts.images = args
 
 	saveStream, err := cli.Client().Save(ctx, &pb.SaveRequest{

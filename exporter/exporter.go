@@ -21,29 +21,6 @@ import (
 	"isula.org/isula-build/store"
 )
 
-const (
-	// DockerTransport used to export docker image format images to registry
-	DockerTransport = "docker"
-
-	// DockerArchiveTransport used to export docker image format images to local tarball
-	DockerArchiveTransport = "docker-archive"
-
-	// DockerDaemonTransport used to export images to docker daemon
-	DockerDaemonTransport = "docker-daemon"
-
-	// OCITransport used to export oci image format images to registry
-	OCITransport = "oci"
-
-	// OCIArchiveTransport used to export oci image format images to local tarball
-	OCIArchiveTransport = "oci-archive"
-
-	// IsuladTransport use to export images to isulad
-	IsuladTransport = "isulad"
-
-	// ManifestTransport used to export manifest list
-	ManifestTransport = "manifest"
-)
-
 type exportHub struct {
 	items map[string]Exporter
 	sync.RWMutex
