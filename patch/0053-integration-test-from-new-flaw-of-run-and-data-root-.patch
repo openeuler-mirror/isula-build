@@ -1,0 +1,186 @@
+From 78d5ee37ff4b2b3ef0a3e3031087d8cdb2e0c0cd Mon Sep 17 00:00:00 2001
+From: xingweizheng <xingweizheng@huawei.com>
+Date: Sun, 30 May 2021 20:55:07 +0800
+Subject: [PATCH 5/5] integration test from new flaw of run and data root set
+
+---
+ Makefile                                   | 18 ++++++---
+ README.zh.md                               |  2 +-
+ tests/src/test_integration_set_new_root.sh | 60 ++++++++++++++++++++++++++++++
+ tests/test.sh                              | 29 +++++++++++++--
+ 4 files changed, 98 insertions(+), 11 deletions(-)
+ create mode 100644 tests/src/test_integration_set_new_root.sh
+
+diff --git a/Makefile b/Makefile
+index cbace59..f8578a4 100644
+--- a/Makefile
++++ b/Makefile
+@@ -73,13 +73,13 @@ debug:
+ build-image:
+ 	isula-build ctr-img build -f Dockerfile.proto ${IMAGE_BUILDARGS} -o isulad:${IMAGE_NAME}:latest .
+ 
+-tests: test-integration test-unit
++tests: test-base test-unit test-integration
+ 
+-.PHONY: test-integration
+-test-integration:
+-	@echo "Integration test starting..."
+-	@./tests/test.sh
+-	@echo "Integration test done!"
++.PHONY: test-base
++test-base:
++	@echo "Base test starting..."
++	@./tests/test.sh base
++	@echo "Base test done!"
+ 
+ .PHONY: test-unit
+ test-unit:
+@@ -87,6 +87,12 @@ test-unit:
+ 	@./hack/unit_test.sh
+ 	@echo "Unit test done!"
+ 
++.PHONY: test-integration
++test-integration:
++	@echo "Integration test starting..."
++	@./tests/test.sh integration
++	@echo "Integration test done!"
++
+ .PHONY: proto
+ proto:
+ 	@echo "Generating protobuf..."
+diff --git a/README.zh.md b/README.zh.md
+index 4b53ba3..15301c0 100644
+--- a/README.zh.md
++++ b/README.zh.md
+@@ -106,7 +106,7 @@ sudo rpm -ivh isula-build-*.rpm
+ 如果需要使用`systemd`进行管理isula-build，请参考以下步骤：
+ 
+ ```sh
+-sudo install -p -m 640 ./isula-build.service /etc/systemd/system/isula-build.
++sudo install -p -m 640 ./isula-build.service /etc/systemd/system/isula-build.service
+ sudo systemctl enable isula-build
+ sudo systemctl start isula-build
+ ```
+diff --git a/tests/src/test_integration_set_new_root.sh b/tests/src/test_integration_set_new_root.sh
+new file mode 100644
+index 0000000..85b724a
+--- /dev/null
++++ b/tests/src/test_integration_set_new_root.sh
+@@ -0,0 +1,60 @@
++#!/bin/bash
++
++# Copyright (c) Huawei Technologies Co., Ltd. 2020. All rights reserved.
++# isula-build licensed under the Mulan PSL v2.
++# You can use this software according to the terms and conditions of the Mulan PSL v2.
++# You may obtain a copy of Mulan PSL v2 at:
++#     http://license.coscl.org.cn/MulanPSL2
++# THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER EXPRESS OR
++# IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY OR FIT FOR A PARTICULAR
++# PURPOSE.
++# See the Mulan PSL v2 for more details.
++# Author: Weizheng Xing
++# Create: 2021-05-29
++# Description: test set new run and data root in configuration.toml
++
++run_root="/var/run/new-isula-build"
++data_root="/var/lib/new-isula-build"
++config_file="/etc/isula-build/configuration.toml"
++base_image="hub.oepkgs.net/openeuler/openeuler:21.03"
++
++function clean()
++{
++    isula-build ctr-img rm $base_image >/dev/null 2>&1
++    rm -f $config_file
++    mv "$config_file".bak $config_file
++    systemctl stop isula-build
++    rm -rf $run_root $data_root
++}
++
++# change to new data and run root
++function pre_test()
++{
++    cp $config_file "$config_file".bak
++    sed -i "/run_root/d;/data_root/d" $config_file
++    echo "run_root = \"${run_root}\"" >> $config_file
++    echo "data_root = \"${data_root}\"" >> $config_file
++
++    systemctl restart isula-build
++}
++
++# check if new resources are downloaded in new root
++function do_test()
++{
++    tree_node_befor=$(tree -L 3 $data_root | wc -l)
++    isula-build ctr-img pull $base_image >/dev/null 2>&1
++    tree_node_after=$(tree -L 3 $data_root | wc -l)
++
++    if [ $(($tree_node_after - $tree_node_befor)) -eq 8 ]; then
++        echo "PASS"
++    else
++        echo "Sets of run and data root are not effective"
++        clean
++        exit 1
++    fi
++}
++
++# clean
++pre_test
++do_test
++clean
+diff --git a/tests/test.sh b/tests/test.sh
+index 79fde8a..e04cc96 100755
+--- a/tests/test.sh
++++ b/tests/test.sh
+@@ -2,8 +2,8 @@
+ 
+ top_dir=$(git rev-parse --show-toplevel)
+ 
+-# normal test
+-function normal() {
++# base test
++function base() {
+     source "$top_dir"/tests/lib/common.sh
+     pre_check
+     start_isula_builder
+@@ -33,15 +33,36 @@ function fuzz() {
+     exit $failed
+ }
+ 
++# base test
++function integration() {
++    source "$top_dir"/tests/lib/common.sh
++    pre_check
++    systemctl restart isula-build
++
++    while IFS= read -r testfile; do
++        printf "%-45s" "test $(basename "$testfile"): "
++        if ! bash "$testfile"; then
++            exit 1
++        fi
++    done < <(find "$top_dir"/tests/src -maxdepth 1 -name "test_integration*" -type f -print)
++}
++
+ # main function to chose which kind of test
+ function main() {
+     case "$1" in
+         fuzz)
+             fuzz "$2"
+             ;;
++        base)
++            base
++        ;;
++        integration)
++            integration
++        ;;
+         *)
+-            normal
+-            ;;
++            echo "Unknow test type."
++            exit 1
++        ;;
+     esac
+ }
+ 
+-- 
+1.8.3.1
+
