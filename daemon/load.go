@@ -154,7 +154,7 @@ func getDockerRepoTagFromImageTar(systemContext *types.SystemContext, path strin
 
 	topLevelImageManifest, err := tarfileSource.LoadTarManifest()
 	if err != nil || len(topLevelImageManifest) == 0 {
-		return nil, errors.Wrapf(err, "failed to get the top level image manifest")
+		return nil, errors.Errorf("failed to get the top level image manifest: %v", err)
 	}
 
 	var allRepoTags [][]string
