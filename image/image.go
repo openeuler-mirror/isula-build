@@ -314,7 +314,7 @@ func createImageV2Image(ctx context.Context, fromImage types.Image, targetMIMETy
 			ManifestMIMEType: targetMIMEType,
 		})
 		if err2 != nil {
-			return nil, errors.Wrapf(err, "failed to convert image %q", imageName)
+			return nil, errors.Wrapf(err2, "failed to convert image %q", imageName)
 		}
 		fromImage = updatedImg
 	}
@@ -533,7 +533,7 @@ func ParseImagesToReference(store *store.Store, names []string) (types.ImageRefe
 			// For support export archive file, we need provide reference.Named field when names is the format of name[:tag] not the image ID
 			pRef, pErr := reference.Parse(name)
 			if pErr != nil {
-				return nil, nil, errors.Wrapf(err, "error parse name %q", name)
+				return nil, nil, errors.Wrapf(pErr, "error parse name %q", name)
 			}
 			namedRef, isNamed := pRef.(reference.Named)
 			if !isNamed {
@@ -543,7 +543,7 @@ func ParseImagesToReference(store *store.Store, names []string) (types.ImageRefe
 			var nErr error
 			ref, nErr = is.Transport.NewStoreReference(store, namedRef, img2.ID)
 			if nErr != nil {
-				return nil, nil, errors.Wrap(err, "error get reference from store")
+				return nil, nil, errors.Wrap(nErr, "error get reference from store")
 			}
 		}
 		break

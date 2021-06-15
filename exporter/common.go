@@ -132,7 +132,7 @@ func export(e Exporter, exOpts ExportOptions) (reference.Canonical, digest.Diges
 
 	destRef, srcRef := e.GetDestRef(exOpts.ExportID), e.GetSrcRef(exOpts.ExportID)
 	if destRef == nil || srcRef == nil {
-		return nil, "", errors.Wrapf(err, "get dest or src reference by export ID %v failed", exOpts.ExportID)
+		return nil, "", errors.Errorf("get dest or src reference by export ID %v failed %v", exOpts.ExportID, err)
 	}
 
 	if manifestBytes, err = cp.Image(exOpts.Ctx, policyContext, destRef, srcRef, cpOpts); err != nil {
