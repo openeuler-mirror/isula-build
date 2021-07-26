@@ -102,7 +102,7 @@ proto:
 
 .PHONY: install
 install:
-	install -D -m0551 bin/isula-build $(BINDIR)
+	install -D -m0550 bin/isula-build $(BINDIR)
 	install -D -m0550 bin/isula-builder $(BINDIR)
 	@( getent group isula > /dev/null ) || ( groupadd --system isula )
 	@[ ! -d ${CONFIG_DIR}/${CONFIG_FILE} ] && install -dm0650 ${CONFIG_DIR}
