@@ -2,7 +2,7 @@
 
 Name: isula-build
 Version: 0.9.5
-Release: 8
+Release: 9
 Summary: A tool to build container images
 License: Mulan PSL V2
 URL: https://gitee.com/openeuler/isula-build
@@ -63,7 +63,7 @@ install -p -m 600 __isula-build %{buildroot}/usr/share/bash-completion/completio
 %clean
 rm -rf %{buildroot}
 
-%post
+%pretrans
 if ! getent group isula > /dev/null; then
     groupadd --system isula
 fi
@@ -74,7 +74,7 @@ fi
 %if 0%{?is_systemd}
 %config(noreplace) %attr(0640,root,root) %{_unitdir}/isula-build.service
 %endif
-%attr(551,root,root) %{_bindir}/isula-build
+%attr(550,root,isula) %{_bindir}/isula-build
 %attr(550,root,root) %{_bindir}/isula-builder
 
 %dir %attr(650,root,root) %{_sysconfdir}/isula-build
@@ -85,6 +85,12 @@ fi
 /usr/share/bash-completion/completions/isula-build
 
 %changelog
+* Mon Jul 26 2021 DCCooper <1866858@gmail.com> - 0.9.5-9
+- Type:bugfix
+- CVE:NA
+- SUG:restart
+- DESC:modify file mode for isula-build client binary and public key
+
 * Wed Jun 16 2021 DCCooper <1866858@gmail.com> - 0.9.5-8
 - Type:enhancement
 - CVE:NA
