@@ -1070,7 +1070,7 @@ The isula-build component processes communicate with each other through the Unix
 
 | **File Path** | **File/Folder Permission** | **Description** |
 | ------------------------------------------- | ------------------- | ------------------------------------------------------------ |
-| /usr/bin/isula-build                        | 551                 | Binary file of the command line tool.                                       |
+| /usr/bin/isula-build                        | 550                 | Binary file of the command line tool.                                       |
 | /usr/bin/isula-builder                      | 550                 | Binary file of the isula-builder process on the server.                          |
 | /usr/lib/systemd/system/isula-build.service | 640                 | systemd configuration file, which is used to manage the isula-build service.                   |
 | /usr/isula-build                            | 650                 | Root directory of the isula-builder configuration file. |
@@ -1078,7 +1078,7 @@ The isula-build component processes communicate with each other through the Unix
 | /etc/isula-build/policy.json                | 600                 | Syntax file of the signature verification policy file.                                 |
 | /etc/isula-build/registries.toml            | 600                 | Configuration file of each image repository, including the available image repository list and image repository blacklist. |
 | /etc/isula-build/storage.toml               | 600                 | Configuration file for local persistent storage, including the configuration of the used storage driver.       |
-| /etc/isula-build/isula-build.pub            | 444                 | Asymmetric encryption public key file. |
+| /etc/isula-build/isula-build.pub            | 400                 | Asymmetric encryption public key file. |
 | /var/run/isula_build.sock                   | 660                 | Local socket of isula-builder.                            |
 | /var/lib/isula-build                        | 700                 | Local persistency directory.                                             |
 | /var/run/isula-build                        | 700                 | Local runtime directory.                                             |
