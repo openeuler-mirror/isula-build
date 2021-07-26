@@ -1,0 +1,49 @@
+From f22214ca3bcb452238d2390a06891cf6d446e8ac Mon Sep 17 00:00:00 2001
+From: DCCooper <1866858@gmail.com>
+Date: Mon, 26 Jul 2021 16:58:31 +0800
+Subject: [PATCH] isula-build: change isula-build file mode
+
+reason: since isula-build client file mode is too large(0551),
+we decided to remove other's permission(0550) on it.
+Beside, we change the public key(isula-build.pub) file
+mode to 0400(from 0444), so only the owner of the public
+key can read the key.
+After this commit, if the non-root user want to use command
+login, logout, build with args(http_proxy, https_proxy, etc...),
+they need use sudo to temporarily obtain root permission.
+
+Signed-off-by: DCCooper <1866858@gmail.com>
+---
+ Makefile    | 2 +-
+ constant.go | 2 +-
+ 2 files changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/Makefile b/Makefile
+index 925968a..a9d4c93 100644
+--- a/Makefile
++++ b/Makefile
+@@ -102,7 +102,7 @@ proto:
+ 
+ .PHONY: install
+ install:
+-	install -D -m0551 bin/isula-build $(BINDIR)
++	install -D -m0550 bin/isula-build $(BINDIR)
+ 	install -D -m0550 bin/isula-builder $(BINDIR)
+ 	@( getent group isula > /dev/null ) || ( groupadd --system isula )
+ 	@[ ! -d ${CONFIG_DIR}/${CONFIG_FILE} ] && install -dm0650 ${CONFIG_DIR}
+diff --git a/constant.go b/constant.go
+index 9926728..bfe399b 100644
+--- a/constant.go
++++ b/constant.go
+@@ -50,7 +50,7 @@ const (
+ 	// DefaultRootDirMode is the default root dir mode
+ 	DefaultRootDirMode = 0700
+ 	// DefaultReadOnlyFileMode is the default root read only file mode
+-	DefaultReadOnlyFileMode = 0444
++	DefaultReadOnlyFileMode = 0400
+ 	// DefaultUmask is the working umask of isula-builder as a process, not for users
+ 	DefaultUmask = 0022
+ 	// CliLogBufferLen is log channel buffer size
+-- 
+1.8.3.1
+
