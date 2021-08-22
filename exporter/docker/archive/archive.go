@@ -21,9 +21,7 @@ import (
 	"github.com/containers/image/v5/docker/archive"
 	"github.com/containers/image/v5/transports/alltransports"
 	"github.com/containers/image/v5/types"
-	"github.com/docker/distribution/reference"
 	"github.com/pkg/errors"
-	"github.com/sirupsen/logrus"
 
 	constant "isula.org/isula-build"
 	"isula.org/isula-build/exporter"
@@ -91,32 +89,13 @@ func (d *dockerArchiveExporter) Init(opts exporter.ExportOptions, src, destSpec 
 		DockerArchiveExporter.InitArchiveWriter(opts.ExportID, archWriter)
 	}
 
-	// There is a slightly difference between FindImageLocally and ParseImagesToReference to get a reference.
-	// FindImageLocally or FindImage, both result a reference with a nil named field of *storageReference.
-	// ParseImagesToReference returns a reference with non-nil named field of *storageReference that used to set destReference, if names is the format of name[:tag] with and without repository domain.
-
-	// If using  srcReferenceForDest to replace srcReference, When src is the format of name[:tag] without a registry domain name,
-	// in which time, cp.Image() will be called and new image source will call imageMatchesRepo() to check If image matches repository or not.
-	// ParseNormalizedNamed will finally called to add default docker.io/library/ prefix to name[:tag], return false result of the checking.
-	// As a result, we will get error of no image matching reference found.
 	srcReference, _, err = image.FindImageLocally(localStore, src)
 	if err != nil {
 		return errors.Wrapf(err, "find src image: %q failed with transport %q", src, d.Name())
 	}
 
-	imageReferenceForDest, _, err := image.ParseImagesToReference(localStore, []string{src})
-	if err != nil {
-		return errors.Wrapf(err, "parse image: %q to reference failed with transport %q", src, d.Name())
-	}
 	archiveWriter := DockerArchiveExporter.GetArchiveWriter(opts.ExportID)
-	nameAndTag, ok := imageReferenceForDest.DockerReference().(reference.NamedTagged)
-	// src is the format of ImageID, ok is false
-	if ok {
-		destReference, err = archiveWriter.NewReference(nameAndTag)
-	} else {
-		logrus.Infof("Transform image reference failed, use nil instead")
-		destReference, err = archiveWriter.NewReference(nil)
-	}
+	destReference, err = archiveWriter.NewReference(nil)
 	if err != nil {
 		return errors.Wrapf(err, "parse dest spec: %q failed", destSpec)
 	}
