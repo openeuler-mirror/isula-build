@@ -13,6 +13,9 @@
 # Create: 2020-03-01
 # Description: common functions for tests
 
+# cross process environment for killing isula-builder
+declare -x pidofbuilder
+
 # check if legacy builder exists
 function pre_check() {
     if pgrep isula-builder > /dev/null 2>&1; then
