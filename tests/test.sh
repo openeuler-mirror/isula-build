@@ -33,18 +33,17 @@ function fuzz() {
     exit $failed
 }
 
-# base test
+# integration test
 function integration() {
     source "$top_dir"/tests/lib/common.sh
-    pre_check
     systemctl restart isula-build
 
     while IFS= read -r testfile; do
-        printf "%-45s" "test $(basename "$testfile"): "
+        printf "%-65s" "test $(basename "$testfile"): "
         if ! bash "$testfile"; then
             exit 1
         fi
-    done < <(find "$top_dir"/tests/src -maxdepth 1 -name "test_integration*" -type f -print)
+    done < <(find "$top_dir"/tests/src -maxdepth 1 -name "integration_test*" -type f -print)
 }
 
 # main function to chose which kind of test
@@ -67,4 +66,6 @@ function main() {
 }
 
 export "ISULABUILD_CLI_EXPERIMENTAL"="enabled"
+export DEBUG=0
+
 main "$@"

@@ -219,3 +219,11 @@ function show_and_run_command() {
     fi
     echo "PASS"
 }
+
+function run_with_debug() {
+    if [ "${DEBUG:-0}" -eq 1 ]; then
+        $1
+    else
+        $1 > /dev/null 2>&1
+    fi
+}

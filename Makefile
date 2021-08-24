@@ -91,6 +91,7 @@ test-unit:
 .PHONY: test-integration
 test-integration:
 	@echo "Integration test starting..."
+	@./tests/test.sh base
 	@./tests/test.sh integration
 	@echo "Integration test done!"
 
