@@ -123,8 +123,7 @@ function test_build_with_oci_archive_output() {
 
 # test build image with docker-daemon output
 function test_build_with_docker_daemon_output() {
-    systemctl status docker > /dev/null 2>&1
-    if [ $? -ne 0 ]; then
+    if ! systemctl status docker > /dev/null 2>&1; then
         return 0
     fi
 
@@ -146,9 +145,8 @@ function test_build_with_docker_daemon_output() {
 }
 
 # test build image with isulad output
-function test_build_with_isulad_output() {
-    systemctl status isulad > /dev/null 2>&1
-    if [ $? -ne 0 ]; then
+function test_build_with_isulad_output() {  
+    if ! systemctl status isulad > /dev/null 2>&1; then
         return 0
     fi
 
@@ -172,41 +170,41 @@ function test_build_with_isulad_output() {
 # test isula build base command
 function test_isula_build_base_command() {
     show_and_run_command "Build docker format image:" \
-    " isula-build ctr-img build --tag "$1"-docker:latest --output=docker-archive:/tmp/"$1"-docker.tar:"$1"-docker:latest "$2""
+    " isula-build ctr-img build --tag $1-docker:latest --output=docker-archive:/tmp/$1-docker.tar:$1-docker:latest $2"
 
     show_and_run_command "Build oci format image:" \
-    "isula-build ctr-img build --tag "$1"-oci:latest --output=oci-archive:/tmp/"$1"-oci.tar:"$1"-oci:latest "$2""
+    "isula-build ctr-img build --tag $1-oci:latest --output=oci-archive:/tmp/$1-oci.tar:$1-oci:latest $2"
 
     show_and_run_command "List all images:" \
     "isula-build ctr-img images"
     
     show_and_run_command "List docker format image:" \
-    "isula-build ctr-img images "$1"-docker:latest"
+    "isula-build ctr-img images $1-docker:latest"
 
     show_and_run_command "List oci format image:" \
-    "isula-build ctr-img images "$1"-oci:latest"
+    "isula-build ctr-img images $1-oci:latest"
 
     rm -f /tmp/"$1"-docker.tar /tmp/"$1"-oci.tar
 
     show_and_run_command "Save image with docker format:" \
-    "isula-build ctr-img save -f docker "$1"-docker:latest -o /tmp/"$1"-docker.tar"
+    "isula-build ctr-img save -f docker $1-docker:latest -o /tmp/$1-docker.tar"
 
     show_and_run_command "Save image with oci format:" \
-    "isula-build ctr-img save -f oci "$1"-oci:latest -o /tmp/"$1"-oci.tar"
+    "isula-build ctr-img save -f oci $1-oci:latest -o /tmp/$1-oci.tar"
 
     show_and_run_command "Load docker format images:" \
-    "isula-build ctr-img load -i /tmp/"$1"-docker.tar"
+    "isula-build ctr-img load -i /tmp/$1-docker.tar"
 
     show_and_run_command "Load oci format images:" \
-    "isula-build ctr-img load -i /tmp/"$1"-oci.tar"
+    "isula-build ctr-img load -i /tmp/$1-oci.tar"
 
     show_and_run_command "Save multipile images with docker format:" \
-    "isula-build ctr-img save -f docker "$1"-docker:latest "$1"-oci:latest -o /tmp/"$1"-all.tar"
+    "isula-build ctr-img save -f docker $1-docker:latest $1-oci:latest -o /tmp/$1-all.tar"
 
     rm -f /tmp/"$1"-docker.tar /tmp/"$1"-oci.tar /tmp/"$1"-all.tar
 
     show_and_run_command "Remove images:" \
-    "isula-build ctr-img rm "$1"-docker:latest "$1"-oci:latest"
+    "isula-build ctr-img rm $1-docker:latest $1-oci:latest"
 }
 
 function show_and_run_command() {
