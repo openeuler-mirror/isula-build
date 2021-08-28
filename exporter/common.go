@@ -27,7 +27,6 @@ import (
 	"github.com/containers/image/v5/manifest"
 	"github.com/containers/image/v5/signature"
 	"github.com/containers/image/v5/types"
-	"github.com/containers/storage/pkg/archive"
 	securejoin "github.com/cyphar/filepath-securejoin"
 	"github.com/docker/distribution/reference"
 	"github.com/opencontainers/go-digest"
@@ -40,11 +39,6 @@ import (
 	"isula.org/isula-build/util"
 )
 
-const (
-	// Uncompressed represents uncompressed
-	Uncompressed = archive.Uncompressed
-)
-
 // ExportOptions is a struct for exporter
 type ExportOptions struct {
 	SystemContext      *types.SystemContext
@@ -54,6 +48,28 @@ type ExportOptions struct {
 	ExportID           string
 	ManifestType       string
 	ImageListSelection cp.ImageListSelection
+}
+
+// parseExporter parses an exporter instance and inits it with the src and dest reference.
+func parseExporter(opts ExportOptions, src, destSpec string, localStore *store.Store) (Exporter, error) {
+	const partsNum = 2
+	// 1. parse exporter
+	parts := strings.SplitN(destSpec, ":", partsNum)
+	if len(parts) != partsNum {
+		return nil, errors.Errorf(`invalid dest spec %q, expected colon-separated exporter:reference`, destSpec)
+	}
+
+	ept := GetAnExporter(parts[0])
+	if ept == nil {
+		return nil, errors.Errorf(`invalid image name: %q, unknown exporter "%s"`, src, parts[0])
+	}
+
+	// 2. Init exporter reference
+	err := ept.Init(opts, src, destSpec, localStore)
+	if err != nil {
+		return nil, errors.Wrap(err, `fail to Init exporter"`)
+	}
+	return ept, nil
 }
 
 // Export exports an image to an output destination
@@ -85,26 +101,6 @@ func Export(imageID, outputDest string, opts ExportOptions, localStore *store.St
 		eLog.Debugf("Export image with reference %s", ref.Name())
 	}
 	eLog.Infof("Successfully output image with digest %s", digest.String())
-
-	return nil
-}
-
-func exportToIsulad(ctx context.Context, tarPath string) error {
-	// no tarPath need to export
-	if len(tarPath) == 0 {
-		return nil
-	}
-	defer func() {
-		if rErr := os.Remove(tarPath); rErr != nil {
-			logrus.Errorf("Remove file %s failed: %v", tarPath, rErr)
-		}
-	}()
-	// dest here will not be influenced by external input, no security risk
-	cmd := exec.CommandContext(ctx, "isula", "load", "-i", tarPath) // nolint:gosec
-	if bytes, lErr := cmd.CombinedOutput(); lErr != nil {
-		logrus.Errorf("Load image to isulad failed, stderr: %v, err: %v", string(bytes), lErr)
-		return errors.Errorf("load image to isulad failed, stderr: %v, err: %v", string(bytes), lErr)
-	}
 
 	return nil
 }
@@ -158,28 +154,6 @@ func export(e Exporter, exOpts ExportOptions) (reference.Canonical, digest.Diges
 	return ref, manifestDigest, nil
 }
 
-// parseExporter parses an exporter instance and inits it with the src and dest reference.
-func parseExporter(opts ExportOptions, src, destSpec string, localStore *store.Store) (Exporter, error) {
-	const partsNum = 2
-	// 1. parse exporter
-	parts := strings.SplitN(destSpec, ":", partsNum)
-	if len(parts) != partsNum {
-		return nil, errors.Errorf(`invalid dest spec %q, expected colon-separated exporter:reference`, destSpec)
-	}
-
-	ept := GetAnExporter(parts[0])
-	if ept == nil {
-		return nil, errors.Errorf(`invalid image name: %q, unknown exporter "%s"`, src, parts[0])
-	}
-
-	// 2. Init exporter reference
-	err := ept.Init(opts, src, destSpec, localStore)
-	if err != nil {
-		return nil, errors.Wrap(err, `fail to Init exporter"`)
-	}
-	return ept, nil
-}
-
 // NewCopyOptions will return copy options
 func NewCopyOptions(opts ExportOptions) *cp.Options {
 	cpOpts := &cp.Options{}
@@ -204,6 +178,26 @@ func NewPolicyContext(sc *types.SystemContext) (*signature.PolicyContext, error)
 	}
 
 	return policyContext, nil
+}
+
+func exportToIsulad(ctx context.Context, tarPath string) error {
+	// no tarPath need to export
+	if len(tarPath) == 0 {
+		return nil
+	}
+	defer func() {
+		if rErr := os.Remove(tarPath); rErr != nil {
+			logrus.Errorf("Remove file %s failed: %v", tarPath, rErr)
+		}
+	}()
+	// dest here will not be influenced by external input, no security risk
+	cmd := exec.CommandContext(ctx, "isula", "load", "-i", tarPath) // nolint:gosec
+	if bytes, lErr := cmd.CombinedOutput(); lErr != nil {
+		logrus.Errorf("Load image to isulad failed, stderr: %v, err: %v", string(bytes), lErr)
+		return errors.Errorf("load image to isulad failed, stderr: %v, err: %v", string(bytes), lErr)
+	}
+
+	return nil
 }
 
 // CheckArchiveFormat used to check if save or load image format is either docker-archive or oci-archive
@@ -237,4 +231,3 @@ func GetManifestType(format string) (string, error) {
 	}
 	return manifestType, nil
 }
-
