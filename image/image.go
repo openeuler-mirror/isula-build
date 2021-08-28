@@ -287,19 +287,19 @@ func createScratchV2Image() *docker.Image {
 			ContainerConfig: docker.Config{},
 			Config: &docker.Config{
 				ExposedPorts: make(docker.PortSet),
-				Env:          make([]string, 0, 0),
-				Cmd:          make([]string, 0, 0),
+				Env:          make([]string, 0),
+				Cmd:          make([]string, 0),
 				Healthcheck:  nil,
 				Volumes:      make(map[string]struct{}),
-				Entrypoint:   make([]string, 0, 0),
-				OnBuild:      make([]string, 0, 0),
+				Entrypoint:   make([]string, 0),
+				OnBuild:      make([]string, 0),
 				Labels:       make(map[string]string),
 				StopTimeout:  nil,
-				Shell:        make([]string, 0, 0),
+				Shell:        make([]string, 0),
 			},
 		},
 		RootFS:  &docker.RootFS{},
-		History: make([]docker.History, 0, 0),
+		History: make([]docker.History, 0),
 	}
 }
 

@@ -73,7 +73,7 @@ func (b *Backend) Remove(req *pb.RemoveRequest, stream pb.Control_RemoveServer) 
 				continue
 			}
 
-			if removed == true {
+			if removed {
 				imageString := fmt.Sprintf("Untagged image: %v", imageID)
 				logrus.Debug(imageString)
 				if err = stream.Send(&pb.RemoveResponse{LayerMessage: imageString}); err != nil {
@@ -118,7 +118,7 @@ func (b *Backend) Remove(req *pb.RemoveRequest, stream pb.Control_RemoveServer) 
 }
 
 func untagImage(imageID string, store storage.Store, image *storage.Image) (bool, error) {
-	newNames := make([]string, 0, 0)
+	newNames := make([]string, 0)
 	removed := false
 	for _, imgName := range image.Names {
 		if imgName == imageID {
@@ -128,7 +128,7 @@ func untagImage(imageID string, store storage.Store, image *storage.Image) (bool
 		newNames = append(newNames, imgName)
 	}
 
-	if removed == true {
+	if removed {
 		if err := store.SetNames(image.ID, newNames); err != nil {
 			return false, errors.Wrapf(err, "remove name %v from image %v error", imageID, image.ID)
 		}

@@ -69,7 +69,7 @@ func (ref *Reference) createConfigsAndManifests() (docker.Image, docker.Manifest
 }
 
 func (ref *Reference) getContainerLayers() ([]string, error) {
-	layers := make([]string, 0, 0)
+	layers := make([]string, 0)
 	layerID := ref.layerID
 	layer, err := ref.store.Layer(layerID)
 	if err != nil {

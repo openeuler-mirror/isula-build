@@ -136,7 +136,6 @@ func (r *resolver) noDollar() {
 	// not "\$", this must be hyphen between args, such as '/' in "hub/image" or '_' in 'module_arch'
 	r.resolved += string(r.origin[r.idx])
 	r.idx++
-	return
 }
 
 func (r *resolver) noBrace() error {

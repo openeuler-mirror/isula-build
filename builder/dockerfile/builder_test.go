@@ -21,7 +21,6 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
-	"regexp"
 	"strings"
 	"testing"
 
@@ -725,8 +724,7 @@ func TestGetFlagsAndArgs(t *testing.T) {
 // FROM alpine@digest@digest <- fail
 func TestResolveImageName(t *testing.T) {
 	type args struct {
-		s   string
-		reg *regexp.Regexp
+		s string
 	}
 	tests := []struct {
 		name    string
@@ -882,8 +880,7 @@ func TestResolveImageName(t *testing.T) {
 // FROM $imageName@${digest}$${digest2} <- fail
 func TestResolveImageNameWithArgs(t *testing.T) {
 	type args struct {
-		s   string
-		reg *regexp.Regexp
+		s string
 	}
 	tests := []struct {
 		name        string

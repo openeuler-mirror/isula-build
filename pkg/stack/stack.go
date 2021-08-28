@@ -64,7 +64,7 @@ func dumpStack(path string) {
 	)
 
 	for {
-		stackBuf = make([]byte, bufSize, bufSize)
+		stackBuf = make([]byte, bufSize)
 		stackSize = runtime.Stack(stackBuf, true)
 		// if these two sizes equal, which means the allocated buf is not large enough to carry all
 		// stacks back, so enlarge the buf and try again

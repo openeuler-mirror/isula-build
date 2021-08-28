@@ -322,7 +322,7 @@ func extractFlags(line *parser.Line, cmd string) (string, error) {
 	flagRegs := cmdFlagRegs[cmd]
 	parts := strings.Fields(line.Raw)
 
-	existFlags := make(map[string]bool, 0)
+	existFlags := make(map[string]bool)
 	var i int
 	for ; i <= len(parts)-1; i++ {
 		if !strings.HasPrefix(parts[i], "--") {
@@ -545,7 +545,7 @@ func parseKeyValue(line *parser.Line) error {
 }
 
 func parseKeyEqualValuePairs(str string) []string {
-	kvPairs := make([]string, 0, 0)
+	kvPairs := make([]string, 0)
 
 	for i := 0; i <= len(str)-1; i++ {
 		word := []byte{}
