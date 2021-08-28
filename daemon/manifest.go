@@ -212,18 +212,9 @@ func (b *Backend) ManifestPush(req *pb.ManifestPushRequest, stream pb.Control_Ma
 	eg, egCtx := errgroup.WithContext(stream.Context())
 	eg.Go(manifestPushHandler(egCtx, opt))
 	eg.Go(manifestPushMessageHandler(stream, cliLogger))
-	errC := make(chan error, 1)
 
-	errC <- eg.Wait()
-	defer close(errC)
-
-	err, ok := <-errC
-	if !ok {
-		logrus.WithField(util.LogKeySessionID, manifestName).Info("Channel errC closed")
-		return nil
-	}
-	if err != nil {
-		logrus.WithField(util.LogKeySessionID, manifestName).Warnf("Stream closed with: %v", err)
+	if err := eg.Wait(); err != nil {
+		logrus.WithField(util.LogKeySessionID, manifestName).Warnf("Manifest push stream closed with: %v", err)
 		return err
 	}
 
