@@ -646,7 +646,7 @@ func CheckAndExpandTag(tag string) (reference.Named, string, error) {
 	if sepLastIndex == -1 || (sepLastIndex < slashLastIndex) {
 		// isula
 		// localhost:5000/isula
-		newTag += ":latest"
+		newTag = fmt.Sprintf("%s:%s", newTag, constant.DefaultTag)
 	}
 
 	const longestTagFieldsLen = 3

@@ -16,6 +16,7 @@ package daemon
 import (
 	"context"
 	"os"
+	"strings"
 
 	"github.com/containers/image/v5/docker/reference"
 	"github.com/containers/image/v5/types"
@@ -76,7 +77,7 @@ func (b *Backend) Save(req *pb.SaveRequest, stream pb.Control_SaveServer) error 
 	var err error
 	opts := b.getSaveOptions(req)
 
-	if err = checkFormatAndExpandTag(&opts); err != nil {
+	if err = checkFormat(&opts); err != nil {
 		return err
 	}
 	if err = filterImageName(&opts); err != nil {
@@ -159,7 +160,7 @@ func messageHandler(stream pb.Control_SaveServer, cliLogger *logger.Logger) func
 	}
 }
 
-func checkFormatAndExpandTag(opts *saveOptions) error {
+func checkFormat(opts *saveOptions) error {
 	switch opts.format {
 	case constant.DockerTransport:
 		opts.format = constant.DockerArchiveTransport
@@ -167,14 +168,6 @@ func checkFormatAndExpandTag(opts *saveOptions) error {
 		opts.format = constant.OCIArchiveTransport
 	default:
 		return errors.New("wrong image format provided")
-	}
-
-	for i, imageName := range opts.oriImgList {
-		nameWithTag, err := image.CheckAndAddDefaultTag(imageName, opts.localStore)
-		if err != nil {
-			return errors.Wrapf(err, "check format and expand tag failed with image name %q", imageName)
-		}
-		opts.oriImgList[i] = nameWithTag
 	}
 
 	return nil
@@ -205,12 +198,11 @@ func filterImageName(opts *saveOptions) error {
 			opts.finalImageOrdered = append(opts.finalImageOrdered, img.ID)
 		}
 
-		ref, err := reference.Parse(imageName)
-		if err != nil {
-			return errors.Wrapf(err, "filter image name failed when parsing name %q", imageName)
-		}
-		tagged, withTag := ref.(reference.NamedTagged)
-		if withTag {
+		if !strings.HasPrefix(img.ID, imageName) {
+			tagged, _, err := image.GetNamedTaggedReference(imageName)
+			if err != nil {
+				return errors.Wrapf(err, "get named tagged reference failed when saving image %q", imageName)
+			}
 			finalImage.tags = append(finalImage.tags, tagged)
 		}
 		opts.finalImageSet[img.ID] = finalImage

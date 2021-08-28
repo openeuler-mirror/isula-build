@@ -89,6 +89,8 @@ const (
 	IsuladTransport = "isulad"
 	// ManifestTransport used to export manifest list
 	ManifestTransport = "manifest"
+	// DefaultTag is latest
+	DefaultTag = "latest"
 )
 
 var (
