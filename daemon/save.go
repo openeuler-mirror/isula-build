@@ -186,7 +186,7 @@ func filterImageName(opts *saveOptions) error {
 		}
 		visitedImage[imageName] = true
 
-		_, img, err := image.FindImageLocally(opts.localStore, imageName)
+		_, img, err := image.FindImage(opts.localStore, imageName)
 		if err != nil {
 			return errors.Wrapf(err, "filter image name failed when finding image name %q", imageName)
 		}

@@ -70,7 +70,7 @@ func listOneImage(opts listOptions) (*pb.ListResponse, error) {
 	_, image, err := image.FindImage(opts.localStore, opts.imageName)
 	if err != nil {
 		opts.logEntry.Error(err)
-		return nil, errors.Wrapf(err, "find local image %v error", opts.imageName)
+		return nil, errors.Wrapf(err, "find local image %q failed", opts.imageName)
 	}
 
 	result := make([]*pb.ListResponse_ImageInfo, 0, len(image.Names))

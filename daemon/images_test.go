@@ -96,7 +96,7 @@ func TestList(t *testing.T) {
 				ImageName: "coffee:costa",
 			},
 			wantErr:   true,
-			errString: "failed to parse image",
+			errString: "not found in local store",
 		},
 		{
 			name: "abnormal case no repository",
