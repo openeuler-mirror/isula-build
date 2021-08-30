@@ -504,8 +504,6 @@ func FindImageLocally(store *store.Store, image string) (types.ImageReference, *
 }
 
 // ParseImagesToReference get the image reference in store
-// When names is the format of ImageID (sha256), return ref with nil named field of *storageReference
-// When names is the format of name[:tag] with and without repository domain, such as registry.example.com/name:tag, name:tag, return corresponding ref with non-nil named field of *storageReference with and without domain
 func ParseImagesToReference(store *store.Store, names []string) (types.ImageReference, *storage.Image, error) {
 	var (
 		ref types.ImageReference
@@ -529,22 +527,6 @@ func ParseImagesToReference(store *store.Store, names []string) (types.ImageRefe
 				continue
 			}
 			img = img2
-
-			// For support export archive file, we need provide reference.Named field when names is the format of name[:tag] not the image ID
-			pRef, pErr := reference.Parse(name)
-			if pErr != nil {
-				return nil, nil, errors.Wrapf(pErr, "error parse name %q", name)
-			}
-			namedRef, isNamed := pRef.(reference.Named)
-			if !isNamed {
-				return nil, nil, errors.Errorf("reference %s has no name", pRef.String())
-			}
-
-			var nErr error
-			ref, nErr = is.Transport.NewStoreReference(store, namedRef, img2.ID)
-			if nErr != nil {
-				return nil, nil, errors.Wrap(nErr, "error get reference from store")
-			}
 		}
 		break
 	}

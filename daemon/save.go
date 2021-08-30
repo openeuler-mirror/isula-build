@@ -17,6 +17,7 @@ import (
 	"context"
 	"os"
 
+	"github.com/containers/image/v5/docker/reference"
 	"github.com/containers/image/v5/types"
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
@@ -33,26 +34,30 @@ import (
 )
 
 type saveOptions struct {
-	sysCtx     *types.SystemContext
-	logger     *logger.Logger
-	localStore *store.Store
-	logEntry   *logrus.Entry
-	saveID     string
-	outputPath string
-	oriImgList []string
-	format     string
+	sysCtx            *types.SystemContext
+	localStore        *store.Store
+	saveID            string
+	format            string
+	oriImgList        []string
+	finalImageOrdered []string
+	finalImageSet     map[string][]reference.NamedTagged
+	outputPath        string
+	logger            *logger.Logger
+	logEntry          *logrus.Entry
 }
 
 func (b *Backend) getSaveOptions(req *pb.SaveRequest) saveOptions {
 	return saveOptions{
-		sysCtx:     image.GetSystemContext(),
-		logger:     logger.NewCliLogger(constant.CliLogBufferLen),
-		localStore: b.daemon.localStore,
-		saveID:     req.GetSaveID(),
-		outputPath: req.GetPath(),
-		oriImgList: req.GetImages(),
-		format:     req.GetFormat(),
-		logEntry:   logrus.WithFields(logrus.Fields{"SaveID": req.GetSaveID(), "Format": req.GetFormat()}),
+		sysCtx:            image.GetSystemContext(),
+		localStore:        b.daemon.localStore,
+		saveID:            req.GetSaveID(),
+		format:            req.GetFormat(),
+		oriImgList:        req.GetImages(),
+		finalImageOrdered: make([]string, 0),
+		finalImageSet:     make(map[string][]reference.NamedTagged),
+		outputPath:        req.GetPath(),
+		logger:            logger.NewCliLogger(constant.CliLogBufferLen),
+		logEntry:          logrus.WithFields(logrus.Fields{"SaveID": req.GetSaveID(), "Format": req.GetFormat()}),
 	}
 }
 
@@ -63,28 +68,14 @@ func (b *Backend) Save(req *pb.SaveRequest, stream pb.Control_SaveServer) error 
 		"Format": req.GetFormat(),
 	}).Info("SaveRequest received")
 
-	var (
-		ok  bool
-		err error
-	)
-
+	var err error
 	opts := b.getSaveOptions(req)
 
-	switch opts.format {
-	case constant.DockerTransport:
-		opts.format = constant.DockerArchiveTransport
-	case constant.OCITransport:
-		opts.format = constant.OCIArchiveTransport
-	default:
-		return errors.New("wrong image format provided")
+	if err = checkFormatAndExpandTag(&opts); err != nil {
+		return err
 	}
-
-	for i, imageName := range opts.oriImgList {
-		nameWithTag, cErr := image.CheckAndAddDefaultTag(imageName, opts.localStore)
-		if cErr != nil {
-			return cErr
-		}
-		opts.oriImgList[i] = nameWithTag
+	if err = filterImageName(&opts); err != nil {
+		return err
 	}
 
 	defer func() {
@@ -98,26 +89,18 @@ func (b *Backend) Save(req *pb.SaveRequest, stream pb.Control_SaveServer) error 
 	ctx := context.WithValue(stream.Context(), util.LogFieldKey(util.LogKeySessionID), opts.saveID)
 	eg, _ := errgroup.WithContext(ctx)
 
-	eg.Go(exportHandler(ctx, opts))
+	eg.Go(exportHandler(ctx, &opts))
 	eg.Go(messageHandler(stream, opts.logger))
-	errC := make(chan error, 1)
 
-	errC <- eg.Wait()
-	defer close(errC)
-
-	err, ok = <-errC
-	if !ok {
-		opts.logEntry.Info("Channel errC closed")
-		return nil
-	}
-	if err != nil {
+	if err = eg.Wait(); err != nil {
+		opts.logEntry.Warnf("Save stream closed with: %v", err)
 		return err
 	}
 
 	return nil
 }
 
-func exportHandler(ctx context.Context, opts saveOptions) func() error {
+func exportHandler(ctx context.Context, opts *saveOptions) func() error {
 	return func() error {
 		defer func() {
 			opts.logger.CloseContent()
@@ -129,18 +112,22 @@ func exportHandler(ctx context.Context, opts saveOptions) func() error {
 			}
 		}()
 
-		for _, imageID := range opts.oriImgList {
+		for _, imageID := range opts.finalImageOrdered {
+			copyCtx := *opts.sysCtx
+			// It's ok for DockerArchiveAdditionalTags == nil, as a result, no additional tags will be appended to the final archive file.
+			copyCtx.DockerArchiveAdditionalTags = opts.finalImageSet[imageID]
+
 			exOpts := exporter.ExportOptions{
 				Ctx:           ctx,
-				SystemContext: opts.sysCtx,
+				SystemContext: &copyCtx,
 				ExportID:      opts.saveID,
 				ReportWriter:  opts.logger,
 			}
 
 			if err := exporter.Export(imageID, exporter.FormatTransport(opts.format, opts.outputPath),
 				exOpts, opts.localStore); err != nil {
-				opts.logEntry.Errorf("Save Image %s output to %s failed with: %v", imageID, opts.format, err)
-				return errors.Wrapf(err, "save Image %s output to %s failed", imageID, opts.format)
+				opts.logEntry.Errorf("Save image %q in format %q failed: %v", imageID, opts.format, err)
+				return errors.Wrapf(err, "save image %q in format %q failed", imageID, opts.format)
 			}
 		}
 
@@ -163,4 +150,60 @@ func messageHandler(stream pb.Control_SaveServer, cliLogger *logger.Logger) func
 
 		return nil
 	}
+}
+
+func checkFormatAndExpandTag(opts *saveOptions) error {
+	switch opts.format {
+	case constant.DockerTransport:
+		opts.format = constant.DockerArchiveTransport
+	case constant.OCITransport:
+		opts.format = constant.OCIArchiveTransport
+	default:
+		return errors.New("wrong image format provided")
+	}
+
+	for i, imageName := range opts.oriImgList {
+		nameWithTag, err := image.CheckAndAddDefaultTag(imageName, opts.localStore)
+		if err != nil {
+			return errors.Wrapf(err, "check format and expand tag failed with image name %q", imageName)
+		}
+		opts.oriImgList[i] = nameWithTag
+	}
+
+	return nil
+}
+
+func filterImageName(opts *saveOptions) error {
+	if opts.format == constant.OCIArchiveTransport {
+		opts.finalImageOrdered = opts.oriImgList
+		return nil
+	}
+
+	visitedImage := make(map[string]bool)
+	for _, imageName := range opts.oriImgList {
+		if _, exists := visitedImage[imageName]; exists {
+			continue
+		}
+		visitedImage[imageName] = true
+
+		_, img, err := image.FindImageLocally(opts.localStore, imageName)
+		if err != nil {
+			return errors.Wrapf(err, "filter image name failed when finding image name %q", imageName)
+		}
+		if _, ok := opts.finalImageSet[img.ID]; !ok {
+			opts.finalImageOrdered = append(opts.finalImageOrdered, img.ID)
+		}
+
+		ref, err := reference.Parse(imageName)
+		if err != nil {
+			return errors.Wrapf(err, "filter image name failed when parsing name %q", imageName)
+		}
+		tagged, withTag := ref.(reference.NamedTagged)
+		if !withTag {
+			continue
+		}
+		opts.finalImageSet[img.ID] = append(opts.finalImageSet[img.ID], tagged)
+	}
+
+	return nil
 }

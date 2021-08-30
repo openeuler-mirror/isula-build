@@ -13,6 +13,10 @@
 # Create: 2021-05-29
 # Description: test set new run and data root in configuration.toml
 
+top_dir=$(git rev-parse --show-toplevel)
+# shellcheck disable=SC1091
+source "$top_dir"/tests/lib/common.sh
+
 run_root="/var/run/new-isula-build"
 data_root="/var/lib/new-isula-build"
 config_file="/etc/isula-build/configuration.toml"
@@ -20,7 +24,6 @@ base_image="hub.oepkgs.net/openeuler/openeuler:21.03"
 
 function clean()
 {
-    isula-build ctr-img rm $base_image >/dev/null 2>&1
     rm -f $config_file
     mv "$config_file".bak $config_file
     systemctl stop isula-build
@@ -42,10 +45,10 @@ function pre_test()
 function do_test()
 {
     tree_node_befor=$(tree -L 3 $data_root | wc -l)
-    isula-build ctr-img pull $base_image >/dev/null 2>&1
+    run_with_debug "isula-build ctr-img pull $base_image"
     tree_node_after=$(tree -L 3 $data_root | wc -l)
 
-    if [ $(($tree_node_after - $tree_node_befor)) -eq 8 ]; then
+    if [ $((tree_node_after - tree_node_befor)) -eq 8 ] && run_with_debug "isula-build ctr-img rm $base_image"; then
         echo "PASS"
     else
         echo "Sets of run and data root are not effective"
@@ -54,7 +57,6 @@ function do_test()
     fi
 }
 
-# clean
 pre_test
 do_test
 clean
