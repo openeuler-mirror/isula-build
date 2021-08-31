@@ -82,7 +82,7 @@ func NewClient(ctx context.Context) (*GrpcClient, error) {
 	defer cancel()
 	connected, err := cli.HealthCheck(healthCtx)
 	if !connected || err != nil {
-		return nil, errors.Errorf( "Cannot connect to the isula-builder at %s. Is the isula-builder running?\nError: %v", constant.DefaultGRPCAddress, err)
+		return nil, errors.Errorf("Cannot connect to the isula-builder at %s. Is the isula-builder running?\nError: %v", constant.DefaultGRPCAddress, err)
 	}
 
 	return cli, nil
