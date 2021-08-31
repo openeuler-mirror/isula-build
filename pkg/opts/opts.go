@@ -61,7 +61,7 @@ func (opts *ListOpts) Type() string {
 
 // NewListOpts creates a new ListOpts
 func NewListOpts(validator validatorFunc) ListOpts {
-	values := make(map[string]string, 0)
+	values := make(map[string]string)
 	return ListOpts{
 		Values:    values,
 		validator: validator,

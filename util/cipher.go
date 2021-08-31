@@ -61,7 +61,7 @@ func GenerateCryptoKey(s int) ([]byte, error) {
 	} else {
 		size = aesKeyLenLowerBound
 	}
-	key := make([]byte, size, size)
+	key := make([]byte, size)
 	if _, err := io.ReadFull(rand.Reader, key); err != nil {
 		return nil, errGenCryptoKey
 	}
@@ -105,7 +105,7 @@ func EncryptAES(data string, aeskey string) (string, error) {
 		return "", errors.Errorf("generate rand data for iv failed: %v", err)
 	}
 	mode := cipher.NewCFBEncrypter(block, iv)
-	encryptData := make([]byte, len(plainText), len(plainText))
+	encryptData := make([]byte, len(plainText))
 	mode.XORKeyStream(encryptData, plainText)
 	encryptData = append(iv, encryptData...)
 
@@ -134,7 +134,7 @@ func DecryptAES(data string, aeskey string) (string, error) {
 	}
 
 	decrypter := cipher.NewCFBDecrypter(block, cipherText[:block.BlockSize()])
-	decryptData := make([]byte, len(cipherText)-block.BlockSize(), len(cipherText)-block.BlockSize())
+	decryptData := make([]byte, len(cipherText)-block.BlockSize())
 	decrypter.XORKeyStream(decryptData, cipherText[block.BlockSize():])
 
 	return string(decryptData), nil

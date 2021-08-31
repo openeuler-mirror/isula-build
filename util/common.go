@@ -44,7 +44,7 @@ func CopyMapStringString(m map[string]string) map[string]string {
 
 // CopyStrings copies all strings in a slice to a new slice
 func CopyStrings(str []string) []string {
-	result := make([]string, len(str), len(str))
+	result := make([]string, len(str))
 	copy(result, str)
 	return result
 }

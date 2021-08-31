@@ -559,7 +559,7 @@ func (b *Builder) export(imageID string) error {
 }
 
 func (b *Builder) applyTag(imageID string) error {
-	tags := make([]string, 0, 0)
+	tags := make([]string, 0)
 	if b.buildOpts.Tag != "" {
 		tags = append(tags, b.buildOpts.Tag)
 	}

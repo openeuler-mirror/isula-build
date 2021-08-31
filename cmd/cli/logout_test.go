@@ -157,9 +157,8 @@ func TestNewLogoutCmd(t *testing.T) {
 			cmd.SetArgs(strings.Split(tt.args, " "))
 			err := cmd.Execute()
 			if err != nil {
-
+				assert.ErrorContains(t, err, tt.errString)
 			}
-			assert.ErrorContains(t, err, tt.errString)
 		})
 	}
 }

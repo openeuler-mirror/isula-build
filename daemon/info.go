@@ -108,8 +108,8 @@ func (b *Backend) Info(ctx context.Context, req *pb.InfoRequest) (*pb.InfoRespon
 }
 
 func getRegistryInfo() ([]string, []string, []string, error) {
-	registriesInsecure := make([]string, 0, 0)
-	registriesBlock := make([]string, 0, 0)
+	registriesInsecure := make([]string, 0)
+	registriesBlock := make([]string, 0)
 	systemContext := image.GetSystemContext()
 
 	registriesSearch, err := sysregistriesv2.UnqualifiedSearchRegistries(systemContext)

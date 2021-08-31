@@ -158,7 +158,6 @@ func TestResolveCopySource(t *testing.T) {
 		isAdd      bool
 		rawSources []string
 		dest       string
-		contextDir string
 	}
 	tests := []struct {
 		name       string

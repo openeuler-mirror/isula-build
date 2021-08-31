@@ -53,7 +53,7 @@ func NewManifestList() *List {
 			SchemaVersion: container.SchemaVersion,
 			MediaType:     manifest.DockerV2ListMediaType,
 		},
-		instances: make(map[digest.Digest]string, 0),
+		instances: make(map[digest.Digest]string),
 	}
 }
 

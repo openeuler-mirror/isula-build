@@ -330,7 +330,7 @@ func (s *stageBuilder) updateStageBuilder() error {
 		onbuildData = append(onbuildData, []byte(fmt.Sprintf("%s\n", item))...)
 	}
 	// OnBuild is handled, clean it here so that we can add new ONBUILDs on cmd builder if needed
-	s.docker.Config.OnBuild = make([]string, 0, 0)
+	s.docker.Config.OnBuild = make([]string, 0)
 
 	p, err := parser.NewParser(parser.DefaultParser)
 	if err != nil {

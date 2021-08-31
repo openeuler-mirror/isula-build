@@ -109,7 +109,7 @@ func newRowLine(num int, content string) *rowLine {
 
 // preprocess the Dockerfile and get the effective physical line
 func preProcess(r io.Reader) []*rowLine {
-	rowLines := make([]*rowLine, 0, 0)
+	rowLines := make([]*rowLine, 0)
 	scanner := bufio.NewScanner(r)
 	lineNum := 1
 	for scanner.Scan() {
@@ -134,7 +134,7 @@ func format(rows []*rowLine, d *directive) ([]*parser.Line, error) {
 		text := rows[i].content
 		line := &parser.Line{
 			Begin: rows[i].lineNum,
-			Flags: make(map[string]string, 0),
+			Flags: make(map[string]string),
 		}
 
 		var logicLine string
@@ -193,7 +193,7 @@ func constructPages(lines []*parser.Line, onbuild bool) ([]*parser.Page, error) 
 
 	var (
 		pageMap     = make(map[string]*parser.Page)
-		pages       = make([]*parser.Page, 0, 0)
+		pages       = make([]*parser.Page, 0)
 		currentPage *parser.Page
 		pageNum     int
 	)
@@ -204,7 +204,7 @@ func constructPages(lines []*parser.Line, onbuild bool) ([]*parser.Page, error) 
 		}
 		if onbuild && currentPage == nil {
 			currentPage = &parser.Page{
-				Lines: make([]*parser.Line, 0, 0),
+				Lines: make([]*parser.Line, 0),
 				Begin: line.Begin,
 				End:   line.End,
 			}
@@ -227,7 +227,7 @@ func constructPages(lines []*parser.Line, onbuild bool) ([]*parser.Page, error) 
 				Name:  name,
 				Begin: line.Begin,
 				End:   line.End,
-				Lines: make([]*parser.Line, 0, 0),
+				Lines: make([]*parser.Line, 0),
 			}
 			// page name comes from the last cell from "FROM {image} AS {name}
 			// or named it with the index of stage in this dockerfile
@@ -266,7 +266,7 @@ func constructPages(lines []*parser.Line, onbuild bool) ([]*parser.Page, error) 
 // truncHeadingArgs Handle those ARGs before first FROM in the file
 // returns the truncated lines and converted heading args
 func truncHeadingArgs(lines *[]*parser.Line, onbuild bool) ([]string, error) {
-	args := make([]string, 0, 0)
+	args := make([]string, 0)
 	if onbuild {
 		return args, nil
 	}
@@ -295,7 +295,7 @@ const ignoreFile = ".dockerignore"
 // ParseIgnore parses the .dockerignore file in the provide dir, which
 // must be the context directory
 func (df *dockerfile) ParseIgnore(dir string) ([]string, error) {
-	var ignores = make([]string, 0, 0)
+	var ignores = make([]string, 0)
 
 	fullPath := path.Join(dir, ignoreFile)
 	if _, err := os.Stat(fullPath); err != nil {

@@ -45,7 +45,7 @@ type Logger struct {
 // NewRunTimer return an instance of RunTimer
 func NewRunTimer() *RunTimer {
 	return &RunTimer{
-		commands: make([]string, 0, 0),
+		commands: make([]string, 0),
 		cmdMap:   make(map[string]time.Duration),
 	}
 }
