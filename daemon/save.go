@@ -33,6 +33,11 @@ import (
 	"isula.org/isula-build/util"
 )
 
+type savedImage struct {
+	exist bool
+	tags  []reference.NamedTagged
+}
+
 type saveOptions struct {
 	sysCtx            *types.SystemContext
 	localStore        *store.Store
@@ -40,7 +45,7 @@ type saveOptions struct {
 	format            string
 	oriImgList        []string
 	finalImageOrdered []string
-	finalImageSet     map[string][]reference.NamedTagged
+	finalImageSet     map[string]*savedImage
 	outputPath        string
 	logger            *logger.Logger
 	logEntry          *logrus.Entry
@@ -54,7 +59,7 @@ func (b *Backend) getSaveOptions(req *pb.SaveRequest) saveOptions {
 		format:            req.GetFormat(),
 		oriImgList:        req.GetImages(),
 		finalImageOrdered: make([]string, 0),
-		finalImageSet:     make(map[string][]reference.NamedTagged),
+		finalImageSet:     make(map[string]*savedImage),
 		outputPath:        req.GetPath(),
 		logger:            logger.NewCliLogger(constant.CliLogBufferLen),
 		logEntry:          logrus.WithFields(logrus.Fields{"SaveID": req.GetSaveID(), "Format": req.GetFormat()}),
@@ -114,8 +119,10 @@ func exportHandler(ctx context.Context, opts *saveOptions) func() error {
 
 		for _, imageID := range opts.finalImageOrdered {
 			copyCtx := *opts.sysCtx
-			// It's ok for DockerArchiveAdditionalTags == nil, as a result, no additional tags will be appended to the final archive file.
-			copyCtx.DockerArchiveAdditionalTags = opts.finalImageSet[imageID]
+			if opts.format == constant.DockerArchiveTransport {
+				// It's ok for DockerArchiveAdditionalTags == nil, as a result, no additional tags will be appended to the final archive file.
+				copyCtx.DockerArchiveAdditionalTags = opts.finalImageSet[imageID].tags
+			}
 
 			exOpts := exporter.ExportOptions{
 				Ctx:           ctx,
@@ -190,7 +197,11 @@ func filterImageName(opts *saveOptions) error {
 		if err != nil {
 			return errors.Wrapf(err, "filter image name failed when finding image name %q", imageName)
 		}
-		if _, ok := opts.finalImageSet[img.ID]; !ok {
+
+		finalImage, ok := opts.finalImageSet[img.ID]
+		if !ok {
+			finalImage = &savedImage{exist: true}
+			finalImage.tags = []reference.NamedTagged{}
 			opts.finalImageOrdered = append(opts.finalImageOrdered, img.ID)
 		}
 
@@ -199,10 +210,10 @@ func filterImageName(opts *saveOptions) error {
 			return errors.Wrapf(err, "filter image name failed when parsing name %q", imageName)
 		}
 		tagged, withTag := ref.(reference.NamedTagged)
-		if !withTag {
-			continue
+		if withTag {
+			finalImage.tags = append(finalImage.tags, tagged)
 		}
-		opts.finalImageSet[img.ID] = append(opts.finalImageSet[img.ID], tagged)
+		opts.finalImageSet[img.ID] = finalImage
 	}
 
 	return nil
