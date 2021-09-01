@@ -26,7 +26,6 @@ import (
 
 	constant "isula.org/isula-build"
 	pb "isula.org/isula-build/api/services"
-	"isula.org/isula-build/builder/dockerfile"
 	"isula.org/isula-build/exporter"
 	"isula.org/isula-build/image"
 	"isula.org/isula-build/pkg/logger"
@@ -61,7 +60,7 @@ func (b *Backend) ManifestCreate(ctx context.Context, req *pb.ManifestCreateRequ
 	}
 
 	// expand list name
-	_, imageName, err := dockerfile.CheckAndExpandTag(manifestName)
+	_, imageName, err := image.GetNamedTaggedReference(manifestName)
 	if err != nil {
 		logrus.WithField(util.LogKeySessionID, manifestName).Errorf("Check and expand list name err: %v", err)
 		return &pb.ManifestCreateResponse{}, err

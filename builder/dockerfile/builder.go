@@ -27,7 +27,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/containers/image/v5/docker/reference"
 	"github.com/containers/image/v5/manifest"
 	securejoin "github.com/cyphar/filepath-securejoin"
 	"github.com/opencontainers/go-digest"
@@ -203,14 +202,14 @@ func parseTag(output, additionalTag string) (string, string, error) {
 		addTag string
 	)
 	if tag = parseOutputTag(output); tag != "" {
-		_, tag, err = CheckAndExpandTag(tag)
+		_, tag, err = image.GetNamedTaggedReference(tag)
 		if err != nil {
 			return "", "", err
 		}
 	}
 
 	if additionalTag != "" {
-		_, addTag, err = CheckAndExpandTag(additionalTag)
+		_, addTag, err = image.GetNamedTaggedReference(additionalTag)
 		if err != nil {
 			return "", "", err
 		}
@@ -632,43 +631,4 @@ func parseOutputTag(output string) string {
 	}
 
 	return tag
-}
-
-// CheckAndExpandTag checks tag name. If it not include a tag, "latest" will be added.
-func CheckAndExpandTag(tag string) (reference.Named, string, error) {
-	if tag == "" {
-		return nil, "", nil
-	}
-
-	newTag := tag
-	slashLastIndex := strings.LastIndex(newTag, "/")
-	sepLastIndex := strings.LastIndex(newTag, ":")
-	if sepLastIndex == -1 || (sepLastIndex < slashLastIndex) {
-		// isula
-		// localhost:5000/isula
-		newTag = fmt.Sprintf("%s:%s", newTag, constant.DefaultTag)
-	}
-
-	const longestTagFieldsLen = 3
-	if len(strings.Split(newTag, ":")) > longestTagFieldsLen {
-		// localhost:5000:5000/isula:latest
-		return nil, "", errors.Errorf("invalid tag: %v", newTag)
-	}
-
-	oriRef, err := reference.ParseNormalizedNamed(newTag)
-	if err != nil {
-		return nil, "", errors.Wrapf(err, "parse tag err, invalid tag: %v", newTag)
-	}
-
-	tagWithoutRepo := newTag[slashLastIndex+1:]
-	_, err = reference.ParseNormalizedNamed(tagWithoutRepo)
-	if err != nil {
-		// isula:latest:latest
-		// localhost/isula:latest:latest
-		// isula!@#:latest
-		// isula :latest
-		return nil, "", errors.Wrapf(err, "parse tag err, invalid tag: %v", newTag)
-	}
-
-	return oriRef, newTag, nil
 }

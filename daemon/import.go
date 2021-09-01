@@ -62,7 +62,7 @@ func (b *Backend) Import(req *pb.ImportRequest, stream pb.Control_ImportServer) 
 		logEntry.Error(err)
 		return err
 	}
-	_, reference, err = dockerfile.CheckAndExpandTag(reference)
+	_, reference, err = image.GetNamedTaggedReference(reference)
 	if err != nil {
 		logEntry.Error(err)
 		return err
