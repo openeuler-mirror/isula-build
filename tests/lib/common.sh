@@ -222,9 +222,23 @@ function show_and_run_command() {
 }
 
 function run_with_debug() {
-    if [ "${DEBUG:-0}" -eq 1 ]; then
-        $1
-    else
-        $1 > /dev/null 2>&1
+    function fail_and_exit(){
+        echo "FAIL"
+        echo "Run \"journalctl -xefu isula-build\" to get the log."
+        systemctl stop isula-build
+        exit 1
+    }
+
+    if [ "${DEBUG:-0}" -eq 0 ]; then
+        if ! $1 > /dev/null 2>&1; then
+            fail_and_exit
+        fi
+        return
     fi
+    echo "$1"
+    if ! $1; then
+        fail_and_exit
+    fi
+    echo "------------command-delimiter-----------"
+    echo "                                        "
 }

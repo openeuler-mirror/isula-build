@@ -26,6 +26,8 @@ function clean()
 {
     rm -f $config_file
     mv "$config_file".bak $config_file
+
+    isula-build ctr-img rm -p > /dev/null 2>&1
     systemctl stop isula-build
     rm -rf $run_root $data_root
 }

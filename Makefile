@@ -74,7 +74,7 @@ debug:
 build-image:
 	isula-build ctr-img build -f Dockerfile.proto ${IMAGE_BUILDARGS} -o isulad:${IMAGE_NAME}:latest .
 
-tests: test-base test-unit test-integration
+tests: test-unit test-integration
 
 .PHONY: test-base
 test-base:
@@ -89,7 +89,7 @@ test-unit:
 	@echo "Unit test done!"
 
 .PHONY: test-integration
-test-integration:
+test-integration: debug install
 	@echo "Integration test starting..."
 	@./tests/test.sh base
 	@./tests/test.sh integration

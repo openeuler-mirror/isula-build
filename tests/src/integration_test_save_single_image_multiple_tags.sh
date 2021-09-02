@@ -22,6 +22,7 @@ context_dir="$top_dir"/tests/data/add-chown-basic
 
 function clean()
 {
+    isula-build ctr-img rm -p > /dev/null 2>&1
     systemctl stop isula-build
     rm -rf "$temp_tar"
 }
@@ -34,21 +35,42 @@ function pre_test()
 
 function do_test()
 {
-    if ! run_with_debug "isula-build ctr-img build -t $image_name:latest $context_dir"; then
+    # get image id
+    if ! image_id1=$(isula-build ctr-img build -t $image_name:latest "$context_dir"|grep "Build success with image id: "|cut -d ":" -f 2); then
+        echo "FAIL"
+    fi
+    if ! image_id2=$(isula-build ctr-img build -t $image_name:latest2 "$context_dir"|grep "Build success with image id: "|cut -d ":" -f 2); then
         echo "FAIL"
     fi
 
-    if ! run_with_debug "isula-build ctr-img tag $image_name:latest $image_name:latest-child"; then
-        echo "FAIL"
-    fi
+    ! run_with_debug "isula-build ctr-img tag $image_name:latest $image_name:latest-child"
 
-    if ! run_with_debug "isula-build ctr-img save -f docker $image_name:latest $image_name:latest-child -o $temp_tar"; then
-        echo "FAIL"
-    fi
+    # save with id + name
+    ! run_with_debug "isula-build ctr-img save -f docker $image_id1 $image_name:latest-child -o $temp_tar"
+    rm -rf "$temp_tar"
 
-    if ! run_with_debug "isula-build ctr-img rm $image_name:latest $image_name:latest-child"; then
-        echo "FAIL"
-    fi
+    # save with name + id
+    ! run_with_debug "isula-build ctr-img save -f docker $image_name:latest-child $image_id1 -o $temp_tar"
+    rm -rf "$temp_tar"
+
+    # save with name + name
+    ! run_with_debug "isula-build ctr-img save -f docker $image_name:latest $image_name:latest-child -o $temp_tar"
+    rm -rf "$temp_tar"
+
+    # save with different images id1 + id2
+    ! run_with_debug "isula-build ctr-img save -f docker $image_id1 $image_id2 -o $temp_tar"
+    rm -rf "$temp_tar"
+
+    # save with different images "without latest tag" + id2
+    ! run_with_debug "isula-build ctr-img save -f docker $image_name $image_id2 -o $temp_tar"
+    rm -rf "$temp_tar"
+
+    # save with id1 + id2 + name
+    ! run_with_debug "isula-build ctr-img save -f docker $image_id1 $image_id2 $image_name:latest2 -o $temp_tar"
+    rm -rf "$temp_tar"
+
+    ! run_with_debug "isula-build ctr-img rm $image_name:latest $image_name:latest-child"
+    ! run_with_debug "isula-build ctr-img rm $image_name:latest2"
 
     echo "PASS" 
 }
