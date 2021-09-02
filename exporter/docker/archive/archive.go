@@ -60,7 +60,7 @@ func (d *dockerArchiveExporter) Init(opts exporter.ExportOptions, src, destSpec 
 	// destSpec could be "file:name:tag" or "file:name" or just "file" with transport "docker-archive", such as docker-archive:output.tar:name:tag
 	// When more than two parts, build must be called
 	if parts := strings.Split(destSpec, ":"); len(parts) > partsNum {
-		srcReference, _, err = image.FindImageLocally(localStore, src)
+		srcReference, _, err = image.FindImage(localStore, src)
 		if err != nil {
 			return errors.Wrapf(err, "find src image: %q failed with transport %q", src, d.Name())
 		}
@@ -89,7 +89,7 @@ func (d *dockerArchiveExporter) Init(opts exporter.ExportOptions, src, destSpec 
 		DockerArchiveExporter.InitArchiveWriter(opts.ExportID, archWriter)
 	}
 
-	srcReference, _, err = image.FindImageLocally(localStore, src)
+	srcReference, _, err = image.FindImage(localStore, src)
 	if err != nil {
 		return errors.Wrapf(err, "find src image: %q failed with transport %q", src, d.Name())
 	}

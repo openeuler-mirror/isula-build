@@ -129,7 +129,7 @@ func TestSave(t *testing.T) {
 				Format: "docker",
 			},
 			wantErr:   true,
-			errString: "failed to parse image",
+			errString: "not found in local store",
 		},
 		{
 			name: "abnormal case wrong image format",

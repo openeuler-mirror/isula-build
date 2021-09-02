@@ -49,7 +49,7 @@ func (b *Backend) Remove(req *pb.RemoveRequest, stream pb.Control_RemoveServer) 
 	}
 
 	for _, imageID := range rmImageIDs {
-		_, img, err := image.FindImageLocally(s, imageID)
+		_, img, err := image.FindImage(s, imageID)
 		if err != nil {
 			rmFailed = true
 			errMsg := fmt.Sprintf("Find local image %q failed: %v", imageID, err)

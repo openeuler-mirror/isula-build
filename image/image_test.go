@@ -51,7 +51,7 @@ func TestFindImageWhenImageNameIsEmpty(t *testing.T) {
 
 	src := ""
 	srcReference, _, err := FindImage(&localStore, src)
-	assert.ErrorContains(t, err, "locating image")
+	assert.ErrorContains(t, err, "repository name must have at least one component")
 	assert.Assert(t, cmp.Nil(srcReference))
 }
 
