@@ -38,16 +38,7 @@ linters:
     - misspell
     - goconst
   disable:
-    - lll
-    - wsl
-    - depguard
-    - stylecheck
-    - dupl
-    - interfacer
-    - gosimple
     - unused
-    - rowserrcheck
-    - goprintffuncname
   fast: false
 
 output:
@@ -68,7 +59,8 @@ linters-settings:
   gomnd:
     settings:
       mnd:
-        checks: argument, case, condition, return
+        checks: argument, case, condition, operation, return, assign
+        ignored-numbers: 2
   gocritic:
     disabled-checks:
       - ifElseChain

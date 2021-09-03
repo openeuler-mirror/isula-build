@@ -318,7 +318,8 @@ func ChangeGroup(path, g string) error {
 
 // GenerateNonCryptoID generate none crypto id with length 32
 func GenerateNonCryptoID() string {
-	b := make([]byte, 32)
+	nonCryptoIDLength := 32
+	b := make([]byte, nonCryptoIDLength)
 	_, err := rand.Read(b)
 	if err != nil {
 		panic(err) // This shouldn't happen

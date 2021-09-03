@@ -254,28 +254,20 @@ func getLocalImageNameFromRef(store storage.Store, srcRef types.ImageReference) 
 	if err := exporter.CheckArchiveFormat(srcRef.Transport().Name()); err == nil {
 		return stringid.GenerateRandomID() + ":" + stringid.GenerateRandomID(), nil
 	}
-
 	if srcRef.Transport().Name() != constant.DockerTransport {
 		return "", errors.Errorf("the %s transport is not supported yet", srcRef.Transport().Name())
 	}
 
-	var name string
 	ref := srcRef.DockerReference()
 	if ref == nil {
 		return "", errors.New("get the docker reference associated with source reference failed")
 	}
-
-	if named, ok := ref.(reference.Named); ok {
-		name = named.Name()
-		if tag, ok := ref.(reference.NamedTagged); ok {
-			name = name + ":" + tag.Tag()
-		}
-		if dig, ok := ref.(reference.Canonical); ok {
-			name = name + "@" + dig.Digest().String()
-		}
+	name := ref.Name()
+	if tag, ok := ref.(reference.NamedTagged); ok {
+		name = name + ":" + tag.Tag()
 	}
-	if _, err := is.Transport.ParseStoreReference(store, name); err != nil {
-		return "", errors.Wrapf(err, "parsing image name %q failed", name)
+	if dig, ok := ref.(reference.Canonical); ok {
+		name = name + "@" + dig.Digest().String()
 	}
 
 	return name, nil
