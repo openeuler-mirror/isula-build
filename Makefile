@@ -39,22 +39,30 @@ else
 export GO_BUILD=$(GO) build
 endif
 
+##@ Help
+.PHONY: help
+help: ## Display the help info
+	@awk 'BEGIN {FS = ":.*##"; printf "\nUsage:\n  make \033[36m<target>\033[0m\n"} /^[a-zA-Z_0-9-]+:.*?##/ { printf "  \033[36m%-20s\033[0m %s\n", $$1, $$2 } /^##@/ { printf "\n\033[1m%s\033[0m\n", substr($$0, 5) } ' $(MAKEFILE_LIST)
+
+##@ Build
+
+.PHONY: all ## Build both isula-build and isula-builder
 all: isula-build isula-builder
 
 .PHONY: isula-build
-isula-build: ./cmd/cli
+isula-build: ./cmd/cli ## Build isula-build only
 	@echo "Making isula-build..."
 	$(GO_BUILD) -ldflags '$(LDFLAGS)' -o bin/isula-build $(BUILDFLAGS) ./cmd/cli
 	@echo "isula-build done!"
 
 .PHONY: isula-builder
-isula-builder: ./cmd/daemon
+isula-builder: ./cmd/daemon ## Build isula-builder only
 	@echo "Making isula-builder..."
 	$(GO_BUILD) -ldflags '$(LDFLAGS)' -o bin/isula-builder $(BUILDFLAGS) ./cmd/daemon
 	@echo "isula-builder done!"
 
 .PHONY: safe
-safe:
+safe: ## Build binary with secure compile flag enabled
 	@echo "Safe building isula-build..."
 	mkdir -p ${TMPDIR}
 	$(GO_BUILD) -ldflags '$(SAFEBUILDFLAGS) $(STATIC_LDFLAGS)' -o bin/isula-build $(BUILDFLAGS) ./cmd/cli 2>/dev/null
@@ -62,7 +70,7 @@ safe:
 	@echo "Safe build isula-build done!"
 
 .PHONY: debug
-debug:
+debug: ## Build binary with debug info inside
 	@echo "Debug building isula-build..."
 	@cp -f ./hack/profiling ./daemon/profiling.go
 	$(GO_BUILD) -ldflags '$(LDFLAGS)' -gcflags="all=-N -l" -o bin/isula-build $(BUILDFLAGS) ./cmd/cli
@@ -70,39 +78,8 @@ debug:
 	@rm -f ./daemon/profiling.go
 	@echo "Debug build isula-build done!"
 
-.PHONY: build-image
-build-image:
-	isula-build ctr-img build -f Dockerfile.proto ${IMAGE_BUILDARGS} -o isulad:${IMAGE_NAME}:latest .
-
-tests: test-unit test-integration
-
-.PHONY: test-base
-test-base:
-	@echo "Base test starting..."
-	@./tests/test.sh base
-	@echo "Base test done!"
-
-.PHONY: test-unit
-test-unit:
-	@echo "Unit test starting..."
-	@./hack/unit_test.sh
-	@echo "Unit test done!"
-
-.PHONY: test-integration
-test-integration: debug install
-	@echo "Integration test starting..."
-	@./tests/test.sh base
-	@./tests/test.sh integration
-	@echo "Integration test done!"
-
-.PHONY: proto
-proto:
-	@echo "Generating protobuf..."
-	isula run -i --rm --runtime runc -v ${PWD}:/go/src/isula.org/isula-build ${IMAGE_NAME} ./hack/generate_proto.sh
-	@echo "Protobuf files have been generated!"
-
 .PHONY: install
-install:
+install: ## Install binary and configs
 	install -D -m0550 bin/isula-build $(BINDIR)
 	install -D -m0550 bin/isula-builder $(BINDIR)
 	@( getent group isula > /dev/null ) || ( groupadd --system isula )
@@ -112,17 +89,53 @@ install:
 	@( [ -f ${CONFIG_DIR}/${REGIST_FILE} ] && printf "%-20s %s\n" "${REGIST_FILE}" "already exist in ${CONFIG_DIR}, please replace it manually." ) || install -D -m0600 ${LOCAL_CONF_PREFIX}/${REGIST_FILE} ${CONFIG_DIR}/${REGIST_FILE}
 	@( [ -f ${CONFIG_DIR}/${STORAGE_FILE} ] && printf "%-20s %s\n" "${STORAGE_FILE}" "already exist in ${CONFIG_DIR}, please replace it manually." ) || install -D -m0600 ${LOCAL_CONF_PREFIX}/${STORAGE_FILE} ${CONFIG_DIR}/${STORAGE_FILE}
 
-.PHONY: checkall
-checkall:
-	@echo "Static check start for whole project"
-	@./hack/static_check.sh all
-	@echo "Static check project finished"
+
+##@ Test
+
+tests: test-base test-unit test-integration ## Test all
+
+.PHONY: test-base
+test-base: ## Test base case
+	@echo "Base test starting..."
+	@./tests/test.sh base
+	@echo "Base test done!"
+
+.PHONY: test-unit
+test-unit: ## Test unit case
+	@echo "Unit test starting..."
+	@./hack/unit_test.sh
+	@echo "Unit test done!"
+
+.PHONY: test-integration
+test-integration: ## Test integration case
+	@echo "Integration test starting..."
+	@./tests/test.sh integration
+	@echo "Integration test done!"
+
+##@ Development
+
+.PHONY: build-image
+build-image: ## Build protobuf compile environment container image
+	isula-build ctr-img build -f Dockerfile.proto ${IMAGE_BUILDARGS} -o isulad:${IMAGE_NAME}:latest .
+
+.PHONY: proto
+proto: ## Generate protobuf file
+	@echo "Generating protobuf..."
+	isula run -i --rm --runtime runc -v ${PWD}:/go/src/isula.org/isula-build ${IMAGE_NAME} ./hack/generate_proto.sh
+	@echo "Protobuf files have been generated!"
+
 .PHONY: check
-check:
+check: ## Static check for current commit
 	@echo "Static check start for last commit"
 	@./hack/static_check.sh last
 	@echo "Static check last commit finished"
 
+.PHONY: checkall
+checkall: ## Static check for whole project
+	@echo "Static check start for whole project"
+	@./hack/static_check.sh all
+	@echo "Static check project finished"
+
 .PHONY: clean
-clean:
+clean: ## Clean project
 	rm -rf ./bin
