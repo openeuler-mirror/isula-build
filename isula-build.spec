@@ -2,7 +2,7 @@
 
 Name: isula-build
 Version: 0.9.5
-Release: 12
+Release: 13
 Summary: A tool to build container images
 License: Mulan PSL V2
 URL: https://gitee.com/openeuler/isula-build
@@ -63,7 +63,7 @@ install -p -m 600 __isula-build %{buildroot}/usr/share/bash-completion/completio
 %clean
 rm -rf %{buildroot}
 
-%pretrans
+%pre
 if ! getent group isula > /dev/null; then
     groupadd --system isula
 fi
@@ -85,6 +85,12 @@ fi
 /usr/share/bash-completion/completions/isula-build
 
 %changelog
+* Thu Oct 14 2021 DCCooper <1866858@gmail.com> - 0.9.5-13
+- Type:bugfix
+- CVE:NA
+- SUG:restart
+- DESC:use pre instead of pretrans for groupadd
+
 * Fri Sep 03 2021 xingweizheng <xingweizheng@huawei.com> - 0.9.5-12
 - Type:bugfix
 - CVE:NA
