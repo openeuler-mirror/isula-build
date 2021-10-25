@@ -1,0 +1,97 @@
+From 0b2d60bd700378eea88641cdb2d6fd3ff5bdc6ee Mon Sep 17 00:00:00 2001
+From: xingweizheng <xingweizheng@huawei.com>
+Date: Wed, 1 Sep 2021 01:12:11 +0800
+Subject: [PATCH 19/20] change golangci-lint config and remove redundant check
+
+---
+ .golangci.yml  | 12 ++----------
+ image/image.go | 18 +++++-------------
+ util/util.go   |  3 ++-
+ 3 files changed, 9 insertions(+), 24 deletions(-)
+
+diff --git a/.golangci.yml b/.golangci.yml
+index 46ef20b3..50a31292 100644
+--- a/.golangci.yml
++++ b/.golangci.yml
+@@ -38,16 +38,7 @@ linters:
+     - misspell
+     - goconst
+   disable:
+-    - lll
+-    - wsl
+-    - depguard
+-    - stylecheck
+-    - dupl
+-    - interfacer
+-    - gosimple
+     - unused
+-    - rowserrcheck
+-    - goprintffuncname
+   fast: false
+ 
+ output:
+@@ -68,7 +59,8 @@ linters-settings:
+   gomnd:
+     settings:
+       mnd:
+-        checks: argument, case, condition, return
++        checks: argument, case, condition, operation, return, assign
++        ignored-numbers: 2
+   gocritic:
+     disabled-checks:
+       - ifElseChain
+diff --git a/image/image.go b/image/image.go
+index 892f2593..b5a3757c 100644
+--- a/image/image.go
++++ b/image/image.go
+@@ -254,28 +254,20 @@ func getLocalImageNameFromRef(store storage.Store, srcRef types.ImageReference)
+ 	if err := exporter.CheckArchiveFormat(srcRef.Transport().Name()); err == nil {
+ 		return stringid.GenerateRandomID() + ":" + stringid.GenerateRandomID(), nil
+ 	}
+-
+ 	if srcRef.Transport().Name() != constant.DockerTransport {
+ 		return "", errors.Errorf("the %s transport is not supported yet", srcRef.Transport().Name())
+ 	}
+ 
+-	var name string
+ 	ref := srcRef.DockerReference()
+ 	if ref == nil {
+ 		return "", errors.New("get the docker reference associated with source reference failed")
+ 	}
+-
+-	if named, ok := ref.(reference.Named); ok {
+-		name = named.Name()
+-		if tag, ok := ref.(reference.NamedTagged); ok {
+-			name = name + ":" + tag.Tag()
+-		}
+-		if dig, ok := ref.(reference.Canonical); ok {
+-			name = name + "@" + dig.Digest().String()
+-		}
++	name := ref.Name()
++	if tag, ok := ref.(reference.NamedTagged); ok {
++		name = name + ":" + tag.Tag()
+ 	}
+-	if _, err := is.Transport.ParseStoreReference(store, name); err != nil {
+-		return "", errors.Wrapf(err, "parsing image name %q failed", name)
++	if dig, ok := ref.(reference.Canonical); ok {
++		name = name + "@" + dig.Digest().String()
+ 	}
+ 
+ 	return name, nil
+diff --git a/util/util.go b/util/util.go
+index f5276080..8c1e09e4 100644
+--- a/util/util.go
++++ b/util/util.go
+@@ -318,7 +318,8 @@ func ChangeGroup(path, g string) error {
+ 
+ // GenerateNonCryptoID generate none crypto id with length 32
+ func GenerateNonCryptoID() string {
+-	b := make([]byte, 32)
++	nonCryptoIDLength := 32
++	b := make([]byte, nonCryptoIDLength)
+ 	_, err := rand.Read(b)
+ 	if err != nil {
+ 		panic(err) // This shouldn't happen
+-- 
+2.31.1
+
