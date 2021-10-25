@@ -482,7 +482,7 @@ func FindImage(store *store.Store, image string) (types.ImageReference, *storage
 	if err != nil {
 		return nil, nil, errors.Wrapf(err, "failed to parse image %q in local store", localName)
 	}
-	
+
 	return ref, img, nil
 }
 
@@ -528,9 +528,8 @@ func tryResolveNameInStore(name string, store *store.Store) string {
 		return img.ID
 	}
 
-	defaultTag := "latest"
-	logrus.Infof("Try to find image: %s:%s in local storage", name, defaultTag)
-	img, err = store.Image(fmt.Sprintf("%s:%s", name, defaultTag))
+	logrus.Infof("Try to find image: %s:%s in local storage", name, constant.DefaultTag)
+	img, err = store.Image(fmt.Sprintf("%s:%s", name, constant.DefaultTag))
 	if err != nil {
 		return ""
 	}
@@ -621,25 +620,24 @@ func tryResolveNameInRegistries(name string, sc *types.SystemContext) ([]string,
 	return candidates, constant.DockerTransport
 }
 
-// CheckAndAddDefaultTag checks if src is format of repository[:tag], add default tag if src without tag
-func CheckAndAddDefaultTag(imageName string, store *store.Store) (string, error) {
-	_, img, err := FindImage(store, imageName)
+// GetNamedTaggedReference checks an image name, if it does not include a tag, default tag "latest" will be added to it.
+func GetNamedTaggedReference(image string) (reference.NamedTagged, string, error) {
+	if image == "" {
+		return nil, "", nil
+	}
+
+	if slashLastIndex, sepLastIndex := strings.LastIndex(image, "/"), strings.LastIndex(image, ":"); sepLastIndex == -1 || (sepLastIndex < slashLastIndex) {
+		image = fmt.Sprintf("%s:%s", image, constant.DefaultTag)
+	}
+
+	ref, err := reference.Parse(image)
 	if err != nil {
-		return "", errors.Wrapf(err, "find src image: %q failed", imageName)
+		return nil, "", errors.Wrapf(err, "filter image name failed when parsing name %q", image)
+	}
+	tagged, withTag := ref.(reference.NamedTagged)
+	if !withTag {
+		return nil, "", errors.Errorf("image %q does not contain a tag even though the default tag is added", image)
 	}
 
-	defaultTag := "latest"
-	for _, name := range img.Names {
-		// for imageName is the format of repository[:tag]
-		if imageName == name {
-			return imageName, nil
-		}
-		// for name is the format of repository
-		if fmt.Sprintf("%s:%s", imageName, defaultTag) == name {
-			return name, nil
-		}
-	}
-
-	// for imageName is the format of imageID
-	return imageName, nil
+	return tagged, image, nil
 }

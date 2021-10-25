@@ -123,3 +123,99 @@ registries = []
 	assert.Assert(t, cmp.Contains(candidates, "localhost/busybox:latest"))
 	assert.Equal(t, transport, constant.DockerTransport)
 }
+
+func TestGetNamedTaggedReference(t *testing.T) {
+	type testcase struct {
+		name      string
+		tag       string
+		output    string
+		wantErr   bool
+		errString string
+	}
+	testcases := []testcase{
+		{
+			name:    "test 1",
+			tag:     "isula/test",
+			output:  "isula/test:latest",
+			wantErr: false,
+		},
+		{
+			name:    "test 2",
+			tag:     "localhost:5000/test",
+			output:  "localhost:5000/test:latest",
+			wantErr: false,
+		},
+		{
+			name:    "test 3",
+			tag:     "isula/test:latest",
+			output:  "isula/test:latest",
+			wantErr: false,
+		},
+		{
+			name:    "test 4",
+			tag:     "localhost:5000/test:latest",
+			output:  "localhost:5000/test:latest",
+			wantErr: false,
+		},
+		{
+			name:      "test 5",
+			tag:       "localhost:5000:aaa/test:latest",
+			output:    "",
+			wantErr:   true,
+			errString: "invalid reference format",
+		},
+		{
+			name:      "test 6",
+			tag:       "localhost:5000:aaa/test",
+			output:    "",
+			wantErr:   true,
+			errString: "invalid reference format",
+		},
+		{
+			name:      "test 7",
+			tag:       "localhost:5000/test:latest:latest",
+			output:    "",
+			wantErr:   true,
+			errString: "invalid reference format",
+		},
+		{
+			name:      "test 8",
+			tag:       "test:latest:latest",
+			output:    "",
+			wantErr:   true,
+			errString: "invalid reference format",
+		},
+		{
+			name:    "test 9",
+			tag:     "",
+			output:  "",
+			wantErr: false,
+		},
+		{
+			name:      "test 10",
+			tag:       "abc efg:latest",
+			output:    "",
+			wantErr:   true,
+			errString: "invalid reference format",
+		},
+		{
+			name:      "test 11",
+			tag:       "abc!@#:latest",
+			output:    "",
+			wantErr:   true,
+			errString: "invalid reference format",
+		},
+	}
+	for _, tc := range testcases {
+		t.Run(tc.name, func(t *testing.T) {
+			_, tag, err := GetNamedTaggedReference(tc.tag)
+			if !tc.wantErr {
+				assert.Equal(t, tag, tc.output, tc.name)
+			}
+			if tc.wantErr {
+				assert.ErrorContains(t, err, tc.errString)
+			}
+		})
+
+	}
+}

@@ -19,7 +19,6 @@ import (
 	"sync"
 
 	"github.com/containers/image/v5/docker/archive"
-	"github.com/containers/image/v5/transports/alltransports"
 	"github.com/containers/image/v5/types"
 	"github.com/pkg/errors"
 
@@ -50,24 +49,47 @@ func (d *dockerArchiveExporter) Name() string {
 }
 
 func (d *dockerArchiveExporter) Init(opts exporter.ExportOptions, src, destSpec string, localStore *store.Store) error {
-	var (
-		srcReference  types.ImageReference
-		destReference types.ImageReference
-		err           error
-	)
+	var archiveFilePath string
+
 	const partsNum = 2
-	// src could be form of ImageID digest or name[:tag]
+
+	// src is an imageid digest
 	// destSpec could be "file:name:tag" or "file:name" or just "file" with transport "docker-archive", such as docker-archive:output.tar:name:tag
-	// When more than two parts, build must be called
+	if parts := strings.Split(destSpec, ":"); len(parts) < partsNum {
+		return errors.Errorf("image name %q is invalid", destSpec)
+	} else if len(parts) == partsNum {
+		archiveFilePath = strings.SplitN(destSpec, ":", partsNum)[1]
+	} else {
+		fileNameTag := strings.SplitN(destSpec, ":", partsNum)[1]
+		archiveFilePath = strings.SplitN(fileNameTag, ":", partsNum)[0]
+	}
+
+	if DockerArchiveExporter.GetArchiveWriter(opts.ExportID) == nil {
+		archWriter, err := archive.NewWriter(opts.SystemContext, archiveFilePath)
+		if err != nil {
+			return errors.Wrapf(err, "create archive writer failed")
+		}
+		DockerArchiveExporter.InitArchiveWriter(opts.ExportID, archWriter)
+	}
+
+	// when destSpec is more than two parts, build operation must be called
 	if parts := strings.Split(destSpec, ":"); len(parts) > partsNum {
-		srcReference, _, err = image.FindImage(localStore, src)
+		srcReference, _, err := image.FindImage(localStore, src)
 		if err != nil {
 			return errors.Wrapf(err, "find src image: %q failed with transport %q", src, d.Name())
 		}
-		destReference, err = alltransports.ParseImageName(destSpec)
+
+		// removing docker.io/library/ prefix by not using alltransports.ParseImageName
+		namedTagged, _, err := image.GetNamedTaggedReference(strings.Join(parts[2:], ":"))
+		if err != nil {
+			return errors.Wrapf(err, "get named tagged reference of image %q failed", strings.Join(parts[2:], ":"))
+		}
+		archiveWriter := DockerArchiveExporter.GetArchiveWriter(opts.ExportID)
+		destReference, err := archiveWriter.NewReference(namedTagged)
 		if err != nil {
 			return errors.Wrapf(err, "parse dest spec: %q failed with transport %q", destSpec, d.Name())
 		}
+
 		d.Lock()
 		d.items[opts.ExportID] = exporter.Bus{
 			SrcRef:  srcReference,
@@ -79,23 +101,13 @@ func (d *dockerArchiveExporter) Init(opts exporter.ExportOptions, src, destSpec 
 	}
 
 	// from build or save, we can get path from the other part
-	archiveFilePath := strings.SplitN(destSpec, ":", partsNum)[1]
-
-	if DockerArchiveExporter.GetArchiveWriter(opts.ExportID) == nil {
-		archWriter, wErr := archive.NewWriter(opts.SystemContext, archiveFilePath)
-		if wErr != nil {
-			return errors.Wrapf(wErr, "create archive writer failed")
-		}
-		DockerArchiveExporter.InitArchiveWriter(opts.ExportID, archWriter)
-	}
-
-	srcReference, _, err = image.FindImage(localStore, src)
+	srcReference, _, err := image.FindImage(localStore, src)
 	if err != nil {
 		return errors.Wrapf(err, "find src image: %q failed with transport %q", src, d.Name())
 	}
 
 	archiveWriter := DockerArchiveExporter.GetArchiveWriter(opts.ExportID)
-	destReference, err = archiveWriter.NewReference(nil)
+	destReference, err := archiveWriter.NewReference(nil)
 	if err != nil {
 		return errors.Wrapf(err, "parse dest spec: %q failed", destSpec)
 	}

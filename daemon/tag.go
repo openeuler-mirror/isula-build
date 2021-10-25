@@ -21,7 +21,6 @@ import (
 	"github.com/sirupsen/logrus"
 
 	pb "isula.org/isula-build/api/services"
-	"isula.org/isula-build/builder/dockerfile"
 	"isula.org/isula-build/image"
 )
 
@@ -40,7 +39,7 @@ func (b *Backend) Tag(ctx context.Context, req *pb.TagRequest) (*gogotypes.Empty
 		return emptyResp, errors.Wrapf(err, "find local image %v error", req.Image)
 	}
 
-	_, imageName, err := dockerfile.CheckAndExpandTag(req.Tag)
+	_, imageName, err := image.GetNamedTaggedReference(req.Tag)
 	if err != nil {
 		return emptyResp, err
 	}
