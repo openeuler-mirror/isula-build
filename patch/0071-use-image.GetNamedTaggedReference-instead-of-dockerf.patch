@@ -1,0 +1,236 @@
+From 7117427081e16b18eca768bf4e3274bd3e1fbb2b Mon Sep 17 00:00:00 2001
+From: xingweizheng <xingweizheng@huawei.com>
+Date: Wed, 1 Sep 2021 22:29:12 +0800
+Subject: [PATCH 5/5] use image.GetNamedTaggedReference instead of
+ dockerfile.CheckAndExpandTag
+
+---
+ builder/dockerfile/builder.go      | 44 +-------------------
+ builder/dockerfile/builder_test.go | 84 --------------------------------------
+ daemon/import.go                   |  2 +-
+ daemon/manifest.go                 |  3 +-
+ daemon/tag.go                      |  3 +-
+ 5 files changed, 5 insertions(+), 131 deletions(-)
+
+diff --git a/builder/dockerfile/builder.go b/builder/dockerfile/builder.go
+index e28fac9..df8c6ce 100644
+--- a/builder/dockerfile/builder.go
++++ b/builder/dockerfile/builder.go
+@@ -27,7 +27,6 @@ import (
+ 	"strings"
+ 	"time"
+ 
+-	"github.com/containers/image/v5/docker/reference"
+ 	"github.com/containers/image/v5/manifest"
+ 	securejoin "github.com/cyphar/filepath-securejoin"
+ 	"github.com/opencontainers/go-digest"
+@@ -203,14 +202,14 @@ func parseTag(output, additionalTag string) (string, string, error) {
+ 		addTag string
+ 	)
+ 	if tag = parseOutputTag(output); tag != "" {
+-		_, tag, err = CheckAndExpandTag(tag)
++		_, tag, err = image.GetNamedTaggedReference(tag)
+ 		if err != nil {
+ 			return "", "", err
+ 		}
+ 	}
+ 
+ 	if additionalTag != "" {
+-		_, addTag, err = CheckAndExpandTag(additionalTag)
++		_, addTag, err = image.GetNamedTaggedReference(additionalTag)
+ 		if err != nil {
+ 			return "", "", err
+ 		}
+@@ -633,42 +632,3 @@ func parseOutputTag(output string) string {
+ 
+ 	return tag
+ }
+-
+-// CheckAndExpandTag checks tag name. If it not include a tag, "latest" will be added.
+-func CheckAndExpandTag(tag string) (reference.Named, string, error) {
+-	if tag == "" {
+-		return nil, "", nil
+-	}
+-
+-	newTag := tag
+-	slashLastIndex := strings.LastIndex(newTag, "/")
+-	sepLastIndex := strings.LastIndex(newTag, ":")
+-	if sepLastIndex == -1 || (sepLastIndex < slashLastIndex) {
+-		// isula
+-		// localhost:5000/isula
+-		newTag = fmt.Sprintf("%s:%s", newTag, constant.DefaultTag)
+-	}
+-
+-	const longestTagFieldsLen = 3
+-	if len(strings.Split(newTag, ":")) > longestTagFieldsLen {
+-		// localhost:5000:5000/isula:latest
+-		return nil, "", errors.Errorf("invalid tag: %v", newTag)
+-	}
+-
+-	oriRef, err := reference.ParseNormalizedNamed(newTag)
+-	if err != nil {
+-		return nil, "", errors.Wrapf(err, "parse tag err, invalid tag: %v", newTag)
+-	}
+-
+-	tagWithoutRepo := newTag[slashLastIndex+1:]
+-	_, err = reference.ParseNormalizedNamed(tagWithoutRepo)
+-	if err != nil {
+-		// isula:latest:latest
+-		// localhost/isula:latest:latest
+-		// isula!@#:latest
+-		// isula :latest
+-		return nil, "", errors.Wrapf(err, "parse tag err, invalid tag: %v", newTag)
+-	}
+-
+-	return oriRef, newTag, nil
+-}
+diff --git a/builder/dockerfile/builder_test.go b/builder/dockerfile/builder_test.go
+index 60668e1..c2fec6c 100644
+--- a/builder/dockerfile/builder_test.go
++++ b/builder/dockerfile/builder_test.go
+@@ -1470,87 +1470,3 @@ func TestNewBuilder(t *testing.T) {
+ 		})
+ 	}
+ }
+-
+-func TestCheckAndExpandTag(t *testing.T) {
+-	type testcase struct {
+-		name    string
+-		tag     string
+-		output  string
+-		wantErr bool
+-	}
+-	testcases := []testcase{
+-		{
+-			name:    "test 1",
+-			tag:     "isula/test",
+-			output:  "isula/test:latest",
+-			wantErr: false,
+-		},
+-		{
+-			name:    "test 2",
+-			tag:     "localhost:5000/test",
+-			output:  "localhost:5000/test:latest",
+-			wantErr: false,
+-		},
+-		{
+-			name:    "test 3",
+-			tag:     "isula/test:latest",
+-			output:  "isula/test:latest",
+-			wantErr: false,
+-		},
+-		{
+-			name:    "test 4",
+-			tag:     "localhost:5000/test:latest",
+-			output:  "localhost:5000/test:latest",
+-			wantErr: false,
+-		},
+-		{
+-			name:    "test 5",
+-			tag:     "localhost:5000:aaa/test:latest",
+-			output:  "",
+-			wantErr: true,
+-		},
+-		{
+-			name:    "test 6",
+-			tag:     "localhost:5000:aaa/test",
+-			output:  "",
+-			wantErr: true,
+-		},
+-		{
+-			name:    "test 7",
+-			tag:     "localhost:5000/test:latest:latest",
+-			output:  "",
+-			wantErr: true,
+-		},
+-		{
+-			name:    "test 8",
+-			tag:     "test:latest:latest",
+-			output:  "",
+-			wantErr: true,
+-		},
+-		{
+-			name:    "test 9",
+-			tag:     "",
+-			output:  "",
+-			wantErr: false,
+-		},
+-		{
+-			name:    "test 10",
+-			tag:     "abc efg:latest",
+-			output:  "",
+-			wantErr: true,
+-		},
+-		{
+-			name:    "test 10",
+-			tag:     "abc!@#:latest",
+-			output:  "",
+-			wantErr: true,
+-		},
+-	}
+-	for _, tc := range testcases {
+-		_, tag, err := CheckAndExpandTag(tc.tag)
+-		assert.Equal(t, tag, tc.output, tc.name)
+-		if (err != nil) != tc.wantErr {
+-			t.Errorf("getCheckAndExpandTag() error = %v, wantErr %v", err, tc.wantErr)
+-		}
+-	}
+-}
+diff --git a/daemon/import.go b/daemon/import.go
+index 40a0a92..2da36be 100644
+--- a/daemon/import.go
++++ b/daemon/import.go
+@@ -62,7 +62,7 @@ func (b *Backend) Import(req *pb.ImportRequest, stream pb.Control_ImportServer)
+ 		logEntry.Error(err)
+ 		return err
+ 	}
+-	_, reference, err = dockerfile.CheckAndExpandTag(reference)
++	_, reference, err = image.GetNamedTaggedReference(reference)
+ 	if err != nil {
+ 		logEntry.Error(err)
+ 		return err
+diff --git a/daemon/manifest.go b/daemon/manifest.go
+index 36e7674..940850e 100644
+--- a/daemon/manifest.go
++++ b/daemon/manifest.go
+@@ -26,7 +26,6 @@ import (
+ 
+ 	constant "isula.org/isula-build"
+ 	pb "isula.org/isula-build/api/services"
+-	"isula.org/isula-build/builder/dockerfile"
+ 	"isula.org/isula-build/exporter"
+ 	"isula.org/isula-build/image"
+ 	"isula.org/isula-build/pkg/logger"
+@@ -61,7 +60,7 @@ func (b *Backend) ManifestCreate(ctx context.Context, req *pb.ManifestCreateRequ
+ 	}
+ 
+ 	// expand list name
+-	_, imageName, err := dockerfile.CheckAndExpandTag(manifestName)
++	_, imageName, err := image.GetNamedTaggedReference(manifestName)
+ 	if err != nil {
+ 		logrus.WithField(util.LogKeySessionID, manifestName).Errorf("Check and expand list name err: %v", err)
+ 		return &pb.ManifestCreateResponse{}, err
+diff --git a/daemon/tag.go b/daemon/tag.go
+index fe6a5a2..57de15c 100644
+--- a/daemon/tag.go
++++ b/daemon/tag.go
+@@ -21,7 +21,6 @@ import (
+ 	"github.com/sirupsen/logrus"
+ 
+ 	pb "isula.org/isula-build/api/services"
+-	"isula.org/isula-build/builder/dockerfile"
+ 	"isula.org/isula-build/image"
+ )
+ 
+@@ -40,7 +39,7 @@ func (b *Backend) Tag(ctx context.Context, req *pb.TagRequest) (*gogotypes.Empty
+ 		return emptyResp, errors.Wrapf(err, "find local image %v error", req.Image)
+ 	}
+ 
+-	_, imageName, err := dockerfile.CheckAndExpandTag(req.Tag)
++	_, imageName, err := image.GetNamedTaggedReference(req.Tag)
+ 	if err != nil {
+ 		return emptyResp, err
+ 	}
+-- 
+1.8.3.1
+

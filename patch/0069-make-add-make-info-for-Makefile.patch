@@ -1,0 +1,151 @@
+From a7c81c6997cb6f9eb25b227430789555f700fa4c Mon Sep 17 00:00:00 2001
+From: DCCooper <1866858@gmail.com>
+Date: Wed, 15 Sep 2021 11:32:16 +0800
+Subject: [PATCH 20/20] make: add make info for Makefile
+
+Signed-off-by: DCCooper <1866858@gmail.com>
+---
+ Makefile | 73 +++++++++++++++++++++++++++++++++-----------------------
+ 1 file changed, 43 insertions(+), 30 deletions(-)
+
+diff --git a/Makefile b/Makefile
+index d5b1c537..d41a9fdb 100644
+--- a/Makefile
++++ b/Makefile
+@@ -39,22 +39,30 @@ else
+ export GO_BUILD=$(GO) build
+ endif
+ 
++##@ Help
++.PHONY: help
++help: ## Display the help info
++	@awk 'BEGIN {FS = ":.*##"; printf "\nUsage:\n  make \033[36m<target>\033[0m\n"} /^[a-zA-Z_0-9-]+:.*?##/ { printf "  \033[36m%-20s\033[0m %s\n", $$1, $$2 } /^##@/ { printf "\n\033[1m%s\033[0m\n", substr($$0, 5) } ' $(MAKEFILE_LIST)
++
++##@ Build
++
++.PHONY: all ## Build both isula-build and isula-builder
+ all: isula-build isula-builder
+ 
+ .PHONY: isula-build
+-isula-build: ./cmd/cli
++isula-build: ./cmd/cli ## Build isula-build only
+ 	@echo "Making isula-build..."
+ 	$(GO_BUILD) -ldflags '$(LDFLAGS)' -o bin/isula-build $(BUILDFLAGS) ./cmd/cli
+ 	@echo "isula-build done!"
+ 
+ .PHONY: isula-builder
+-isula-builder: ./cmd/daemon
++isula-builder: ./cmd/daemon ## Build isula-builder only
+ 	@echo "Making isula-builder..."
+ 	$(GO_BUILD) -ldflags '$(LDFLAGS)' -o bin/isula-builder $(BUILDFLAGS) ./cmd/daemon
+ 	@echo "isula-builder done!"
+ 
+ .PHONY: safe
+-safe:
++safe: ## Build binary with secure compile flag enabled
+ 	@echo "Safe building isula-build..."
+ 	mkdir -p ${TMPDIR}
+ 	$(GO_BUILD) -ldflags '$(SAFEBUILDFLAGS) $(STATIC_LDFLAGS)' -o bin/isula-build $(BUILDFLAGS) ./cmd/cli 2>/dev/null
+@@ -62,7 +70,7 @@ safe:
+ 	@echo "Safe build isula-build done!"
+ 
+ .PHONY: debug
+-debug:
++debug: ## Build binary with debug info inside
+ 	@echo "Debug building isula-build..."
+ 	@cp -f ./hack/profiling ./daemon/profiling.go
+ 	$(GO_BUILD) -ldflags '$(LDFLAGS)' -gcflags="all=-N -l" -o bin/isula-build $(BUILDFLAGS) ./cmd/cli
+@@ -70,59 +78,64 @@ debug:
+ 	@rm -f ./daemon/profiling.go
+ 	@echo "Debug build isula-build done!"
+ 
+-.PHONY: build-image
+-build-image:
+-	isula-build ctr-img build -f Dockerfile.proto ${IMAGE_BUILDARGS} -o isulad:${IMAGE_NAME}:latest .
++.PHONY: install
++install: ## Install binary and configs
++	install -D -m0550 bin/isula-build $(BINDIR)
++	install -D -m0550 bin/isula-builder $(BINDIR)
++	@( getent group isula > /dev/null ) || ( groupadd --system isula )
++	@[ ! -d ${CONFIG_DIR}/${CONFIG_FILE} ] && install -dm0650 ${CONFIG_DIR}
++	@( [ -f ${CONFIG_DIR}/${CONFIG_FILE} ] && printf "%-20s %s\n" "${CONFIG_FILE}" "already exist in ${CONFIG_DIR}, please replace it manually." ) || install -D -m0600 ${LOCAL_CONF_PREFIX}/${CONFIG_FILE} ${CONFIG_DIR}/${CONFIG_FILE}
++	@( [ -f ${CONFIG_DIR}/${POLICY_FILE} ] && printf "%-20s %s\n" "${POLICY_FILE}" "already exist in ${CONFIG_DIR}, please replace it manually." ) || install -D -m0600 ${LOCAL_CONF_PREFIX}/${POLICY_FILE} ${CONFIG_DIR}/${POLICY_FILE}
++	@( [ -f ${CONFIG_DIR}/${REGIST_FILE} ] && printf "%-20s %s\n" "${REGIST_FILE}" "already exist in ${CONFIG_DIR}, please replace it manually." ) || install -D -m0600 ${LOCAL_CONF_PREFIX}/${REGIST_FILE} ${CONFIG_DIR}/${REGIST_FILE}
++	@( [ -f ${CONFIG_DIR}/${STORAGE_FILE} ] && printf "%-20s %s\n" "${STORAGE_FILE}" "already exist in ${CONFIG_DIR}, please replace it manually." ) || install -D -m0600 ${LOCAL_CONF_PREFIX}/${STORAGE_FILE} ${CONFIG_DIR}/${STORAGE_FILE}
++
++
++##@ Test
+ 
+-tests: test-unit test-integration
++tests: test-base test-unit test-integration ## Test all
+ 
+ .PHONY: test-base
+-test-base:
++test-base: ## Test base case
+ 	@echo "Base test starting..."
+ 	@./tests/test.sh base
+ 	@echo "Base test done!"
+ 
+ .PHONY: test-unit
+-test-unit:
++test-unit: ## Test unit case
+ 	@echo "Unit test starting..."
+ 	@./hack/unit_test.sh
+ 	@echo "Unit test done!"
+ 
+ .PHONY: test-integration
+-test-integration: debug install
++test-integration: ## Test integration case
+ 	@echo "Integration test starting..."
+-	@./tests/test.sh base
+ 	@./tests/test.sh integration
+ 	@echo "Integration test done!"
+ 
++##@ Development
++
++.PHONY: build-image
++build-image: ## Build protobuf compile environment container image
++	isula-build ctr-img build -f Dockerfile.proto ${IMAGE_BUILDARGS} -o isulad:${IMAGE_NAME}:latest .
++
+ .PHONY: proto
+-proto:
++proto: ## Generate protobuf file
+ 	@echo "Generating protobuf..."
+ 	isula run -i --rm --runtime runc -v ${PWD}:/go/src/isula.org/isula-build ${IMAGE_NAME} ./hack/generate_proto.sh
+ 	@echo "Protobuf files have been generated!"
+ 
+-.PHONY: install
+-install:
+-	install -D -m0550 bin/isula-build $(BINDIR)
+-	install -D -m0550 bin/isula-builder $(BINDIR)
+-	@( getent group isula > /dev/null ) || ( groupadd --system isula )
+-	@[ ! -d ${CONFIG_DIR}/${CONFIG_FILE} ] && install -dm0650 ${CONFIG_DIR}
+-	@( [ -f ${CONFIG_DIR}/${CONFIG_FILE} ] && printf "%-20s %s\n" "${CONFIG_FILE}" "already exist in ${CONFIG_DIR}, please replace it manually." ) || install -D -m0600 ${LOCAL_CONF_PREFIX}/${CONFIG_FILE} ${CONFIG_DIR}/${CONFIG_FILE}
+-	@( [ -f ${CONFIG_DIR}/${POLICY_FILE} ] && printf "%-20s %s\n" "${POLICY_FILE}" "already exist in ${CONFIG_DIR}, please replace it manually." ) || install -D -m0600 ${LOCAL_CONF_PREFIX}/${POLICY_FILE} ${CONFIG_DIR}/${POLICY_FILE}
+-	@( [ -f ${CONFIG_DIR}/${REGIST_FILE} ] && printf "%-20s %s\n" "${REGIST_FILE}" "already exist in ${CONFIG_DIR}, please replace it manually." ) || install -D -m0600 ${LOCAL_CONF_PREFIX}/${REGIST_FILE} ${CONFIG_DIR}/${REGIST_FILE}
+-	@( [ -f ${CONFIG_DIR}/${STORAGE_FILE} ] && printf "%-20s %s\n" "${STORAGE_FILE}" "already exist in ${CONFIG_DIR}, please replace it manually." ) || install -D -m0600 ${LOCAL_CONF_PREFIX}/${STORAGE_FILE} ${CONFIG_DIR}/${STORAGE_FILE}
++.PHONY: check
++check: ## Static check for current commit
++	@echo "Static check start for last commit"
++	@./hack/static_check.sh last
++	@echo "Static check last commit finished"
+ 
+ .PHONY: checkall
+-checkall:
++checkall: ## Static check for whole project
+ 	@echo "Static check start for whole project"
+ 	@./hack/static_check.sh all
+ 	@echo "Static check project finished"
+-.PHONY: check
+-check:
+-	@echo "Static check start for last commit"
+-	@./hack/static_check.sh last
+-	@echo "Static check last commit finished"
+ 
+ .PHONY: clean
+-clean:
++clean: ## Clean project
+ 	rm -rf ./bin
+-- 
+2.31.1
+
