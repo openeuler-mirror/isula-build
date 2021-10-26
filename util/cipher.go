@@ -19,9 +19,11 @@ import (
 	"crypto/cipher"
 	"crypto/rand"
 	"crypto/rsa"
+	"crypto/sha256"
 	"crypto/x509"
 	"encoding/hex"
 	"encoding/pem"
+	"fmt"
 	"hash"
 	"io"
 	"io/ioutil"
@@ -228,4 +230,80 @@ func ReadPublicKey(path string) (rsa.PublicKey, error) {
 	key := pubInterface.(*rsa.PublicKey)
 
 	return *key, nil
+}
+
+func hashFile(path string) (string, error) {
+	cleanPath := filepath.Clean(path)
+	if len(cleanPath) == 0 {
+		return "", errors.New("failed to hash empty path")
+	}
+	if f, err := os.Stat(cleanPath); err != nil {
+		return "", errors.Errorf("failed to stat file %q", cleanPath)
+	} else if f.IsDir() {
+		return "", errors.New("failed to hash directory")
+	}
+
+	file, err := ioutil.ReadFile(cleanPath) // nolint:gosec
+	if err != nil {
+		return "", errors.Wrapf(err, "hash file failed")
+	}
+
+	return fmt.Sprintf("%x", sha256.Sum256(file)), nil
+}
+
+func hashDir(path string) (string, error) {
+	var checkSum string
+	if err := filepath.Walk(path, func(path string, info os.FileInfo, err error) error {
+		cleanPath := filepath.Clean(path)
+		if err != nil {
+			return err
+		}
+		if !info.Mode().IsRegular() {
+			return nil
+		}
+		if !info.IsDir() {
+			f, err := ioutil.ReadFile(cleanPath) // nolint:gosec
+			if err != nil {
+				return err
+			}
+			fileHash := fmt.Sprintf("%x", sha256.Sum256(f))
+			checkSum = fmt.Sprintf("%s%s", checkSum, fileHash)
+		}
+		return nil
+	}); err != nil {
+		return "", err
+	}
+
+	return fmt.Sprintf("%x", sha256.Sum256([]byte(checkSum))), nil
+}
+
+// SHA256Sum will calculate sha256 checksum for path(file or directory)
+// When calculate directory, each file of folder will be calculated and
+// the checksum will be concatenated to next checksum until every file
+// counted, the result will be used for final checksum calculation
+func SHA256Sum(path string) (string, error) {
+	path = filepath.Clean(path)
+	f, err := os.Stat(path)
+	if err != nil {
+		return "", err
+	}
+	if f.IsDir() {
+		return hashDir(path)
+	}
+
+	return hashFile(path)
+}
+
+// CheckSum will calculate the sha256sum for path and compare it with
+// the target, if not match, return error
+func CheckSum(path, target string) error {
+	digest, err := SHA256Sum(path)
+	if err != nil {
+		return err
+	}
+	if digest != target {
+		return errors.Errorf("check sum for path %s failed, got %s, want %s",
+			path, digest, target)
+	}
+	return nil
 }
