@@ -215,6 +215,27 @@ message LogoutResponse {
 message LoadRequest {
     // path is the path of loading file
     string path = 1;
+    // loadID is the unique ID for each time load
+    // also is the part of construct temporary path to
+    // store transport file
+    string loadID = 2;
+    // SeparatorLoad is the info to load separated image
+    SeparatorLoad sep = 3;
+}
+
+message SeparatorLoad {
+    // app is application image name
+    string app = 1;
+    // dir is image tarballs directory
+    string dir = 2;
+    // base is base image tarball path
+    string base = 3;
+    // lib is library image tarball path
+    string lib = 4;
+    // skipCheck is flag to skip sha256 check sum for images
+    bool skipCheck = 5;
+    // enabled is flag to indicate the separator function enabled or not
+    bool enabled = 6;
 }
 
 message LoadResponse {
@@ -259,6 +280,21 @@ message SaveRequest {
     string path = 3;
     // format is the format of image saved to archive file, such as docker-archive, oci-archive
     string format = 4;
+    // SeparatorSave is the info to save separated image
+    SeparatorSave sep = 5;
+}
+
+message SeparatorSave {
+    // base is base image name
+    string base = 1;
+    // lib is library image name
+    string lib = 2;
+    // rename is rename json file
+    string rename = 3;
+    // dest is destination file directory
+    string dest = 4;
+    // enabled is flag to indicate the separator function enabled or not
+    bool enabled = 5;
 }
 
 message SaveResponse {
