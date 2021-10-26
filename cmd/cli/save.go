@@ -29,8 +29,17 @@ import (
 	"isula.org/isula-build/util"
 )
 
+type separatorSaveOption struct {
+	baseImgName  string
+	libImageName string
+	renameFile   string
+	destPath     string
+	enabled      bool
+}
+
 type saveOptions struct {
 	images []string
+	sep    separatorSaveOption
 	path   string
 	saveID string
 	format string
@@ -41,7 +50,9 @@ var saveOpts saveOptions
 const (
 	saveExample = `isula-build ctr-img save busybox:latest -o busybox.tar
 isula-build ctr-img save 21c3e96ac411 -o myimage.tar
-isula-build ctr-img save busybox:latest alpine:3.9 -o all.tar`
+isula-build ctr-img save busybox:latest alpine:3.9 -o all.tar
+isula-build ctr-img save app:latest app1:latest -d Images
+isula-build ctr-img save app:latest app1:latest -d Images -b busybox:latest -l lib:latest -r rename.json`
 )
 
 // NewSaveCmd cmd for container image saving
@@ -54,6 +65,10 @@ func NewSaveCmd() *cobra.Command {
 	}
 
 	saveCmd.PersistentFlags().StringVarP(&saveOpts.path, "output", "o", "", "Path to save the tarball")
+	saveCmd.PersistentFlags().StringVarP(&saveOpts.sep.destPath, "dest", "d", "Images", "Destination file directory to store separated images")
+	saveCmd.PersistentFlags().StringVarP(&saveOpts.sep.baseImgName, "base", "b", "", "Base image name of separated images")
+	saveCmd.PersistentFlags().StringVarP(&saveOpts.sep.libImageName, "lib", "l", "", "Lib image name of separated images")
+	saveCmd.PersistentFlags().StringVarP(&saveOpts.sep.renameFile, "rename", "r", "", "Rename json file path of separated images")
 	if util.CheckCliExperimentalEnabled() {
 		saveCmd.PersistentFlags().StringVarP(&saveOpts.format, "format", "f", "oci", "Format of image saving to local tarball")
 	} else {
@@ -67,16 +82,7 @@ func saveCommand(cmd *cobra.Command, args []string) error {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	if len(args) == 0 {
-		return errors.New("save accepts at least one image")
-	}
-	if saveOpts.format == constant.OCITransport && len(args) >= 2 {
-		return errors.New("oci image format now only supports saving single image")
-	}
-	if err := util.CheckImageFormat(saveOpts.format); err != nil {
-		return err
-	}
-	if err := checkSavePath(); err != nil {
+	if err := saveOpts.checkSaveOpts(args); err != nil {
 		return err
 	}
 
@@ -88,25 +94,79 @@ func saveCommand(cmd *cobra.Command, args []string) error {
 	return runSave(ctx, cli, args)
 }
 
-func checkSavePath() error {
-	if len(saveOpts.path) == 0 {
-		return errors.New("output path should not be empty")
-	}
-
-	if strings.Contains(saveOpts.path, ":") {
-		return errors.Errorf("colon in path %q is not supported", saveOpts.path)
-	}
-
-	if !filepath.IsAbs(saveOpts.path) {
-		pwd, err := os.Getwd()
-		if err != nil {
-			return errors.New("get current path failed")
+func (sep *separatorSaveOption) check(pwd string) error {
+	if len(sep.baseImgName) != 0 {
+		if !util.IsValidImageName(sep.baseImgName) {
+			return errors.Errorf("invalid base image name %s", sep.baseImgName)
 		}
-		saveOpts.path = util.MakeAbsolute(saveOpts.path, pwd)
+	}
+	if len(sep.libImageName) != 0 {
+		if !util.IsValidImageName(sep.libImageName) {
+			return errors.Errorf("invalid lib image name %s", sep.libImageName)
+		}
+	}
+	if len(sep.destPath) == 0 {
+		sep.destPath = "Images"
+	}
+	if !filepath.IsAbs(sep.destPath) {
+		sep.destPath = util.MakeAbsolute(sep.destPath, pwd)
+	}
+	if util.IsExist(sep.destPath) {
+		return errors.Errorf("output file already exist: %q, try to remove existing tarball or rename output file", sep.destPath)
+	}
+	if len(sep.renameFile) != 0 {
+		if !filepath.IsAbs(sep.renameFile) {
+			sep.renameFile = util.MakeAbsolute(sep.renameFile, pwd)
+		}
 	}
 
-	if util.IsExist(saveOpts.path) {
-		return errors.Errorf("output file already exist: %q, try to remove existing tarball or rename output file", saveOpts.path)
+	return nil
+}
+
+func (opt *saveOptions) checkSaveOpts(args []string) error {
+	if len(args) == 0 {
+		return errors.New("save accepts at least one image")
+	}
+
+	if strings.Contains(opt.path, ":") || strings.Contains(opt.sep.destPath, ":") {
+		return errors.Errorf("colon in path %q is not supported", opt.path)
+	}
+	pwd, err := os.Getwd()
+	if err != nil {
+		return errors.New("get current path failed")
+	}
+
+	// normal save
+	if !opt.sep.isEnabled() {
+		// only check oci format when doing normal save operation
+		if opt.format == constant.OCITransport && len(args) >= 2 {
+			return errors.New("oci image format now only supports saving single image")
+		}
+		if err := util.CheckImageFormat(opt.format); err != nil {
+			return err
+		}
+		if len(opt.path) == 0 {
+			return errors.New("output path should not be empty")
+		}
+		if !filepath.IsAbs(opt.path) {
+			opt.path = util.MakeAbsolute(opt.path, pwd)
+		}
+		if util.IsExist(opt.path) {
+			return errors.Errorf("output file already exist: %q, try to remove existing tarball or rename output file", opt.path)
+		}
+		return nil
+	}
+
+	// separator save
+	opt.sep.enabled = true
+	if len(opt.path) != 0 {
+		return errors.New("conflict options between -o and [-b -l -r]")
+	}
+	// separate image only support docker image spec
+	opt.format = constant.DockerTransport
+
+	if err := opt.sep.check(pwd); err != nil {
+		return err
 	}
 
 	return nil
@@ -116,11 +176,20 @@ func runSave(ctx context.Context, cli Cli, args []string) error {
 	saveOpts.saveID = util.GenerateNonCryptoID()[:constant.DefaultIDLen]
 	saveOpts.images = args
 
+	sep := &pb.SeparatorSave{
+		Base:   saveOpts.sep.baseImgName,
+		Lib:    saveOpts.sep.libImageName,
+		Rename: saveOpts.sep.renameFile,
+		Dest:   saveOpts.sep.destPath,
+		Enabled: saveOpts.sep.enabled,
+	}
+
 	saveStream, err := cli.Client().Save(ctx, &pb.SaveRequest{
 		Images: saveOpts.images,
 		Path:   saveOpts.path,
 		SaveID: saveOpts.saveID,
 		Format: saveOpts.format,
+		Sep:    sep,
 	})
 	if err != nil {
 		return err
@@ -137,7 +206,11 @@ func runSave(ctx context.Context, cli Cli, args []string) error {
 				fmt.Printf("Save success with image: %s\n", saveOpts.images)
 				return nil
 			}
-			return errors.Errorf("save image failed: %v", err)
+			return errors.Errorf("save image failed: %v", err.Error())
 		}
 	}
+}
+
+func (sep *separatorSaveOption) isEnabled() bool {
+	return util.AnyFlagSet(sep.baseImgName, sep.libImageName, sep.renameFile)
 }

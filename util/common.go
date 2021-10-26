@@ -21,6 +21,7 @@ import (
 	"strings"
 
 	securejoin "github.com/cyphar/filepath-securejoin"
+	"github.com/docker/distribution/reference"
 	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
 	"golang.org/x/sys/unix"
@@ -183,4 +184,27 @@ func FormatSize(size, base float64) string {
 // CheckCliExperimentalEnabled checks if client ISULABUILD_CLI_EXPERIMENTAL set to enabled
 func CheckCliExperimentalEnabled() bool {
 	return os.Getenv("ISULABUILD_CLI_EXPERIMENTAL") == "enabled"
+}
+
+// IsValidImageName will check the validity of image name
+func IsValidImageName(name string) bool {
+	ref, err := reference.ParseNormalizedNamed(name)
+	if err != nil {
+		return false
+	}
+	if _, canonical := ref.(reference.Canonical); canonical {
+		return false
+	}
+	return true
+}
+
+// AnyFlagSet is a checker to indicate there exist flag's length not empty
+// If all flags are empty, will return false
+func AnyFlagSet(flags ...string) bool {
+	for _, flag := range flags {
+		if len(flag) != 0 {
+			return true
+		}
+	}
+	return false
 }
