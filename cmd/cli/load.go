@@ -25,18 +25,32 @@ import (
 	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
 
+	constant "isula.org/isula-build"
 	pb "isula.org/isula-build/api/services"
 	"isula.org/isula-build/util"
 )
 
+type separatorLoadOption struct {
+	app       string
+	base      string
+	lib       string
+	dir       string
+	skipCheck bool
+	enabled   bool
+}
+
 type loadOptions struct {
-	path string
+	path   string
+	loadID string
+	sep    separatorLoadOption
 }
 
 var loadOpts loadOptions
 
 const (
-	loadExample = `isula-build ctr-img load -i busybox.tar`
+	loadExample = `isula-build ctr-img load -i busybox.tar
+isula-build ctr-img load -i app:latest -d /home/Images
+isula-build ctr-img load -i app:latest -d /home/Images -b /home/Images/base.tar.gz -l /home/Images/lib.tar.gz`
 )
 
 // NewLoadCmd returns image load command
@@ -49,12 +63,20 @@ func NewLoadCmd() *cobra.Command {
 		RunE:    loadCommand,
 	}
 
-	loadCmd.PersistentFlags().StringVarP(&loadOpts.path, "input", "i", "", "Path to local tarball")
+	loadCmd.PersistentFlags().StringVarP(&loadOpts.path, "input", "i", "", "Path to local tarball(or app image name when load separated images)")
+	loadCmd.PersistentFlags().StringVarP(&loadOpts.sep.dir, "dir", "d", "", "Path to separated image tarballs directory")
+	loadCmd.PersistentFlags().StringVarP(&loadOpts.sep.base, "base", "b", "", "Base image tarball path of separated images")
+	loadCmd.PersistentFlags().StringVarP(&loadOpts.sep.lib, "lib", "l", "", "Library image tarball path of separated images")
+	loadCmd.PersistentFlags().BoolVarP(&loadOpts.sep.skipCheck, "no-check", "", false, "Skip sha256 check sum for legacy separated images loading")
 
 	return loadCmd
 }
 
 func loadCommand(cmd *cobra.Command, args []string) error {
+	if err := loadOpts.checkLoadOpts(); err != nil {
+		return errors.Wrapf(err, "check load options failed")
+	}
+
 	ctx := context.Background()
 	cli, err := NewClient(ctx)
 	if err != nil {
@@ -65,14 +87,20 @@ func loadCommand(cmd *cobra.Command, args []string) error {
 }
 
 func runLoad(ctx context.Context, cli Cli) error {
-	var err error
-
-	if loadOpts.path, err = resolveLoadPath(loadOpts.path); err != nil {
-		return err
+	loadOpts.loadID = util.GenerateNonCryptoID()[:constant.DefaultIDLen]
+	sep := &pb.SeparatorLoad{
+		App:       loadOpts.sep.app,
+		Dir:       loadOpts.sep.dir,
+		Base:      loadOpts.sep.base,
+		Lib:       loadOpts.sep.lib,
+		SkipCheck: loadOpts.sep.skipCheck,
+		Enabled:   loadOpts.sep.enabled,
 	}
 
 	resp, err := cli.Client().Load(ctx, &pb.LoadRequest{
-		Path: loadOpts.path,
+		Path:   loadOpts.path,
+		LoadID: loadOpts.loadID,
+		Sep:    sep,
 	})
 	if err != nil {
 		return err
@@ -113,4 +141,73 @@ func resolveLoadPath(path string) (string, error) {
 	}
 
 	return path, nil
+}
+
+func (opt *loadOptions) checkLoadOpts() error {
+	// normal load
+	if !opt.sep.isEnabled() {
+		path, err := resolveLoadPath(opt.path)
+		if err != nil {
+			return err
+		}
+		opt.path = path
+
+		return nil
+	}
+
+	// load separated image
+	opt.sep.enabled = true
+	if len(opt.path) == 0 {
+		return errors.New("app image should not be empty")
+	}
+
+	// Use opt.path as app image name when operating separated images
+	// this can be mark as a switch for handling separated images
+	opt.sep.app = opt.path
+
+	if err := opt.sep.check(); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (sep *separatorLoadOption) isEnabled() bool {
+	return util.AnyFlagSet(sep.dir, sep.base, sep.lib, sep.app)
+}
+
+func (sep *separatorLoadOption) check() error {
+	pwd, err := os.Getwd()
+	if err != nil {
+		return errors.New("get current path failed")
+	}
+	if !util.IsValidImageName(sep.app) {
+		return errors.Errorf("invalid image name: %s", sep.app)
+	}
+
+	if len(sep.base) != 0 {
+		path, err := resolveLoadPath(sep.base)
+		if err != nil {
+			return errors.Wrap(err, "resolve base tarball path failed")
+		}
+		sep.base = path
+	}
+	if len(sep.lib) != 0 {
+		path, err := resolveLoadPath(sep.lib)
+		if err != nil {
+			return errors.Wrap(err, "resolve lib tarball path failed")
+		}
+		sep.lib = path
+	}
+	if len(sep.dir) == 0 {
+		return errors.New("image tarball directory should not be empty")
+	}
+	if !filepath.IsAbs(sep.dir) {
+		sep.dir = util.MakeAbsolute(sep.dir, pwd)
+	}
+	if !util.IsExist(sep.dir) {
+		return errors.Errorf("image tarball directory %s is not exist", sep.dir)
+	}
+
+	return nil
 }
