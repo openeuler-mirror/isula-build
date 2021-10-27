@@ -31,9 +31,9 @@ import (
 )
 
 const (
-	loadedTarFile = "load.tar"
+	loadedTarFile    = "load.tar"
 	manifestJSONFile = "manifest.json"
-	indexJSONFile = "index.json"
+	indexJSONFile    = "index.json"
 )
 
 var (
@@ -167,8 +167,10 @@ func TestLoadSingleImage(t *testing.T) {
 							}
 							]
 						}`,
-			format:  "oci",
-			withTag: true,
+			format:    "oci",
+			withTag:   true,
+			wantErr:   true,
+			errString: "no such file or directory",
 		},
 		{
 			name: "TC3 normal case load docker tar with no RepoTags",
@@ -197,8 +199,10 @@ func TestLoadSingleImage(t *testing.T) {
 							}
 							]
 						}`,
-			format:  "oci",
-			withTag: false,
+			format:    "oci",
+			withTag:   false,
+			wantErr:   true,
+			errString: "no such file or directory",
 		},
 		{
 			name: "TC5 abnormal case load docker tar with wrong manifestJSON",
@@ -217,7 +221,7 @@ func TestLoadSingleImage(t *testing.T) {
 			format:    "docker",
 			withTag:   true,
 			wantErr:   true,
-			errString: "error loading index",
+			errString: "no such file or directory",
 		},
 		{
 			name: "TC6 abnormal case with wrong tar path",
@@ -312,10 +316,10 @@ func TestLoadMultipleImages(t *testing.T) {
 	path := dir.Join(loadedTarFile)
 	repoTags, err := tryToParseImageFormatFromTarball(daemon.opts.DataRoot, &loadOptions{path: path})
 	assert.NilError(t, err)
-	assert.Equal(t, repoTags[0][0], "registry.example.com/sayhello:first")
-	assert.Equal(t, repoTags[1][0], "registry.example.com/sayhello:second")
-	assert.Equal(t, repoTags[1][1], "registry.example.com/sayhello:third")
-	assert.Equal(t, len(repoTags[2]), 0)
+	assert.Equal(t, repoTags[0].nameTag[0], "registry.example.com/sayhello:first")
+	assert.Equal(t, repoTags[1].nameTag[0], "registry.example.com/sayhello:second")
+	assert.Equal(t, repoTags[1].nameTag[1], "registry.example.com/sayhello:third")
+	assert.Equal(t, len(repoTags[2].nameTag), 0)
 
 	req := &pb.LoadRequest{Path: path}
 	stream := &controlLoadServer{}
