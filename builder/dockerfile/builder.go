@@ -627,7 +627,7 @@ func parseOutputTag(output string) string {
 		if repo == "" {
 			return ""
 		}
-		tag = repoAndTag[len(repo):]
+		tag = strings.TrimLeft(repoAndTag, "/")
 	}
 
 	return tag
