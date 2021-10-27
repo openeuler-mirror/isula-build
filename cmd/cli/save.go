@@ -18,7 +18,6 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"path/filepath"
 	"strings"
 
 	"github.com/pkg/errors"
@@ -51,21 +50,21 @@ const (
 	saveExample = `isula-build ctr-img save busybox:latest -o busybox.tar
 isula-build ctr-img save 21c3e96ac411 -o myimage.tar
 isula-build ctr-img save busybox:latest alpine:3.9 -o all.tar
-isula-build ctr-img save app:latest app1:latest -d Images
+isula-build ctr-img save app:latest -b busybox:latest -d Images
 isula-build ctr-img save app:latest app1:latest -d Images -b busybox:latest -l lib:latest -r rename.json`
 )
 
 // NewSaveCmd cmd for container image saving
 func NewSaveCmd() *cobra.Command {
 	saveCmd := &cobra.Command{
-		Use:     "save IMAGE [IMAGE...] [FLAGS]",
+		Use:     "save IMAGE [IMAGE...] FLAGS",
 		Short:   "Save image to tarball",
 		Example: saveExample,
 		RunE:    saveCommand,
 	}
 
 	saveCmd.PersistentFlags().StringVarP(&saveOpts.path, "output", "o", "", "Path to save the tarball")
-	saveCmd.PersistentFlags().StringVarP(&saveOpts.sep.destPath, "dest", "d", "Images", "Destination file directory to store separated images")
+	saveCmd.PersistentFlags().StringVarP(&saveOpts.sep.destPath, "dest", "d", "", "Destination file directory to store separated images")
 	saveCmd.PersistentFlags().StringVarP(&saveOpts.sep.baseImgName, "base", "b", "", "Base image name of separated images")
 	saveCmd.PersistentFlags().StringVarP(&saveOpts.sep.libImageName, "lib", "l", "", "Lib image name of separated images")
 	saveCmd.PersistentFlags().StringVarP(&saveOpts.sep.renameFile, "rename", "r", "", "Rename json file path of separated images")
@@ -95,12 +94,16 @@ func saveCommand(cmd *cobra.Command, args []string) error {
 }
 
 func (sep *separatorSaveOption) check(pwd string) error {
-	if len(sep.baseImgName) != 0 {
-		if !util.IsValidImageName(sep.baseImgName) {
-			return errors.Errorf("invalid base image name %s", sep.baseImgName)
-		}
+	if len(sep.baseImgName) == 0 {
+		return errors.New("base image name(-b) must be provided")
+	}
+	if !util.IsValidImageName(sep.baseImgName) {
+		return errors.Errorf("invalid base image name %s", sep.baseImgName)
 	}
 	if len(sep.libImageName) != 0 {
+		if sep.libImageName == sep.baseImgName {
+			return errors.New("base and lib images are the same")
+		}
 		if !util.IsValidImageName(sep.libImageName) {
 			return errors.Errorf("invalid lib image name %s", sep.libImageName)
 		}
@@ -108,16 +111,12 @@ func (sep *separatorSaveOption) check(pwd string) error {
 	if len(sep.destPath) == 0 {
 		sep.destPath = "Images"
 	}
-	if !filepath.IsAbs(sep.destPath) {
-		sep.destPath = util.MakeAbsolute(sep.destPath, pwd)
-	}
+	sep.destPath = util.MakeAbsolute(sep.destPath, pwd)
 	if util.IsExist(sep.destPath) {
-		return errors.Errorf("output file already exist: %q, try to remove existing tarball or rename output file", sep.destPath)
+		return errors.Errorf("dest path already exist: %q, try to remove or rename it", sep.destPath)
 	}
 	if len(sep.renameFile) != 0 {
-		if !filepath.IsAbs(sep.renameFile) {
-			sep.renameFile = util.MakeAbsolute(sep.renameFile, pwd)
-		}
+		sep.renameFile = util.MakeAbsolute(sep.renameFile, pwd)
 	}
 
 	return nil
@@ -136,39 +135,36 @@ func (opt *saveOptions) checkSaveOpts(args []string) error {
 		return errors.New("get current path failed")
 	}
 
-	// normal save
-	if !opt.sep.isEnabled() {
-		// only check oci format when doing normal save operation
-		if opt.format == constant.OCITransport && len(args) >= 2 {
-			return errors.New("oci image format now only supports saving single image")
+	// separator save
+	if opt.sep.isEnabled() {
+		if len(opt.path) != 0 {
+			return errors.New("conflict flags between -o and [-b -l -r -d]")
 		}
-		if err := util.CheckImageFormat(opt.format); err != nil {
+		// separate image only support docker image spec
+		opt.format = constant.DockerTransport
+		if err := opt.sep.check(pwd); err != nil {
 			return err
 		}
-		if len(opt.path) == 0 {
-			return errors.New("output path should not be empty")
-		}
-		if !filepath.IsAbs(opt.path) {
-			opt.path = util.MakeAbsolute(opt.path, pwd)
-		}
-		if util.IsExist(opt.path) {
-			return errors.Errorf("output file already exist: %q, try to remove existing tarball or rename output file", opt.path)
-		}
+		opt.sep.enabled = true
+
 		return nil
 	}
 
-	// separator save
-	opt.sep.enabled = true
-	if len(opt.path) != 0 {
-		return errors.New("conflict options between -o and [-b -l -r]")
+	// normal save
+	// only check oci format when doing normal save operation
+	if len(opt.path) == 0 {
+		return errors.New("output path(-o) should not be empty")
 	}
-	// separate image only support docker image spec
-	opt.format = constant.DockerTransport
-
-	if err := opt.sep.check(pwd); err != nil {
+	if opt.format == constant.OCITransport && len(args) >= 2 {
+		return errors.New("oci image format now only supports saving single image")
+	}
+	if err := util.CheckImageFormat(opt.format); err != nil {
 		return err
 	}
-
+	opt.path = util.MakeAbsolute(opt.path, pwd)
+	if util.IsExist(opt.path) {
+		return errors.Errorf("output file already exist: %q, try to remove existing tarball or rename output file", opt.path)
+	}
 	return nil
 }
 
@@ -177,10 +173,10 @@ func runSave(ctx context.Context, cli Cli, args []string) error {
 	saveOpts.images = args
 
 	sep := &pb.SeparatorSave{
-		Base:   saveOpts.sep.baseImgName,
-		Lib:    saveOpts.sep.libImageName,
-		Rename: saveOpts.sep.renameFile,
-		Dest:   saveOpts.sep.destPath,
+		Base:    saveOpts.sep.baseImgName,
+		Lib:     saveOpts.sep.libImageName,
+		Rename:  saveOpts.sep.renameFile,
+		Dest:    saveOpts.sep.destPath,
 		Enabled: saveOpts.sep.enabled,
 	}
 
@@ -212,5 +208,5 @@ func runSave(ctx context.Context, cli Cli, args []string) error {
 }
 
 func (sep *separatorSaveOption) isEnabled() bool {
-	return util.AnyFlagSet(sep.baseImgName, sep.libImageName, sep.renameFile)
+	return util.AnyFlagSet(sep.baseImgName, sep.libImageName, sep.renameFile, sep.destPath)
 }
