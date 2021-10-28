@@ -234,9 +234,6 @@ func ReadPublicKey(path string) (rsa.PublicKey, error) {
 
 func hashFile(path string) (string, error) {
 	cleanPath := filepath.Clean(path)
-	if len(cleanPath) == 0 {
-		return "", errors.New("failed to hash empty path")
-	}
 	if f, err := os.Stat(cleanPath); err != nil {
 		return "", errors.Errorf("failed to stat file %q", cleanPath)
 	} else if f.IsDir() {
@@ -282,6 +279,9 @@ func hashDir(path string) (string, error) {
 // the checksum will be concatenated to next checksum until every file
 // counted, the result will be used for final checksum calculation
 func SHA256Sum(path string) (string, error) {
+	if len(path) == 0 {
+		return "", errors.New("failed to hash empty path")
+	}
 	path = filepath.Clean(path)
 	f, err := os.Stat(path)
 	if err != nil {

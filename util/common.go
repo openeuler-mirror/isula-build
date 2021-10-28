@@ -192,7 +192,8 @@ func IsValidImageName(name string) bool {
 	if err != nil {
 		return false
 	}
-	if _, canonical := ref.(reference.Canonical); canonical {
+
+	if _, isDigest := ref.(reference.Canonical); isDigest {
 		return false
 	}
 	return true
