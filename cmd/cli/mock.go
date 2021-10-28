@@ -16,6 +16,7 @@ package main
 import (
 	"context"
 	"io"
+	"os"
 	"testing"
 
 	"github.com/gogo/protobuf/types"
@@ -324,7 +325,11 @@ func (f *mockDaemon) load(_ context.Context, in *pb.LoadRequest, opts ...grpc.Ca
 		if path == "" {
 			return &mockLoadClient{}, errors.Errorf("tarball path should not be empty")
 		}
-		_, err := resolveLoadPath(path)
+		pwd, err := os.Getwd()
+		if err != nil {
+			return &mockLoadClient{}, err
+		}
+		_, err = resolveLoadPath(path, pwd)
 		return &mockLoadClient{}, err
 	}
 

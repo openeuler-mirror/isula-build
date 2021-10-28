@@ -20,7 +20,6 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"path/filepath"
 
 	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
@@ -56,7 +55,7 @@ isula-build ctr-img load -i app:latest -d /home/Images -b /home/Images/base.tar.
 // NewLoadCmd returns image load command
 func NewLoadCmd() *cobra.Command {
 	loadCmd := &cobra.Command{
-		Use:     "load [FLAGS]",
+		Use:     "load FLAGS",
 		Short:   "Load images",
 		Example: loadExample,
 		Args:    util.NoArgs,
@@ -122,20 +121,13 @@ func runLoad(ctx context.Context, cli Cli) error {
 	return err
 }
 
-func resolveLoadPath(path string) (string, error) {
+func resolveLoadPath(path, pwd string) (string, error) {
 	// check input
 	if path == "" {
 		return "", errors.New("tarball path should not be empty")
 	}
 
-	if !filepath.IsAbs(path) {
-		pwd, err := os.Getwd()
-		if err != nil {
-			return "", errors.Wrap(err, "get current path failed while loading image")
-		}
-		path = util.MakeAbsolute(path, pwd)
-	}
-
+	path = util.MakeAbsolute(path, pwd)
 	if err := util.CheckLoadFile(path); err != nil {
 		return "", err
 	}
@@ -144,30 +136,35 @@ func resolveLoadPath(path string) (string, error) {
 }
 
 func (opt *loadOptions) checkLoadOpts() error {
-	// normal load
-	if !opt.sep.isEnabled() {
-		path, err := resolveLoadPath(opt.path)
-		if err != nil {
-			return err
+	pwd, err := os.Getwd()
+	if err != nil {
+		return errors.New("get current path failed")
+	}
+
+	// load separated image
+	if opt.sep.isEnabled() {
+		// Use opt.path as app image name when operating separated images
+		// this can be mark as a switch for handling separated images
+		opt.sep.app = opt.path
+
+		if len(opt.sep.app) == 0 {
+			return errors.New("app image name(-i) should not be empty")
 		}
-		opt.path = path
+
+		if cErr := opt.sep.check(pwd); cErr != nil {
+			return cErr
+		}
+		opt.sep.enabled = true
 
 		return nil
 	}
 
-	// load separated image
-	opt.sep.enabled = true
-	if len(opt.path) == 0 {
-		return errors.New("app image should not be empty")
-	}
-
-	// Use opt.path as app image name when operating separated images
-	// this can be mark as a switch for handling separated images
-	opt.sep.app = opt.path
-
-	if err := opt.sep.check(); err != nil {
+	// normal load
+	path, err := resolveLoadPath(opt.path, pwd)
+	if err != nil {
 		return err
 	}
+	opt.path = path
 
 	return nil
 }
@@ -176,35 +173,35 @@ func (sep *separatorLoadOption) isEnabled() bool {
 	return util.AnyFlagSet(sep.dir, sep.base, sep.lib, sep.app)
 }
 
-func (sep *separatorLoadOption) check() error {
-	pwd, err := os.Getwd()
-	if err != nil {
-		return errors.New("get current path failed")
+func (sep *separatorLoadOption) check(pwd string) error {
+	if len(sep.dir) == 0 {
+		return errors.New("image tarball directory should not be empty")
 	}
+
+	if sep.base == sep.lib {
+		return errors.New("base and lib tarballs are the same")
+	}
+
 	if !util.IsValidImageName(sep.app) {
 		return errors.Errorf("invalid image name: %s", sep.app)
 	}
 
 	if len(sep.base) != 0 {
-		path, err := resolveLoadPath(sep.base)
+		path, err := resolveLoadPath(sep.base, pwd)
 		if err != nil {
 			return errors.Wrap(err, "resolve base tarball path failed")
 		}
 		sep.base = path
 	}
 	if len(sep.lib) != 0 {
-		path, err := resolveLoadPath(sep.lib)
+		path, err := resolveLoadPath(sep.lib, pwd)
 		if err != nil {
 			return errors.Wrap(err, "resolve lib tarball path failed")
 		}
 		sep.lib = path
 	}
-	if len(sep.dir) == 0 {
-		return errors.New("image tarball directory should not be empty")
-	}
-	if !filepath.IsAbs(sep.dir) {
-		sep.dir = util.MakeAbsolute(sep.dir, pwd)
-	}
+
+	sep.dir = util.MakeAbsolute(sep.dir, pwd)
 	if !util.IsExist(sep.dir) {
 		return errors.Errorf("image tarball directory %s is not exist", sep.dir)
 	}
