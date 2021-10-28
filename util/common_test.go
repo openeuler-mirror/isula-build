@@ -14,11 +14,14 @@
 package util
 
 import (
+	"io/ioutil"
+	"os"
 	"path/filepath"
 	"testing"
 
 	"gotest.tools/v3/assert"
 	"gotest.tools/v3/fs"
+	constant "isula.org/isula-build"
 )
 
 func TestCheckFileSize(t *testing.T) {
@@ -175,6 +178,134 @@ func TestParseServer(t *testing.T) {
 			if (err != nil) != tt.wantErr {
 				t.Errorf("ParseServer() error = %v, wantErr %v", err, tt.wantErr)
 				return
+			}
+		})
+	}
+}
+
+func TestIsValidImageName(t *testing.T) {
+	type args struct {
+		name string
+	}
+	tests := []struct {
+		name string
+		args args
+		want bool
+	}{
+		{
+			name: "TC-valid image name",
+			args: args{name: "app:latest"},
+			want: true,
+		},
+		{
+			name: "TC-valid image name with domain",
+			args: args{name: "localhost:5000/app:latest"},
+			want: true,
+		},
+		{
+			name: "TC-invalid image name",
+			args: args{name: "app:latest:v1"},
+			want: false,
+		},
+		{
+			name: "TC-invalid image name with canonical format",
+			args: args{name: "alpine:3.2@sha256:a187dde48cd289ac374ad8539930628314bc581a481cdb41409c9289419ddb72"},
+			want: false,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := IsValidImageName(tt.args.name); got != tt.want {
+				t.Errorf("IsValidImageName() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestAnyFlagSet(t *testing.T) {
+	type args struct {
+		flags []string
+	}
+	tests := []struct {
+		name string
+		args args
+		want bool
+	}{
+		{
+			name: "TC-some flag set",
+			args: args{flags: []string{"flag1", "flag2"}},
+			want: true,
+		},
+		{
+			name: "TC-none flag set",
+			args: args{flags: []string{}},
+			want: false,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := AnyFlagSet(tt.args.flags...); got != tt.want {
+				t.Errorf("AnyFlagSet() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestCheckLoadFile(t *testing.T) {
+	loadFile := fs.NewFile(t, t.Name())
+	defer loadFile.Remove()
+	err := ioutil.WriteFile(loadFile.Path(), []byte("hello"), constant.DefaultRootFileMode)
+	assert.NilError(t, err)
+
+	emptyFile := fs.NewFile(t, t.Name())
+	defer emptyFile.Remove()
+
+	root := fs.NewDir(t, t.Name())
+	defer root.Remove()
+
+	bigFile := filepath.Join(root.Path(), "bigFile")
+	f, err := os.Create(bigFile)
+	assert.NilError(t, err)
+	defer os.Remove(f.Name())
+	err = f.Truncate(maxLoadFileSize + 1)
+	assert.NilError(t, err)
+
+	type args struct {
+		path string
+	}
+	tests := []struct {
+		name    string
+		args    args
+		wantErr bool
+	}{
+		{
+			name: "TC-normal load file",
+			args: args{path: loadFile.Path()},
+		},
+		{
+			name:    "TC-load file not exist",
+			wantErr: true,
+		},
+		{
+			name:    "TC-empty load file",
+			args:    args{path: emptyFile.Path()},
+			wantErr: true,
+		},
+		{
+			name:    "TC-invalid load file",
+			args:    args{path: "/dev/cdrom"},
+			wantErr: true,
+		},
+		{
+			name:    "TC-load file too big",
+			args:    args{path: bigFile},
+			wantErr: true,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if err := CheckLoadFile(tt.args.path); (err != nil) != tt.wantErr {
+				t.Errorf("CheckLoadFile() error = %v, wantErr %v", err, tt.wantErr)
 			}
 		})
 	}
