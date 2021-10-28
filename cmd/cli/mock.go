@@ -318,6 +318,16 @@ func (f *mockDaemon) importImage(_ context.Context, opts ...grpc.CallOption) (pb
 
 func (f *mockDaemon) load(_ context.Context, in *pb.LoadRequest, opts ...grpc.CallOption) (pb.Control_LoadClient, error) {
 	f.loadReq = in
+	path := f.loadReq.Path
+	sep := f.loadReq.Sep
+	if !sep.Enabled {
+		if path == "" {
+			return &mockLoadClient{}, errors.Errorf("tarball path should not be empty")
+		}
+		_, err := resolveLoadPath(path)
+		return &mockLoadClient{}, err
+	}
+
 	return &mockLoadClient{}, nil
 }
 

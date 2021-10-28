@@ -15,19 +15,59 @@ package main
 
 import (
 	"context"
+	"io/ioutil"
 	"path/filepath"
 	"testing"
 
 	"gotest.tools/v3/assert"
 	"gotest.tools/v3/fs"
+	constant "isula.org/isula-build"
 )
 
 func TestLoadCmd(t *testing.T) {
-	cmd := NewLoadCmd()
-	err := cmd.Execute()
-	assert.Equal(t, err != nil, true)
-	err = loadCommand(cmd, nil)
-	assert.ErrorContains(t, err, "isula_build")
+	tmpDir := fs.NewFile(t, t.Name())
+	err := ioutil.WriteFile(tmpDir.Path(), []byte("This is test file"), constant.DefaultSharedFileMode)
+	assert.NilError(t, err)
+	defer tmpDir.Remove()
+
+	type testcase struct {
+		name      string
+		path      string
+		errString string
+		args      []string
+		wantErr   bool
+		sep       separatorLoadOption
+	}
+	// For normal cases, default err is "invalid socket path: unix:///var/run/isula_build.sock".
+	// As daemon is not running as we run unit test.
+	var testcases = []testcase{
+		{
+			name:      "TC1 - normal case",
+			path:      tmpDir.Path(),
+			errString: "isula_build.sock",
+			wantErr:   true,
+		},
+	}
+
+	for _, tc := range testcases {
+		t.Run(tc.name, func(t *testing.T) {
+			loadCmd := NewLoadCmd()
+			loadOpts = loadOptions{
+				path: tc.path,
+				sep:  tc.sep,
+			}
+			err := loadCmd.Execute()
+			assert.Equal(t, err != nil, true)
+
+			err = loadCommand(loadCmd, tc.args)
+			if tc.wantErr {
+				assert.ErrorContains(t, err, tc.errString)
+			}
+			if !tc.wantErr {
+				assert.NilError(t, err)
+			}
+		})
+	}
 }
 
 func TestRunLoad(t *testing.T) {
