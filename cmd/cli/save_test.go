@@ -16,10 +16,13 @@ package main
 import (
 	"context"
 	"fmt"
+	"os"
+	"path/filepath"
 	"testing"
 
 	"gotest.tools/v3/assert"
 	"gotest.tools/v3/fs"
+	constant "isula.org/isula-build"
 )
 
 func TestSaveCommand(t *testing.T) {
@@ -38,7 +41,7 @@ func TestSaveCommand(t *testing.T) {
 		wantErr   bool
 	}
 
-	// For normal cases, default err is "invalid socket path: unix:///var/run/isula_build.sock". 
+	// For normal cases, default err is "invalid socket path: unix:///var/run/isula_build.sock".
 	// As daemon is not running as we run unit test.
 	var testcases = []testcase{
 		{
@@ -86,7 +89,7 @@ func TestSaveCommand(t *testing.T) {
 			path:      "",
 			args:      []string{"testImage"},
 			wantErr:   true,
-			errString: "output path should not be empty",
+			errString: "output path(-o) should not be empty",
 			format:    "docker",
 		},
 		{
@@ -190,6 +193,231 @@ func TestRunSave(t *testing.T) {
 			}
 			if !tc.wantErr {
 				assert.NilError(t, err)
+			}
+		})
+	}
+}
+
+func TestCheckSaveOpts(t *testing.T) {
+	pwd, err := os.Getwd()
+	assert.NilError(t, err)
+	existDirPath := filepath.Join(pwd, "DirAlreadyExist")
+	existFilePath := filepath.Join(pwd, "FileAlreadExist")
+	err = os.Mkdir(existDirPath, constant.DefaultRootDirMode)
+	assert.NilError(t, err)
+	_, err = os.Create(existFilePath)
+	assert.NilError(t, err)
+	defer os.Remove(existDirPath)
+	defer os.Remove(existFilePath)
+
+	type fields struct {
+		images []string
+		sep    separatorSaveOption
+		path   string
+		saveID string
+		format string
+	}
+	type args struct {
+		args []string
+	}
+	tests := []struct {
+		name    string
+		fields  fields
+		args    args
+		wantErr bool
+	}{
+		{
+			name: "TC-normal save",
+			args: args{[]string{"app:latest", "app1:latest"}},
+			fields: fields{
+				images: []string{"app:latest", "app1:latest"},
+				path:   "test.tar",
+				format: constant.DockerTransport,
+			},
+		},
+		{
+			name: "TC-normal save with empty args",
+			fields: fields{
+				images: []string{"app:latest", "app1:latest"},
+			},
+			wantErr: true,
+		},
+		{
+			name: "TC-normal save with path has colon in it",
+			args: args{[]string{"app:latest", "app1:latest"}},
+			fields: fields{
+				images: []string{"app:latest", "app1:latest"},
+				path:   "invalid:path.tar",
+			},
+			wantErr: true,
+		},
+		{
+			name: "TC-normal save without path",
+			args: args{[]string{"app:latest", "app1:latest"}},
+			fields: fields{
+				images: []string{"app:latest", "app1:latest"},
+			},
+			wantErr: true,
+		},
+		{
+			name: "TC-normal save with oci format",
+			args: args{[]string{"app:latest", "app1:latest"}},
+			fields: fields{
+				images: []string{"app:latest", "app1:latest"},
+				path:   "test.tar",
+				format: constant.OCITransport,
+			},
+			wantErr: true,
+		},
+		{
+			name: "TC-normal save with invalid format",
+			args: args{[]string{"app:latest", "app1:latest"}},
+			fields: fields{
+				images: []string{"app:latest", "app1:latest"},
+				path:   "test.tar",
+				format: "invalidFormat",
+			},
+			wantErr: true,
+		},
+		{
+			name: "TC-normal save with path already exist",
+			args: args{[]string{"app:latest", "app1:latest"}},
+			fields: fields{
+				images: []string{"app:latest", "app1:latest"},
+				path:   existFilePath,
+				format: constant.DockerTransport,
+			},
+			wantErr: true,
+		},
+		{
+			name: "TC-separated save",
+			args: args{[]string{"app:latest", "app1:latest"}},
+			fields: fields{
+				images: []string{"app:latest", "app1:latest"},
+				format: constant.DockerTransport,
+				sep: separatorSaveOption{
+					baseImgName:  "base",
+					libImageName: "lib",
+					renameFile:   "rename.json",
+					destPath:     "Images",
+				},
+			},
+		},
+		{
+			name: "TC-separated save with -o flag",
+			args: args{[]string{"app:latest", "app1:latest"}},
+			fields: fields{
+				images: []string{"app:latest", "app1:latest"},
+				path:   "test.tar",
+				format: constant.DockerTransport,
+				sep: separatorSaveOption{
+					baseImgName:  "base",
+					libImageName: "lib",
+					renameFile:   "rename.json",
+					destPath:     "Images",
+				},
+			},
+			wantErr: true,
+		},
+		{
+			name: "TC-separated save without -b flag",
+			args: args{[]string{"app:latest", "app1:latest"}},
+			fields: fields{
+				images: []string{"app:latest", "app1:latest"},
+				format: constant.DockerTransport,
+				sep: separatorSaveOption{
+					libImageName: "lib",
+					renameFile:   "rename.json",
+					destPath:     "Images",
+				},
+			},
+			wantErr: true,
+		},
+		{
+			name: "TC-separated save invalid base image name",
+			args: args{[]string{"app:latest", "app1:latest"}},
+			fields: fields{
+				images: []string{"app:latest", "app1:latest"},
+				format: constant.DockerTransport,
+				sep: separatorSaveOption{
+					baseImgName:  "in:valid:base:name",
+					libImageName: "lib",
+					renameFile:   "rename.json",
+					destPath:     "Images",
+				},
+			},
+			wantErr: true,
+		},
+		{
+			name: "TC-separated save invalid lib image name",
+			args: args{[]string{"app:latest", "app1:latest"}},
+			fields: fields{
+				images: []string{"app:latest", "app1:latest"},
+				format: constant.DockerTransport,
+				sep: separatorSaveOption{
+					baseImgName:  "base",
+					libImageName: "in:valid:lib:name",
+					renameFile:   "rename.json",
+					destPath:     "Images",
+				},
+			},
+			wantErr: true,
+		},
+		{
+			name: "TC-separated save without dest option",
+			args: args{[]string{"app:latest", "app1:latest"}},
+			fields: fields{
+				images: []string{"app:latest", "app1:latest"},
+				format: constant.DockerTransport,
+				sep: separatorSaveOption{
+					baseImgName:  "base",
+					libImageName: "lib",
+					renameFile:   "rename.json",
+				},
+			},
+		},
+		{
+			name: "TC-separated save with dest already exist",
+			args: args{[]string{"app:latest", "app1:latest"}},
+			fields: fields{
+				images: []string{"app:latest", "app1:latest"},
+				format: constant.DockerTransport,
+				sep: separatorSaveOption{
+					baseImgName:  "base",
+					libImageName: "lib",
+					renameFile:   "rename.json",
+					destPath:     existDirPath,
+				},
+			},
+			wantErr: true,
+		},
+		{
+			name: "TC-separated save with same base and lib image",
+			args: args{[]string{"app:latest", "app1:latest"}},
+			fields: fields{
+				images: []string{"app:latest", "app1:latest"},
+				format: constant.DockerTransport,
+				sep: separatorSaveOption{
+					baseImgName:  "same:image",
+					libImageName: "same:image",
+					renameFile:   "rename.json",
+					destPath:     existDirPath,
+				},
+			},
+			wantErr: true,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			opt := &saveOptions{
+				images: tt.fields.images,
+				sep:    tt.fields.sep,
+				path:   tt.fields.path,
+				saveID: tt.fields.saveID,
+				format: tt.fields.format,
+			}
+			if err := opt.checkSaveOpts(tt.args.args); (err != nil) != tt.wantErr {
+				t.Errorf("saveOptions.checkSaveOpts() error = %v, wantErr %v", err, tt.wantErr)
 			}
 		})
 	}
