@@ -29,12 +29,26 @@ const (
 	fileMaxSize = 10 * 1024 * 1024 // 10MB
 )
 
+var (
+	modifyTime = time.Date(2017, time.January, 0, 0, 0, 0, 0, time.UTC)
+	accessTime = time.Date(2017, time.January, 0, 0, 0, 0, 0, time.UTC)
+)
+
 // ReadSmallFile read small file less than 10MB
 func ReadSmallFile(path string) ([]byte, error) {
 	st, err := os.Lstat(path)
 	if err != nil {
 		return nil, err
 	}
+
+	if !st.Mode().IsRegular() {
+		return nil, errors.Errorf("loading file %s should be a regular file", st.Name())
+	}
+
+	if st.Size() == 0 {
+		return nil, errors.New("loading file is empty")
+	}
+
 	if st.Size() > fileMaxSize {
 		return nil, errors.Errorf("file %q too big", path)
 	}
@@ -51,18 +65,18 @@ func LoadJSONFile(file string, v interface{}) error {
 }
 
 // ChangeDirModifyTime changes modify time of directory
-func ChangeDirModifyTime(dir string) error {
+func ChangeDirModifyTime(dir string, accessTime, modifyTime time.Time) error {
 	fs, rErr := ioutil.ReadDir(dir)
 	if rErr != nil {
 		return rErr
 	}
 	for _, f := range fs {
 		src := filepath.Join(dir, f.Name())
-		if err := ChangeFileModifyTime(src); err != nil {
+		if err := ChangeFileModifyTime(src, accessTime, modifyTime); err != nil {
 			return err
 		}
 		if f.IsDir() {
-			if err := ChangeDirModifyTime(src); err != nil {
+			if err := ChangeDirModifyTime(src, accessTime, modifyTime); err != nil {
 				return err
 			}
 		}
@@ -71,13 +85,11 @@ func ChangeDirModifyTime(dir string) error {
 }
 
 // ChangeFileModifyTime changes modify time of file by fixing time at 2017-01-01 00:00:00
-func ChangeFileModifyTime(path string) error {
-	mtime := time.Date(2017, time.January, 0, 0, 0, 0, 0, time.UTC)
-	atime := time.Date(2017, time.January, 0, 0, 0, 0, 0, time.UTC)
+func ChangeFileModifyTime(path string, accessTime, modifyTime time.Time) error {
 	if _, err := os.Lstat(path); err != nil {
 		return err
 	}
-	if err := os.Chtimes(path, atime, mtime); err != nil {
+	if err := os.Chtimes(path, accessTime, modifyTime); err != nil {
 		return err
 	}
 	return nil
@@ -87,9 +99,9 @@ func ChangeFileModifyTime(path string) error {
 // by using different compression method defined by "com"
 // the files' modify time attribute will be set to a fix time "2017-01-01 00:00:00"
 // if set "modifyTime" to true
-func PackFiles(src, dest string, com archive.Compression, modifyTime bool) (err error) {
-	if modifyTime {
-		if err = ChangeDirModifyTime(src); err != nil {
+func PackFiles(src, dest string, com archive.Compression, needModifyTime bool) (err error) {
+	if needModifyTime {
+		if err = ChangeDirModifyTime(src, accessTime, modifyTime); err != nil {
 			return err
 		}
 	}
@@ -122,6 +134,14 @@ func PackFiles(src, dest string, com archive.Compression, modifyTime bool) (err 
 // by using different compression method defined by "com"
 // The src file will be remove if set "rm" to true
 func UnpackFile(src, dest string, com archive.Compression, rm bool) (err error) {
+	if len(dest) == 0 {
+		return errors.New("unpack: dest path should not be empty")
+	}
+	d, err := os.Stat(dest)
+	if err != nil || !d.IsDir() {
+		return errors.Wrapf(err, "unpack: invalid dest path")
+	}
+
 	cleanPath := filepath.Clean(src)
 	f, err := os.Open(cleanPath) // nolint:gosec
 	if err != nil {
@@ -139,7 +159,7 @@ func UnpackFile(src, dest string, com archive.Compression, rm bool) (err error) 
 		return errors.Wrapf(err, "unpack file %q failed", src)
 	}
 
-	if err = ChangeDirModifyTime(dest); err != nil {
+	if err = ChangeDirModifyTime(dest, modifyTime, accessTime); err != nil {
 		return errors.Wrapf(err, "change modify time for directory %q failed", dest)
 	}
 
