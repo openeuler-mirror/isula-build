@@ -1,45 +1,45 @@
 # isula-build
 
-isula-build is a tool provided by iSula team for building container images. It can quickly build the container image according to the given `Dockerfile`.
+isula-build is a tool provided by the iSula team for building container images. It can quickly build a container image based on a given `Dockerfile`.
 
-The binary file `isula-build` is a CLI tool and `isula-builder` runs as a daemon responding all the requests from client.
+The tool adopts the server + client mode. The binary file `isula-build` is the client that provides a CLI for building and managing images, while `isula-builder` is the server that runs as a daemon in the background, responding all the requests from client.
 
-It provides a command line tool that can be used to
+You can use the CLI to
 
-- build an image from a Dockerfile(build)
-- list all images in local store(image)
-- import a basic container image(import)
-- load image layers(load)
-- remove specified images(rm)
-- exporting images layers(save)
-- tag local images(tag)
-- pull image from remote repository(pull)
-- push image to remote repository(push)
-- view operating environment and system info(info)
-- login remote image repository(login)
-- logout remote image repository(logout)
-- query isula-build version(version)
+- Build an image from a Dockerfile (build).
+- List all images in local store (image).
+- Import container base images (import).
+- Load layered images (load).
+- Remove local persistent images (rm).
+- Export layered images (save).
+- Tag local persistent images (tag).
+- Pull images from a remote repository (pull).
+- Push images to a remote repository (push).
+- View operating environment and system information (info).
+- Log in to a remote image repository (login).
+- Log out of a remote image repository (logout).
+- Query isula-build version (version).
 
-We also
+In addition, the following capabilities are also provided:
 
-- be compatible with Dockerfile grammar
-- support extended file attributes, e.g., linux security, IMA, EVM, user, trusted
-- support different image formats, e.g., docker-archive, isulad
+- Dockerfile compatible syntax.
+- Support for extended file attributes, such as linux security, IMA, EVM, user, and trusted.
+- Support for export of different image formats, for example, docker-archive, iSulad.
 
 ## Documentation
-- [guide](./doc/manual_en.md).
-- [more usage guide](./doc/manual_en.md#usage-guidelines).
+- [Container Image Building](./doc/manual_en.md)
+- [Usage Guidelines](./doc/manual_en.md#usage-guidelines)
 
 ## Getting Started
 
-### Install on openEuler
+### Installation on openEuler
 
-#### Install from source
+#### Install from source.
 
 For compiling from source on openEuler, these packages are required on your OS:
 
 - make
-- golang (version 1.13 or higher)
+- golang (version 1.13 or later)
 - btrfs-progs-devel
 - device-mapper-devel
 - glib2-devel
@@ -75,9 +75,9 @@ After compiling success, you can install the binaries and default configuration 
 sudo make install
 ```
 
-#### Install as RPM package
+#### Install as RPM package.
 
-`isula-build` is now released with update pack of openEuler 20.03 LTS, you can install it by the help of yum or rpm. Before you install, please enable "update" in repo file.
+`isula-build` is now released with update pack of openEuler 20.03 LTS, you can install it using yum or rpm. Before you install, please enable "update" in the repo file.
 
 ##### With `yum`
 
@@ -85,21 +85,21 @@ sudo make install
 sudo yum install -y isula-build
 ```
 
-**NOTE**: Please make sure "update" part of your yum configuration is enabled.
+**NOTE**: Please make sure the "update" part of your yum configuration is enabled. You can download the source of yum from [openEuler repo list](https://repo.openeuler.org/) and install it.
 
 ##### With `rpm`
 
-you can download it from [openEuler's yum repo of update](https://repo.openeuler.org/) to your local machine, and intall it with such command:
+You can download the RPM package of isula-build and intall it.
 
 ```sh
 sudo rpm -ivh isula-build-*.rpm
 ```
 
-### Run the daemon server
+### Running the Daemon Server
 
-#### Run as system service
+#### Run as the system service.
 
-To manage `isula-builder` by systemd, please refer to following steps:
+To manage `isula-build` by systemd, please refer to following steps:
 
 ```sh
 sudo install -p -m 640 ./isula-build.service /etc/systemd/system/isula-build.service
@@ -107,20 +107,20 @@ sudo systemctl enable isula-build
 sudo systemctl start isula-build
 ```
 
-#### Directly running isula-builder
-You can also run the isula-builder command on the server to start the service.
+#### Directly run the isula-builder binary file.
+You can also run the isula-builder binary file on the server to start the service.
 
 ```sh
 sudo isula-builder --dataroot="/var/lib/isula-build"
 ```
 
-### Example on building container images
+### Example on Building Container Images
 
-#### Requirements
+#### Prerequisites
 
 For building container images, `runc` is required.
 
-You can get `runc` by the help of installing `docker` or `docker-runc` on your openEuler distro by:
+You can get `runc` by installing `docker` or `docker-runc` on your openEuler distro:
 
 ```sh
 sudo yum install docker
@@ -132,9 +132,9 @@ or
 sudo yum install docker-runc
 ```
 
-#### Building image
+#### Build an image.
 
-Here is an example for building a container image, for more details please refer to [usage](./doc/manual_en.md#usage-guidelines).
+Here is an example for building a container image, for more details please refer to [Usage Guidelines](./doc/manual_en.md#usage-guidelines).
 
 Create a simple buildDir and write the Dockerfile
 
@@ -144,7 +144,7 @@ LABEL foo=bar
 COPY ./* /home/dir1/
 ```
 
-Build the image in the buildDir
+Build the image in the buildDir.
 
 ```sh
 $ sudo isula-build ctr-img build -f Dockerfile .
@@ -160,7 +160,7 @@ Storing signatures
 Build success with image id: 9ec92a8819f9da1b06ea9ff83307ff859af2959b70bfab101f6a325b1a211549
 ```
 
-#### Listing images
+#### List local images.
 
 ```sh
 $ sudo isula-build ctr-img images
@@ -170,20 +170,20 @@ $ sudo isula-build ctr-img images
       <none>          latest      9ec92a8819f9        2020-06-11 07:45:39.265106109 +0000 UTC
 ```
 
-#### Removing image
+### Removing Images
 
 ```sh
 $ sudo isula-build ctr-img rm 9ec92a8819f9
 Deleted: sha256:86567f7a01b04c662a9657aac436e8d63ecebb26da4252abb016d177721fa11b
 ```
 
-### Integrates with iSulad or docker
+### Integration with iSulad or Docker
 
-Integrates with `iSulad` or `docker` are listed in [integration](./doc/manual_en.md#directly-integrating-a-container-engine).
+Integration with `iSulad` or `docker` are listed in [integration](./doc/manual_en.md#directly-integrating-a-container-engine).
 
 ## Precautions
 
-Constraints, limitations and the differences from `docker build` are listed in [precautions](./doc/manual_en.md#precautions).
+Constraints, limitations, and differences from `docker build` are listed in [precautions](./doc/manual_en.md#precautions).
 
 ## How to Contribute
 
