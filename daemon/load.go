@@ -14,12 +14,16 @@
 package daemon
 
 import (
+	"context"
+	"strings"
+
 	"github.com/containers/image/v5/docker/tarfile"
 	ociarchive "github.com/containers/image/v5/oci/archive"
 	"github.com/containers/image/v5/transports/alltransports"
 	"github.com/containers/image/v5/types"
 	"github.com/containers/storage"
 	securejoin "github.com/cyphar/filepath-securejoin"
+	digest "github.com/opencontainers/go-digest"
 	imgspecv1 "github.com/opencontainers/image-spec/specs-go/v1"
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
@@ -38,6 +42,12 @@ type loadOptions struct {
 	format string
 }
 
+type singleImage struct {
+	index   int
+	id      string
+	nameTag []string
+}
+
 func (b *Backend) getLoadOptions(req *pb.LoadRequest) loadOptions {
 	return loadOptions{
 		path: req.GetPath(),
@@ -48,18 +58,15 @@ func (b *Backend) getLoadOptions(req *pb.LoadRequest) loadOptions {
 func (b *Backend) Load(req *pb.LoadRequest, stream pb.Control_LoadServer) error {
 	logrus.Info("LoadRequest received")
 
-	var (
-		si       *storage.Image
-		repoTags [][]string
-		err      error
-	)
+	var si *storage.Image
+
 	opts := b.getLoadOptions(req)
 
-	if cErr := util.CheckLoadFile(req.Path); cErr != nil {
-		return cErr
+	if err := util.CheckLoadFile(req.Path); err != nil {
+		return err
 	}
 
-	repoTags, err = tryToParseImageFormatFromTarball(b.daemon.opts.DataRoot, &opts)
+	imagesInTar, err := tryToParseImageFormatFromTarball(b.daemon.opts.DataRoot, &opts)
 	if err != nil {
 		return err
 	}
@@ -80,24 +87,30 @@ func (b *Backend) Load(req *pb.LoadRequest, stream pb.Control_LoadServer) error 
 	eg.Go(func() error {
 		defer log.CloseContent()
 
-		for index, nameAndTag := range repoTags {
+		for _, singleImage := range imagesInTar {
 			_, si, err = image.ResolveFromImage(&image.PrepareImageOptions{
 				Ctx:           ctx,
 				FromImage:     exporter.FormatTransport(opts.format, opts.path),
+				ToImage:       singleImage.id,
 				SystemContext: image.GetSystemContext(),
 				Store:         b.daemon.localStore,
 				Reporter:      log,
-				ManifestIndex: index,
+				ManifestIndex: singleImage.index,
 			})
 			if err != nil {
 				return err
 			}
 
-			if sErr := b.daemon.localStore.SetNames(si.ID, nameAndTag); sErr != nil {
-				return sErr
+			originalNames, err := b.daemon.localStore.Names(si.ID)
+			if err != nil {
+				return err
+			}
+			if err = b.daemon.localStore.SetNames(si.ID, append(originalNames, singleImage.nameTag...)); err != nil {
+				return err
 			}
 
 			log.Print("Loaded image as %s\n", si.ID)
+			logrus.Infof("Loaded image as %s", si.ID)
 		}
 
 		return nil
@@ -106,17 +119,11 @@ func (b *Backend) Load(req *pb.LoadRequest, stream pb.Control_LoadServer) error 
 	if wErr := eg.Wait(); wErr != nil {
 		return wErr
 	}
-	logrus.Infof("Loaded image as %s", si.ID)
 
 	return nil
 }
 
-func tryToParseImageFormatFromTarball(dataRoot string, opts *loadOptions) ([][]string, error) {
-	var (
-		allRepoTags [][]string
-		err         error
-	)
-
+func tryToParseImageFormatFromTarball(dataRoot string, opts *loadOptions) ([]singleImage, error) {
 	// tmp dir will be removed after NewSourceFromFileWithContext
 	tmpDir, err := securejoin.SecureJoin(dataRoot, dataRootTmpDirPrefix)
 	if err != nil {
@@ -125,19 +132,21 @@ func tryToParseImageFormatFromTarball(dataRoot string, opts *loadOptions) ([][]s
 	systemContext := image.GetSystemContext()
 	systemContext.BigFilesTemporaryDir = tmpDir
 
-	allRepoTags, err = getDockerRepoTagFromImageTar(systemContext, opts.path)
+	// try docker format loading
+	imagesInTar, err := getDockerRepoTagFromImageTar(systemContext, opts.path)
 	if err == nil {
 		logrus.Infof("Parse image successful with %q format", constant.DockerTransport)
 		opts.format = constant.DockerArchiveTransport
-		return allRepoTags, nil
+		return imagesInTar, nil
 	}
 	logrus.Warnf("Try to Parse image of docker format failed with error: %v", err)
 
-	allRepoTags, err = getOCIRepoTagFromImageTar(systemContext, opts.path)
+	// try oci format loading
+	imagesInTar, err = getOCIRepoTagFromImageTar(systemContext, opts.path)
 	if err == nil {
 		logrus.Infof("Parse image successful with %q format", constant.OCITransport)
 		opts.format = constant.OCIArchiveTransport
-		return allRepoTags, nil
+		return imagesInTar, nil
 	}
 	logrus.Warnf("Try to parse image of oci format failed with error: %v", err)
 
@@ -145,45 +154,83 @@ func tryToParseImageFormatFromTarball(dataRoot string, opts *loadOptions) ([][]s
 	return nil, errors.Wrap(err, "wrong image format detected from local tarball")
 }
 
-func getDockerRepoTagFromImageTar(systemContext *types.SystemContext, path string) ([][]string, error) {
+func getDockerRepoTagFromImageTar(systemContext *types.SystemContext, path string) ([]singleImage, error) {
 	// tmp dir will be removed after NewSourceFromFileWithContext
 	tarfileSource, err := tarfile.NewSourceFromFileWithContext(systemContext, path)
 	if err != nil {
 		return nil, errors.Wrapf(err, "failed to get the source of loading tar file")
 	}
-
 	topLevelImageManifest, err := tarfileSource.LoadTarManifest()
 	if err != nil || len(topLevelImageManifest) == 0 {
 		return nil, errors.Errorf("failed to get the top level image manifest: %v", err)
 	}
 
-	var allRepoTags [][]string
-	for _, manifestItem := range topLevelImageManifest {
-		allRepoTags = append(allRepoTags, manifestItem.RepoTags)
+	imagesInTar := make([]singleImage, 0, len(topLevelImageManifest))
+	for i, manifestItem := range topLevelImageManifest {
+		imageID, err := parseConfigID(manifestItem.Config)
+		if err != nil {
+			return nil, err
+		}
+		imagesInTar = append(imagesInTar, singleImage{index: i, id: imageID, nameTag: manifestItem.RepoTags})
 	}
 
-	return allRepoTags, nil
+	return imagesInTar, nil
 }
 
-func getOCIRepoTagFromImageTar(systemContext *types.SystemContext, path string) ([][]string, error) {
-	var (
-		err error
-	)
-
+func getOCIRepoTagFromImageTar(systemContext *types.SystemContext, path string) ([]singleImage, error) {
 	srcRef, err := alltransports.ParseImageName(exporter.FormatTransport(constant.OCIArchiveTransport, path))
 	if err != nil {
 		return nil, errors.Wrapf(err, "failed to parse image name of oci image format")
 	}
 
+	imageID, err := getLoadedImageID(srcRef, systemContext)
+	if err != nil {
+		return nil, err
+	}
 	tarManifest, err := ociarchive.LoadManifestDescriptorWithContext(systemContext, srcRef)
 	if err != nil {
 		return nil, errors.Wrapf(err, "failed to load manifest descriptor of oci image format")
 	}
 
-	// For now, we only support load single image in archive file
+	// For now, we only support loading oci-archive file with one single image
 	if _, ok := tarManifest.Annotations[imgspecv1.AnnotationRefName]; ok {
-		return [][]string{{tarManifest.Annotations[imgspecv1.AnnotationRefName]}}, nil
+		return []singleImage{{0, imageID, []string{tarManifest.Annotations[imgspecv1.AnnotationRefName]}}}, nil
+	}
+	return []singleImage{{0, imageID, []string{}}}, nil
+}
+
+func parseConfigID(configID string) (string, error) {
+	parts := strings.SplitN(configID, ".", 2)
+	if len(parts) != 2 {
+		return "", errors.New("wrong config info of manifest.json")
 	}
 
-	return [][]string{{}}, nil
+	configDigest := "sha256:" + digest.Digest(parts[0])
+	if err := configDigest.Validate(); err != nil {
+		return "", errors.Wrapf(err, "failed to get config info")
+	}
+
+	return "@" + configDigest.Encoded(), nil
+}
+
+func getLoadedImageID(imageRef types.ImageReference, systemContext *types.SystemContext) (string, error) {
+	if imageRef == nil || systemContext == nil {
+		return "", errors.New("nil image reference or system context when loading image")
+	}
+
+	newImage, err := imageRef.NewImage(context.TODO(), systemContext)
+	if err != nil {
+		return "", err
+	}
+	defer func() {
+		if err = newImage.Close(); err != nil {
+			logrus.Errorf("failed to close image: %v", err)
+		}
+	}()
+	imageDigest := newImage.ConfigInfo().Digest
+	if err = imageDigest.Validate(); err != nil {
+		return "", errors.Wrap(err, "failed to get config info")
+	}
+
+	return "@" + imageDigest.Encoded(), nil
 }

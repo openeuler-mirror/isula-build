@@ -37,7 +37,6 @@ import (
 	"github.com/containers/image/v5/transports/alltransports"
 	"github.com/containers/image/v5/types"
 	"github.com/containers/storage"
-	"github.com/containers/storage/pkg/stringid"
 	"github.com/opencontainers/go-digest"
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
@@ -55,6 +54,7 @@ type PrepareImageOptions struct {
 	SystemContext *types.SystemContext
 	Ctx           context.Context
 	FromImage     string
+	ToImage       string
 	Store         *store.Store
 	Reporter      io.Writer
 	ManifestIndex int
@@ -125,20 +125,17 @@ func PullAndGetImageInfo(opt *PrepareImageOptions) (types.ImageReference, *stora
 	}
 
 	if transport == "" {
-		// if the image can be obtained from the local storage by image id,
-		// then only one image can be obtained.
+		// if the image can be obtained from the local storage by image id, then only one image can be obtained.
 		if len(candidates) != 1 {
 			return nil, nil, errors.New("transport is empty and multi or no image be found")
 		}
-		img, err := opt.Store.Image(candidates[0])
-		if err != nil {
-			pLog.Errorf("Failed to find the image %q in local store: %v", candidates[0], err)
-			return nil, nil, err
+
+		ref, img, fErr := FindImage(opt.Store, candidates[0])
+		if fErr != nil {
+			pLog.Errorf("Failed to find the image %q in local store: %v", candidates[0], fErr)
+			return nil, nil, fErr
 		}
-		ref, err := is.Transport.ParseStoreReference(opt.Store, img.ID)
-		if err != nil {
-			return nil, nil, errors.Wrapf(err, "failed to get the ref in store by %q", candidates[0])
-		}
+
 		pLog.Infof("Get image from local store first search by %q", opt.FromImage)
 		return ref, img, nil
 	}
@@ -147,25 +144,33 @@ func PullAndGetImageInfo(opt *PrepareImageOptions) (types.ImageReference, *stora
 	var errPull error
 	for _, strImage := range candidates {
 		var (
-			srcRef types.ImageReference
-			pErr   error
+			srcRef    types.ImageReference
+			destImage string
 		)
 
 		imageName := exporter.FormatTransport(transport, strImage)
-		if transport == constant.DockerArchiveTransport {
-			srcRef, pErr = alltransports.ParseImageName(imageName + ":@" + strconv.Itoa(opt.ManifestIndex))
-		} else {
-			srcRef, pErr = alltransports.ParseImageName(imageName)
-		}
-		if pErr != nil {
-			pLog.Debugf("Failed to parse the image %q: %v", imageName, pErr)
-			continue
-		}
-
-		destImage, err := getLocalImageNameFromRef(opt.Store, srcRef)
-		if err != nil {
-			pLog.Debugf("Failed to get local image name for %q: %v", imageName, err)
-			continue
+		switch transport {
+		case constant.DockerArchiveTransport:
+			if srcRef, err = alltransports.ParseImageName(imageName + ":@" + strconv.Itoa(opt.ManifestIndex)); err != nil {
+				pLog.Debugf("Failed to parse the image %q with %q transport: %v", imageName, constant.DockerArchiveTransport, err)
+				continue
+			}
+			destImage = opt.ToImage
+		case constant.OCIArchiveTransport:
+			if srcRef, err = alltransports.ParseImageName(imageName); err != nil {
+				pLog.Debugf("Failed to parse the image %q with %q transport: %v", imageName, constant.OCIArchiveTransport, err)
+				continue
+			}
+			destImage = opt.ToImage
+		default:
+			if srcRef, err = alltransports.ParseImageName(imageName); err != nil {
+				pLog.Debugf("Failed to get local image name for %q: %v", imageName, err)
+				continue
+			}
+			if destImage, err = getLocalImageNameFromRef(srcRef); err != nil {
+				pLog.Debugf("Failed to parse store reference for %q: %v", destImage, err)
+				continue
+			}
 		}
 
 		destRef, err := is.Transport.ParseStoreReference(opt.Store, destImage)
@@ -173,7 +178,6 @@ func PullAndGetImageInfo(opt *PrepareImageOptions) (types.ImageReference, *stora
 			pLog.Debugf("Failed to parse store reference for %q: %v", destImage, err)
 			continue
 		}
-
 		img, err := is.Transport.GetStoreImage(opt.Store, destRef)
 		if err == nil {
 			// find the unique image in local store by name or digest
@@ -246,13 +250,9 @@ func instantiatingImage(ctx context.Context, sc *types.SystemContext, ref types.
 	return baseImg, nil
 }
 
-func getLocalImageNameFromRef(store storage.Store, srcRef types.ImageReference) (string, error) {
+func getLocalImageNameFromRef(srcRef types.ImageReference) (string, error) {
 	if srcRef == nil {
 		return "", errors.Errorf("reference to image is empty")
-	}
-
-	if err := exporter.CheckArchiveFormat(srcRef.Transport().Name()); err == nil {
-		return stringid.GenerateRandomID() + ":" + stringid.GenerateRandomID(), nil
 	}
 	if srcRef.Transport().Name() != constant.DockerTransport {
 		return "", errors.Errorf("the %s transport is not supported yet", srcRef.Transport().Name())
