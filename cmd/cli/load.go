@@ -178,7 +178,7 @@ func (sep *separatorLoadOption) check(pwd string) error {
 		return errors.New("image tarball directory should not be empty")
 	}
 
-	if sep.base == sep.lib {
+	if len(sep.base) != 0 && sep.base == sep.lib {
 		return errors.New("base and lib tarballs are the same")
 	}
 
@@ -203,7 +203,7 @@ func (sep *separatorLoadOption) check(pwd string) error {
 
 	sep.dir = util.MakeAbsolute(sep.dir, pwd)
 	if !util.IsExist(sep.dir) {
-		return errors.Errorf("image tarball directory %s is not exist", sep.dir)
+		return errors.Errorf("image tarball directory %q is not exist", sep.dir)
 	}
 
 	return nil
