@@ -15,6 +15,7 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"io/ioutil"
 	"os"
 	"path/filepath"
@@ -22,7 +23,9 @@ import (
 
 	"gotest.tools/v3/assert"
 	"gotest.tools/v3/fs"
+
 	constant "isula.org/isula-build"
+	"isula.org/isula-build/util"
 )
 
 func TestLoadCmd(t *testing.T) {
@@ -182,6 +185,8 @@ func TestResolveLoadPath(t *testing.T) {
 }
 
 func TestCheckLoadOpts(t *testing.T) {
+	pwd, err := os.Getwd()
+	assert.NilError(t, err)
 	root := fs.NewDir(t, t.Name())
 	defer root.Remove()
 	emptyFile, err := os.Create(filepath.Join(root.Path(), "empty.tar"))
@@ -201,9 +206,10 @@ func TestCheckLoadOpts(t *testing.T) {
 		sep    separatorLoadOption
 	}
 	tests := []struct {
-		name    string
-		fields  fields
-		wantErr bool
+		name       string
+		fields     fields
+		wantErr    bool
+		errMessage string
 	}{
 		{
 			name: "TC-normal load options",
@@ -212,15 +218,17 @@ func TestCheckLoadOpts(t *testing.T) {
 			},
 		},
 		{
-			name:    "TC-empty load path",
-			wantErr: true,
+			name:       "TC-empty load path",
+			wantErr:    true,
+			errMessage: "tarball path should not be empty",
 		},
 		{
 			name: "TC-empty load file",
 			fields: fields{
 				path: emptyFile.Name(),
 			},
-			wantErr: true,
+			wantErr:    true,
+			errMessage: "loading file is empty",
 		},
 		{
 			name: "TC-separated load",
@@ -243,7 +251,8 @@ func TestCheckLoadOpts(t *testing.T) {
 					lib:  libFile.Name(),
 				},
 			},
-			wantErr: true,
+			wantErr:    true,
+			errMessage: "app image name(-i) should not be empty",
 		},
 		{
 			name: "TC-separated load with empty dir",
@@ -254,7 +263,8 @@ func TestCheckLoadOpts(t *testing.T) {
 					lib:  libFile.Name(),
 				},
 			},
-			wantErr: true,
+			wantErr:    true,
+			errMessage: "image tarball directory should not be empty",
 		},
 		{
 			name: "TC-separated load with invalid app name",
@@ -266,7 +276,8 @@ func TestCheckLoadOpts(t *testing.T) {
 					lib:  libFile.Name(),
 				},
 			},
-			wantErr: true,
+			wantErr:    true,
+			errMessage: fmt.Sprintf("invalid image name: %s", "invalid:app:name"),
 		},
 		{
 			name: "TC-separated load with empty base tarball",
@@ -278,7 +289,8 @@ func TestCheckLoadOpts(t *testing.T) {
 					lib:  libFile.Name(),
 				},
 			},
-			wantErr: true,
+			wantErr:    true,
+			errMessage: "resolve base tarball path failed: loading file is empty",
 		},
 		{
 			name: "TC-separated load with empty lib tarball",
@@ -290,7 +302,8 @@ func TestCheckLoadOpts(t *testing.T) {
 					lib:  emptyFile.Name(),
 				},
 			},
-			wantErr: true,
+			wantErr:    true,
+			errMessage: "resolve lib tarball path failed: loading file is empty",
 		},
 		{
 			name: "TC-separated load with same base and lib tarball",
@@ -302,7 +315,8 @@ func TestCheckLoadOpts(t *testing.T) {
 					lib:  fileWithContent.Name(),
 				},
 			},
-			wantErr: true,
+			wantErr:    true,
+			errMessage: "base and lib tarballs are the same",
 		},
 		{
 			name: "TC-separated load with dir not exist",
@@ -314,7 +328,20 @@ func TestCheckLoadOpts(t *testing.T) {
 					lib:  libFile.Name(),
 				},
 			},
-			wantErr: true,
+			wantErr:    true,
+			errMessage: fmt.Sprintf("image tarball directory %q is not exist", util.MakeAbsolute("path not exist", pwd)),
+		},
+		{
+			// if base and lib dir are both not provided, daemon side will read
+			// the info from "manifest" file in the dest dir automatically
+			// so no error return here
+			name: "TC-base and lib dir both not provided",
+			fields: fields{
+				path: "app:latest",
+				sep: separatorLoadOption{
+					dir: root.Path(),
+				},
+			},
 		},
 	}
 	for _, tt := range tests {
@@ -324,8 +351,12 @@ func TestCheckLoadOpts(t *testing.T) {
 				loadID: tt.fields.loadID,
 				sep:    tt.fields.sep,
 			}
-			if err := opt.checkLoadOpts(); (err != nil) != tt.wantErr {
+			err := opt.checkLoadOpts()
+			if (err != nil) != tt.wantErr {
 				t.Errorf("loadOptions.checkLoadOpts() error = %v, wantErr %v", err, tt.wantErr)
+			}
+			if err != nil && err.Error() != tt.errMessage {
+				t.Errorf("loadOptions.checkLoadOpts() error = %v, wantErr %v", err, tt.errMessage)
 			}
 		})
 	}
