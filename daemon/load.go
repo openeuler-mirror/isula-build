@@ -15,6 +15,9 @@ package daemon
 
 import (
 	"context"
+	"io/ioutil"
+	"os"
+	"path/filepath"
 	"strings"
 
 	"github.com/containers/image/v5/docker/tarfile"
@@ -22,6 +25,7 @@ import (
 	"github.com/containers/image/v5/transports/alltransports"
 	"github.com/containers/image/v5/types"
 	"github.com/containers/storage"
+	"github.com/containers/storage/pkg/archive"
 	securejoin "github.com/cyphar/filepath-securejoin"
 	digest "github.com/opencontainers/go-digest"
 	imgspecv1 "github.com/opencontainers/image-spec/specs-go/v1"
@@ -37,9 +41,38 @@ import (
 	"isula.org/isula-build/util"
 )
 
+const (
+	tmpBaseDirName         = "base"
+	tmpAppDirName          = "app"
+	tmpLibDirName          = "lib"
+	unionCompressedTarName = "all.tar.gz"
+)
+
+type loadImageTmpDir struct {
+	app  string
+	base string
+	lib  string
+	root string
+}
+
+type separatorLoad struct {
+	log       *logrus.Entry
+	tmpDir    loadImageTmpDir
+	info      tarballInfo
+	appName   string
+	basePath  string
+	appPath   string
+	libPath   string
+	dir       string
+	skipCheck bool
+	enabled   bool
+}
+
 type loadOptions struct {
-	path   string
-	format string
+	path     string
+	format   string
+	logEntry *logrus.Entry
+	sep      separatorLoad
 }
 
 type singleImage struct {
@@ -48,22 +81,72 @@ type singleImage struct {
 	nameTag []string
 }
 
-func (b *Backend) getLoadOptions(req *pb.LoadRequest) loadOptions {
-	return loadOptions{
+func (b *Backend) getLoadOptions(req *pb.LoadRequest) (loadOptions, error) {
+	var opt = loadOptions{
 		path: req.GetPath(),
+		sep: separatorLoad{
+			appName:   req.GetSep().GetApp(),
+			basePath:  req.GetSep().GetBase(),
+			libPath:   req.GetSep().GetLib(),
+			dir:       req.GetSep().GetDir(),
+			skipCheck: req.GetSep().GetSkipCheck(),
+			enabled:   req.GetSep().GetEnabled(),
+		},
+		logEntry: logrus.WithFields(logrus.Fields{"LoadID": req.GetLoadID()}),
 	}
+
+	// normal loadOptions
+	if !opt.sep.enabled {
+		if err := util.CheckLoadFile(opt.path); err != nil {
+			return loadOptions{}, err
+		}
+		return opt, nil
+	}
+
+	// load separated images
+	// log is used for sep methods
+	opt.sep.log = opt.logEntry
+	tmpRoot := filepath.Join(b.daemon.opts.DataRoot, filepath.Join(dataRootTmpDirPrefix, req.GetLoadID()))
+	opt.sep.tmpDir.root = tmpRoot
+	opt.sep.tmpDir.base = filepath.Join(tmpRoot, tmpBaseDirName)
+	opt.sep.tmpDir.app = filepath.Join(tmpRoot, tmpAppDirName)
+	opt.sep.tmpDir.lib = filepath.Join(tmpRoot, tmpLibDirName)
+
+	// check image name and add "latest" tag if not present
+	_, appImgName, err := image.GetNamedTaggedReference(opt.sep.appName)
+	if err != nil {
+		return loadOptions{}, err
+	}
+	opt.sep.appName = appImgName
+
+	return opt, nil
 }
 
 // Load loads the image
 func (b *Backend) Load(req *pb.LoadRequest, stream pb.Control_LoadServer) error {
-	logrus.Info("LoadRequest received")
+	logrus.WithFields(logrus.Fields{
+		"LoadID": req.GetLoadID(),
+	}).Info("LoadRequest received")
 
 	var si *storage.Image
 
-	opts := b.getLoadOptions(req)
+	opts, err := b.getLoadOptions(req)
+	if err != nil {
+		return errors.Wrap(err, "process load options failed")
+	}
 
-	if err := util.CheckLoadFile(req.Path); err != nil {
-		return err
+	defer func() {
+		if tErr := os.RemoveAll(opts.sep.tmpDir.root); tErr != nil {
+			opts.logEntry.Warnf("Removing load tmp directory %q failed: %v", opts.sep.tmpDir.root, tErr)
+		}
+	}()
+
+	// construct separated images
+	if opts.sep.enabled {
+		if lErr := loadSeparatedImage(&opts); lErr != nil {
+			opts.logEntry.Errorf("Load separated image for %s failed: %v", opts.sep.appName, lErr)
+			return lErr
+		}
 	}
 
 	imagesInTar, err := tryToParseImageFormatFromTarball(b.daemon.opts.DataRoot, &opts)
@@ -158,8 +241,14 @@ func getDockerRepoTagFromImageTar(systemContext *types.SystemContext, path strin
 	// tmp dir will be removed after NewSourceFromFileWithContext
 	tarfileSource, err := tarfile.NewSourceFromFileWithContext(systemContext, path)
 	if err != nil {
-		return nil, errors.Wrapf(err, "failed to get the source of loading tar file")
+		return nil, errors.Wrap(err, "failed to get the source of loading tar file")
 	}
+	defer func() {
+		if cErr := tarfileSource.Close(); cErr != nil {
+			logrus.Warnf("tar file source close failed: %v", cErr)
+		}
+	}()
+
 	topLevelImageManifest, err := tarfileSource.LoadTarManifest()
 	if err != nil || len(topLevelImageManifest) == 0 {
 		return nil, errors.Errorf("failed to get the top level image manifest: %v", err)
@@ -180,7 +269,7 @@ func getDockerRepoTagFromImageTar(systemContext *types.SystemContext, path strin
 func getOCIRepoTagFromImageTar(systemContext *types.SystemContext, path string) ([]singleImage, error) {
 	srcRef, err := alltransports.ParseImageName(exporter.FormatTransport(constant.OCIArchiveTransport, path))
 	if err != nil {
-		return nil, errors.Wrapf(err, "failed to parse image name of oci image format")
+		return nil, errors.Wrap(err, "failed to parse image name of oci image format")
 	}
 
 	imageID, err := getLoadedImageID(srcRef, systemContext)
@@ -189,7 +278,7 @@ func getOCIRepoTagFromImageTar(systemContext *types.SystemContext, path string) 
 	}
 	tarManifest, err := ociarchive.LoadManifestDescriptorWithContext(systemContext, srcRef)
 	if err != nil {
-		return nil, errors.Wrapf(err, "failed to load manifest descriptor of oci image format")
+		return nil, errors.Wrap(err, "failed to load manifest descriptor of oci image format")
 	}
 
 	// For now, we only support loading oci-archive file with one single image
@@ -233,4 +322,198 @@ func getLoadedImageID(imageRef types.ImageReference, systemContext *types.System
 	}
 
 	return "@" + imageDigest.Encoded(), nil
+}
+
+func loadSeparatedImage(opt *loadOptions) error {
+	s := &opt.sep
+	s.log.Infof("Starting load separated image %s", s.appName)
+
+	// load manifest file to get tarball info
+	if err := s.getTarballInfo(); err != nil {
+		return errors.Wrap(err, "failed to get tarball info")
+	}
+	if err := s.constructTarballInfo(); err != nil {
+		return err
+	}
+	// checksum for image tarballs
+	if err := s.tarballCheckSum(); err != nil {
+		return err
+	}
+	// process image tarballs and get final constructed image tarball
+	tarPath, err := s.processTarballs()
+	if err != nil {
+		return err
+	}
+	opt.path = tarPath
+
+	return nil
+}
+
+func (s *separatorLoad) getTarballInfo() error {
+	manifest, err := securejoin.SecureJoin(s.dir, manifestFile)
+	if err != nil {
+		return errors.Wrap(err, "join manifest file path failed")
+	}
+
+	var t = make(map[string]tarballInfo)
+	if err = util.LoadJSONFile(manifest, &t); err != nil {
+		return errors.Wrap(err, "load manifest file failed")
+	}
+
+	tarball, ok := t[s.appName]
+	if !ok {
+		return errors.Errorf("failed to find app image %s", s.appName)
+	}
+	s.info = tarball
+
+	return nil
+}
+
+func (s *separatorLoad) constructTarballInfo() (err error) {
+	s.log.Infof("construct image tarball info for %s", s.appName)
+	// fill up path for separator
+	// this case should not happened since client side already check this flag
+	if len(s.appName) == 0 {
+		return errors.New("app image name should not be empty")
+	}
+	s.appPath, err = securejoin.SecureJoin(s.dir, s.info.AppTarName)
+	if err != nil {
+		return err
+	}
+
+	if len(s.basePath) == 0 {
+		if len(s.info.BaseTarName) == 0 {
+			return errors.Errorf("base image %s tarball can not be empty", s.info.BaseImageName)
+		}
+		s.log.Info("Base image path is empty, use path from manifest")
+		s.basePath, err = securejoin.SecureJoin(s.dir, s.info.BaseTarName)
+		if err != nil {
+			return err
+		}
+	}
+	if len(s.libPath) == 0 && len(s.info.LibTarName) != 0 {
+		s.log.Info("Lib image path is empty, use path from manifest")
+		s.libPath, err = securejoin.SecureJoin(s.dir, s.info.LibTarName)
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func (s *separatorLoad) tarballCheckSum() error {
+	if s.skipCheck {
+		s.log.Info("Skip checksum for tarballs")
+		return nil
+	}
+
+	// app image tarball can not be empty
+	if len(s.appPath) == 0 {
+		return errors.New("app image tarball path can not be empty")
+	}
+	if err := util.CheckSum(s.appPath, s.info.AppHash); err != nil {
+		return errors.Wrapf(err, "check sum for file %q failed", s.appPath)
+	}
+
+	// base image tarball can not be empty
+	if len(s.basePath) == 0 {
+		return errors.New("base image tarball path can not be empty")
+	}
+	if err := util.CheckSum(s.basePath, s.info.BaseHash); err != nil {
+		return errors.Wrapf(err, "check sum for file %q failed", s.basePath)
+	}
+
+	// lib image may be empty image
+	if len(s.libPath) != 0 {
+		if err := util.CheckSum(s.libPath, s.info.LibHash); err != nil {
+			return errors.Wrapf(err, "check sum for file %q failed", s.libPath)
+		}
+	}
+
+	return nil
+}
+
+func (s *separatorLoad) processTarballs() (string, error) {
+	if err := s.unpackTarballs(); err != nil {
+		return "", err
+	}
+
+	if err := s.reconstructImage(); err != nil {
+		return "", err
+	}
+
+	// pack app image to tarball
+	tarPath := filepath.Join(s.tmpDir.root, unionCompressedTarName)
+	if err := util.PackFiles(s.tmpDir.base, tarPath, archive.Gzip, true); err != nil {
+		return "", err
+	}
+
+	return tarPath, nil
+}
+
+func (s *separatorLoad) unpackTarballs() error {
+	if err := s.makeTempDir(); err != nil {
+		return errors.Wrap(err, "failed to make temporary directories")
+	}
+
+	// unpack base first and the later images will be moved here
+	if err := util.UnpackFile(s.basePath, s.tmpDir.base, archive.Gzip, false); err != nil {
+		return errors.Wrapf(err, "unpack base tarball %q failed", s.basePath)
+	}
+
+	if err := util.UnpackFile(s.appPath, s.tmpDir.app, archive.Gzip, false); err != nil {
+		return errors.Wrapf(err, "unpack app tarball %q failed", s.appPath)
+	}
+
+	if len(s.libPath) != 0 {
+		if err := util.UnpackFile(s.libPath, s.tmpDir.lib, archive.Gzip, false); err != nil {
+			return errors.Wrapf(err, "unpack lib tarball %q failed", s.libPath)
+		}
+	}
+
+	return nil
+}
+
+func (s *separatorLoad) reconstructImage() error {
+	files, err := ioutil.ReadDir(s.tmpDir.app)
+	if err != nil {
+		return err
+	}
+
+	for _, f := range files {
+		src := filepath.Join(s.tmpDir.app, f.Name())
+		dest := filepath.Join(s.tmpDir.base, f.Name())
+		if err := os.Rename(src, dest); err != nil {
+			return errors.Wrapf(err, "reconstruct app file %q failed", s.info.AppTarName)
+		}
+	}
+
+	if len(s.libPath) != 0 {
+		files, err := ioutil.ReadDir(s.tmpDir.lib)
+		if err != nil {
+			return err
+		}
+
+		for _, f := range files {
+			src := filepath.Join(s.tmpDir.lib, f.Name())
+			dest := filepath.Join(s.tmpDir.base, f.Name())
+			if err := os.Rename(src, dest); err != nil {
+				return errors.Wrapf(err, "reconstruct lib file %q failed", s.info.LibTarName)
+			}
+		}
+	}
+
+	return nil
+}
+
+func (s *separatorLoad) makeTempDir() error {
+	dirs := []string{s.tmpDir.root, s.tmpDir.app, s.tmpDir.base, s.tmpDir.lib}
+	for _, dir := range dirs {
+		if err := os.MkdirAll(dir, constant.DefaultRootDirMode); err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
