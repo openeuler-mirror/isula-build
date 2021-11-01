@@ -112,6 +112,24 @@ test-integration: ## Test integration case
 	@./tests/test.sh integration
 	@echo "Integration test done!"
 
+.PHONY: test-unit-cover
+test-unit-cover: ## Test unit case and generate coverage
+	@echo "Unit test cover starting..."
+	@./hack/unit_test.sh cover
+	@echo "Unit test cover done!"
+
+.PHONY: test-sdv-cover
+test-sdv-cover: ## Test integration case and generate coverage
+	@echo "Integration test cover starting..."
+	@./hack/sdv_coverage.sh
+	@echo "Integration test cover done!"
+
+.PHONY: test-cover
+test-cover: test-sdv-cover test-unit-cover ## Test both unit and sdv case and generate unity coverage
+	@echo "Test cover starting..."
+	@./hack/all_coverage.sh
+	@echo "Test cover done!"
+
 ##@ Development
 
 .PHONY: build-image
