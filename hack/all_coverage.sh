@@ -20,7 +20,7 @@ SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" || exit; pwd)
 source "${SCRIPT_DIR}"/merge_coverage.sh
 
 unit_coverage=${PWD}/cover_unit_test_all.out
-sdv_coverage=${PWD}/cover_sdv_test_all.out
+integration_coverage=${PWD}/cover_integration_test_all.out
 output_file=${PWD}/cover_test_all
 
-merge_cover "${output_file}" "${sdv_coverage}" "${unit_coverage}"
+merge_cover "${output_file}" "${integration_coverage}" "${unit_coverage}"
