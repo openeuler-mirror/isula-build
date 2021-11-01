@@ -12,6 +12,7 @@
 # Author: Weizheng Xing
 # Create: 2021-05-29
 # Description: test set new run and data root in configuration.toml
+# History: 2021-8-18 Xiang Li <lixiang172@huawei.com> use busyobx instead of openeuler base image to speed up test
 
 top_dir=$(git rev-parse --show-toplevel)
 # shellcheck disable=SC1091
@@ -20,7 +21,7 @@ source "$top_dir"/tests/lib/common.sh
 run_root="/var/run/new-isula-build"
 data_root="/var/lib/new-isula-build"
 config_file="/etc/isula-build/configuration.toml"
-base_image="hub.oepkgs.net/openeuler/openeuler:21.03"
+image="hub.oepkgs.net/openeuler/busybox:latest"
 
 function clean()
 {
@@ -47,10 +48,10 @@ function pre_test()
 function do_test()
 {
     tree_node_befor=$(tree -L 3 $data_root | wc -l)
-    run_with_debug "isula-build ctr-img pull $base_image"
+    run_with_debug "isula-build ctr-img pull $image"
     tree_node_after=$(tree -L 3 $data_root | wc -l)
 
-    if [ $((tree_node_after - tree_node_befor)) -eq 8 ] && run_with_debug "isula-build ctr-img rm $base_image"; then
+    if [ $((tree_node_after - tree_node_befor)) -eq 8 ] && run_with_debug "isula-build ctr-img rm $image"; then
         echo "PASS"
     else
         echo "Sets of run and data root are not effective"

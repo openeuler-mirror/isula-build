@@ -12,32 +12,72 @@
 # Author: iSula Team
 # Create: 2020-07-11
 # Description: go test script
+# Note: use this file by typing make unit-test or make unit-test-cover
+#       Do not run this script directly
+
+SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" || exit; pwd)
+# shellcheck disable=SC1091
+source "${SCRIPT_DIR}"/merge_coverage.sh
 
 export GO111MODULE=on
-
-TEST_ARGS=""
-if [ ! -z "${TEST_REG}" ]; then
-    TEST_ARGS+=" -args TEST_REG=${TEST_REG}"
-fi
-if [ ! -z "${SKIP_REG}" ]; then
-    TEST_ARGS+=" -args SKIP_REG=${SKIP_REG}"
-fi
-echo "Testing with args ${TEST_ARGS}"
-
+run_coverage=$1
+covers_folder=${PWD}/covers
 testlog=${PWD}"/unit_test_log"
-rm -f "${testlog}"
-touch "${testlog}"
-golist=$(go list ./... | grep -v gopkgs)
-for path in ${golist}; do
-    echo "Start to test: ${path}"
-    # TEST_ARGS is " -args SKIP_REG=foo", so no double quote for it
-    go test -race -mod=vendor -cover -count=1 -timeout 300s -v "${path}" ${TEST_ARGS} >> "${testlog}"
-    cat "${testlog}" | grep -E -- "--- FAIL:|^FAIL"
-    if [ $? -eq 0 ]; then
-        echo "Testing failed... Please check ${testlog}"
+exclude_pattern="gopkgs|api/services"
+go_test_mod_method="-mod=vendor"
+go_test_count_method="-count=1"
+go_test_timeout_flag="-timeout=300s"
+go_test_race_flag="-race"
+
+function precheck() {
+    if pgrep isula-builder > /dev/null 2>&1; then
+        echo "isula-builder is already running, please stop it first"
         exit 1
     fi
-    tail -n 1 "${testlog}"
-done
+}
 
-rm -f "${testlog}"
+function run_unit_test() {
+    TEST_ARGS=""
+    if [ -n "${TEST_REG}" ]; then
+        TEST_ARGS+=" -args TEST_REG=${TEST_REG}"
+    fi
+    if [ -n "${SKIP_REG}" ]; then
+        TEST_ARGS+=" -args SKIP_REG=${SKIP_REG}"
+    fi
+    echo "Testing with args ${TEST_ARGS}"
+
+    rm -f "${testlog}"
+    if [[ -n $run_coverage ]]; then
+        mkdir -p "${covers_folder}"
+    fi
+    for package in $(go list ${go_test_mod_method} ./... | grep -Ev ${exclude_pattern}); do
+        echo "Start to test: ${package}"
+        if [[ -n $run_coverage ]]; then
+            coverprofile_file="${covers_folder}/$(echo "$package" | tr / -).cover"
+            coverprofile_flag="-coverprofile=${coverprofile_file}"
+            go_test_covermode_flag="-covermode=set"
+            go_test_race_flag=""
+        fi
+        # TEST_ARGS is " -args SKIP_REG=foo", so no double quote for it
+        # shellcheck disable=SC2086
+        go test -v ${go_test_race_flag} ${go_test_mod_method} ${coverprofile_flag} ${go_test_covermode_flag} -coverpkg=${package} ${go_test_count_method} ${go_test_timeout_flag} "${package}" ${TEST_ARGS} >> "${testlog}"
+    done
+
+    if grep -E -- "--- FAIL:|^FAIL" "${testlog}"; then
+        echo "Testing failed... Please check ${testlog}"
+    fi
+    tail -n 1 "${testlog}"
+
+    rm -f "${testlog}"
+}
+
+function generate_unit_test_coverage() {
+    if [[ -n ${run_coverage} ]]; then
+        merge_cover "cover_unit_test_all" "${covers_folder}"
+        rm -rf "${covers_folder}"
+    fi
+}
+
+precheck
+run_unit_test
+generate_unit_test_coverage
