@@ -1,0 +1,463 @@
+From 133e789d445905f5d94a6c8cc3459b3729fb7335 Mon Sep 17 00:00:00 2001
+From: DCCooper <1866858@gmail.com>
+Date: Thu, 28 Oct 2021 18:55:24 +0800
+Subject: [PATCH 07/16] util: add unit test for increment util functions
+
+Signed-off-by: DCCooper <1866858@gmail.com>
+---
+ util/cipher.go      |   6 +-
+ util/cipher_test.go | 237 ++++++++++++++++++++++++++++++++++++++++++++
+ util/common.go      |   3 +-
+ util/common_test.go | 131 ++++++++++++++++++++++++
+ 4 files changed, 373 insertions(+), 4 deletions(-)
+
+diff --git a/util/cipher.go b/util/cipher.go
+index d92705c3..ce47b71e 100644
+--- a/util/cipher.go
++++ b/util/cipher.go
+@@ -234,9 +234,6 @@ func ReadPublicKey(path string) (rsa.PublicKey, error) {
+ 
+ func hashFile(path string) (string, error) {
+ 	cleanPath := filepath.Clean(path)
+-	if len(cleanPath) == 0 {
+-		return "", errors.New("failed to hash empty path")
+-	}
+ 	if f, err := os.Stat(cleanPath); err != nil {
+ 		return "", errors.Errorf("failed to stat file %q", cleanPath)
+ 	} else if f.IsDir() {
+@@ -282,6 +279,9 @@ func hashDir(path string) (string, error) {
+ // the checksum will be concatenated to next checksum until every file
+ // counted, the result will be used for final checksum calculation
+ func SHA256Sum(path string) (string, error) {
++	if len(path) == 0 {
++		return "", errors.New("failed to hash empty path")
++	}
+ 	path = filepath.Clean(path)
+ 	f, err := os.Stat(path)
+ 	if err != nil {
+diff --git a/util/cipher_test.go b/util/cipher_test.go
+index 1c0d21c9..bab6dfe3 100644
+--- a/util/cipher_test.go
++++ b/util/cipher_test.go
+@@ -19,12 +19,15 @@ import (
+ 	"crypto/sha256"
+ 	"crypto/sha512"
+ 	"hash"
++	"io/ioutil"
++	"os"
+ 	"path/filepath"
+ 	"strings"
+ 	"testing"
+ 
+ 	"gotest.tools/v3/assert"
+ 	"gotest.tools/v3/fs"
++	constant "isula.org/isula-build"
+ )
+ 
+ const (
+@@ -216,3 +219,237 @@ func benchmarkGenerateRSAKey(scale int, b *testing.B) {
+ func BenchmarkGenerateRSAKey2048(b *testing.B) { benchmarkGenerateRSAKey(2048, b) }
+ func BenchmarkGenerateRSAKey3072(b *testing.B) { benchmarkGenerateRSAKey(3072, b) }
+ func BenchmarkGenerateRSAKey4096(b *testing.B) { benchmarkGenerateRSAKey(4096, b) }
++
++func TestHashFile(t *testing.T) {
++	emptyFile := fs.NewFile(t, t.Name())
++	defer emptyFile.Remove()
++	fileWithContent := fs.NewFile(t, t.Name())
++	err := ioutil.WriteFile(fileWithContent.Path(), []byte("hello"), constant.DefaultRootFileMode)
++	assert.NilError(t, err)
++	defer fileWithContent.Remove()
++	dir := fs.NewDir(t, t.Name())
++	defer dir.Remove()
++
++	type args struct {
++		path string
++	}
++	tests := []struct {
++		name    string
++		args    args
++		want    string
++		wantErr bool
++	}{
++		{
++			name: "TC-hash empty file",
++			args: args{path: emptyFile.Path()},
++			// empty file sha256sum always is
++			want: "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
++		},
++		{
++			name: "TC-hash file with content",
++			args: args{path: fileWithContent.Path()},
++			want: "2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824",
++		},
++		{
++			name:    "TC-hash file with empty path",
++			wantErr: true,
++		},
++		{
++			name:    "TC-hash file with invalid path",
++			args:    args{path: "path not exist"},
++			wantErr: true,
++		},
++		{
++			name:    "TC-hash file with directory path",
++			args:    args{path: dir.Path()},
++			wantErr: true,
++		},
++		{
++			name:    "TC-hash file with special device",
++			args:    args{path: "/dev/cdrom"},
++			wantErr: true,
++		},
++	}
++	for _, tt := range tests {
++		t.Run(tt.name, func(t *testing.T) {
++			got, err := hashFile(tt.args.path)
++			if (err != nil) != tt.wantErr {
++				t.Errorf("hashFile() error = %v, wantErr %v", err, tt.wantErr)
++				return
++			}
++			if got != tt.want {
++				t.Errorf("hashFile() = %v, want %v", got, tt.want)
++			}
++		})
++	}
++}
++
++func TestHashDir(t *testing.T) {
++	root := fs.NewDir(t, t.Name())
++	defer root.Remove()
++
++	rootSub1 := root.Join("sub1")
++	os.MkdirAll(rootSub1, constant.DefaultRootDirMode)
++	defer os.RemoveAll(rootSub1)
++	rootSub1File := filepath.Join(rootSub1, "rootSub1File")
++	ioutil.WriteFile(rootSub1File, []byte("hello1"), constant.DefaultRootFileMode)
++	defer os.RemoveAll(rootSub1File)
++
++	rootSub11 := filepath.Join(rootSub1, "sub11")
++	os.MkdirAll(rootSub11, constant.DefaultRootDirMode)
++	defer os.RemoveAll(rootSub11)
++	rootSub11File := filepath.Join(rootSub11, "rootSub11File")
++	ioutil.WriteFile(rootSub11File, []byte("hello11"), constant.DefaultRootFileMode)
++	defer os.RemoveAll(rootSub11File)
++
++	emptyDir := fs.NewDir(t, t.Name())
++	defer emptyDir.Remove()
++	emptyFile := root.Join("empty.tar")
++	_, err := os.Create(emptyFile)
++	assert.NilError(t, err)
++	defer os.RemoveAll(emptyFile)
++
++	type args struct {
++		path string
++	}
++	tests := []struct {
++		name    string
++		args    args
++		want    string
++		wantErr bool
++	}{
++		{
++			name: "TC-hash empty dir",
++			args: args{path: emptyDir.Path()},
++			want: "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
++		},
++		{
++			name:    "TC-hash not exist dir",
++			args:    args{path: "path not exist"},
++			wantErr: true,
++		},
++		{
++			name: "TC-hash multiple dirs",
++			args: args{path: root.Path()},
++			want: "bdaaa88766b974876a14d85620b5a26795735c332445783a3a067e0052a59478",
++		},
++	}
++	for _, tt := range tests {
++		t.Run(tt.name, func(t *testing.T) {
++			got, err := hashDir(tt.args.path)
++			if (err != nil) != tt.wantErr {
++				t.Errorf("hashDir() error = %v, wantErr %v", err, tt.wantErr)
++				return
++			}
++			if got != tt.want {
++				t.Errorf("hashDir() = %v, want %v", got, tt.want)
++			}
++		})
++	}
++}
++
++func TestSHA256Sum(t *testing.T) {
++	root := fs.NewDir(t, t.Name())
++	defer root.Remove()
++
++	rootSub1 := root.Join("sub1")
++	os.MkdirAll(rootSub1, constant.DefaultRootDirMode)
++	defer os.RemoveAll(rootSub1)
++	rootSub1File := filepath.Join(rootSub1, "rootSub1File")
++	ioutil.WriteFile(rootSub1File, []byte("hello1"), constant.DefaultRootFileMode)
++	defer os.RemoveAll(rootSub1File)
++
++	emptyDir := fs.NewDir(t, t.Name())
++	defer emptyDir.Remove()
++	emptyFile := root.Join("empty.tar")
++	_, err := os.Create(emptyFile)
++	assert.NilError(t, err)
++	defer os.RemoveAll(emptyFile)
++
++	type args struct {
++		path string
++	}
++	tests := []struct {
++		name    string
++		args    args
++		want    string
++		wantErr bool
++	}{
++		{
++			name: "TC-for dir",
++			args: args{path: root.Path()},
++			want: "6a29015d578de92eabad6b20b3e3c0d4df521b03728cb4ee5667b15742154646",
++		},
++		{
++			name: "TC-for file only",
++			args: args{path: emptyFile},
++			want: "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
++		},
++		{
++			name:    "TC-for invalid file",
++			args:    args{path: "/dev/cdrom"},
++			wantErr: true,
++		},
++		{
++			name:    "TC-for path not exist",
++			args:    args{path: "path not exist"},
++			wantErr: true,
++		},
++		{
++			name:    "TC-for empty path",
++			wantErr: true,
++		},
++	}
++	for _, tt := range tests {
++		t.Run(tt.name, func(t *testing.T) {
++			got, err := SHA256Sum(tt.args.path)
++			if (err != nil) != tt.wantErr {
++				t.Errorf("SHA256Sum() error = %v, wantErr %v", err, tt.wantErr)
++				return
++			}
++			if got != tt.want {
++				t.Errorf("SHA256Sum() = %v, want %v", got, tt.want)
++			}
++		})
++	}
++}
++
++func TestCheckSum(t *testing.T) {
++	emptyFile := fs.NewFile(t, t.Name())
++	defer emptyFile.Remove()
++
++	type args struct {
++		path   string
++		target string
++	}
++	tests := []struct {
++		name    string
++		args    args
++		wantErr bool
++	}{
++		{
++			name: "TC-normal case",
++			args: args{
++				path:   emptyFile.Path(),
++				target: "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
++			},
++		},
++		{
++			name:    "TC-check sum failed",
++			args:    args{path: emptyFile.Path(), target: "wrong"},
++			wantErr: true,
++		},
++		{
++			name:    "TC-empty path",
++			args:    args{target: "wrong"},
++			wantErr: true,
++		},
++	}
++	for _, tt := range tests {
++		t.Run(tt.name, func(t *testing.T) {
++			if err := CheckSum(tt.args.path, tt.args.target); (err != nil) != tt.wantErr {
++				t.Errorf("CheckSum() error = %v, wantErr %v", err, tt.wantErr)
++			}
++		})
++	}
++}
+diff --git a/util/common.go b/util/common.go
+index 4782b2ec..ff85da9c 100644
+--- a/util/common.go
++++ b/util/common.go
+@@ -192,7 +192,8 @@ func IsValidImageName(name string) bool {
+ 	if err != nil {
+ 		return false
+ 	}
+-	if _, canonical := ref.(reference.Canonical); canonical {
++
++	if _, isDigest := ref.(reference.Canonical); isDigest {
+ 		return false
+ 	}
+ 	return true
+diff --git a/util/common_test.go b/util/common_test.go
+index ed9edf6e..9831971a 100644
+--- a/util/common_test.go
++++ b/util/common_test.go
+@@ -14,11 +14,14 @@
+ package util
+ 
+ import (
++	"io/ioutil"
++	"os"
+ 	"path/filepath"
+ 	"testing"
+ 
+ 	"gotest.tools/v3/assert"
+ 	"gotest.tools/v3/fs"
++	constant "isula.org/isula-build"
+ )
+ 
+ func TestCheckFileSize(t *testing.T) {
+@@ -179,3 +182,131 @@ func TestParseServer(t *testing.T) {
+ 		})
+ 	}
+ }
++
++func TestIsValidImageName(t *testing.T) {
++	type args struct {
++		name string
++	}
++	tests := []struct {
++		name string
++		args args
++		want bool
++	}{
++		{
++			name: "TC-valid image name",
++			args: args{name: "app:latest"},
++			want: true,
++		},
++		{
++			name: "TC-valid image name with domain",
++			args: args{name: "localhost:5000/app:latest"},
++			want: true,
++		},
++		{
++			name: "TC-invalid image name",
++			args: args{name: "app:latest:v1"},
++			want: false,
++		},
++		{
++			name: "TC-invalid image name with canonical format",
++			args: args{name: "alpine:3.2@sha256:a187dde48cd289ac374ad8539930628314bc581a481cdb41409c9289419ddb72"},
++			want: false,
++		},
++	}
++	for _, tt := range tests {
++		t.Run(tt.name, func(t *testing.T) {
++			if got := IsValidImageName(tt.args.name); got != tt.want {
++				t.Errorf("IsValidImageName() = %v, want %v", got, tt.want)
++			}
++		})
++	}
++}
++
++func TestAnyFlagSet(t *testing.T) {
++	type args struct {
++		flags []string
++	}
++	tests := []struct {
++		name string
++		args args
++		want bool
++	}{
++		{
++			name: "TC-some flag set",
++			args: args{flags: []string{"flag1", "flag2"}},
++			want: true,
++		},
++		{
++			name: "TC-none flag set",
++			args: args{flags: []string{}},
++			want: false,
++		},
++	}
++	for _, tt := range tests {
++		t.Run(tt.name, func(t *testing.T) {
++			if got := AnyFlagSet(tt.args.flags...); got != tt.want {
++				t.Errorf("AnyFlagSet() = %v, want %v", got, tt.want)
++			}
++		})
++	}
++}
++
++func TestCheckLoadFile(t *testing.T) {
++	loadFile := fs.NewFile(t, t.Name())
++	defer loadFile.Remove()
++	err := ioutil.WriteFile(loadFile.Path(), []byte("hello"), constant.DefaultRootFileMode)
++	assert.NilError(t, err)
++
++	emptyFile := fs.NewFile(t, t.Name())
++	defer emptyFile.Remove()
++
++	root := fs.NewDir(t, t.Name())
++	defer root.Remove()
++
++	bigFile := filepath.Join(root.Path(), "bigFile")
++	f, err := os.Create(bigFile)
++	assert.NilError(t, err)
++	defer os.Remove(f.Name())
++	err = f.Truncate(maxLoadFileSize + 1)
++	assert.NilError(t, err)
++
++	type args struct {
++		path string
++	}
++	tests := []struct {
++		name    string
++		args    args
++		wantErr bool
++	}{
++		{
++			name: "TC-normal load file",
++			args: args{path: loadFile.Path()},
++		},
++		{
++			name:    "TC-load file not exist",
++			wantErr: true,
++		},
++		{
++			name:    "TC-empty load file",
++			args:    args{path: emptyFile.Path()},
++			wantErr: true,
++		},
++		{
++			name:    "TC-invalid load file",
++			args:    args{path: "/dev/cdrom"},
++			wantErr: true,
++		},
++		{
++			name:    "TC-load file too big",
++			args:    args{path: bigFile},
++			wantErr: true,
++		},
++	}
++	for _, tt := range tests {
++		t.Run(tt.name, func(t *testing.T) {
++			if err := CheckLoadFile(tt.args.path); (err != nil) != tt.wantErr {
++				t.Errorf("CheckLoadFile() error = %v, wantErr %v", err, tt.wantErr)
++			}
++		})
++	}
++}
+-- 
+2.27.0
+
