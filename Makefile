@@ -42,7 +42,7 @@ endif
 ##@ Help
 .PHONY: help
 help: ## Display the help info
-	@awk 'BEGIN {FS = ":.*##"; printf "\nUsage:\n  make \033[36m<target>\033[0m\n"} /^[a-zA-Z_0-9-]+:.*?##/ { printf "  \033[36m%-20s\033[0m %s\n", $$1, $$2 } /^##@/ { printf "\n\033[1m%s\033[0m\n", substr($$0, 5) } ' $(MAKEFILE_LIST)
+	@awk 'BEGIN {FS = ":.*##"; printf "\nUsage:\n  make \033[36m<target>\033[0m\n"} /^[a-zA-Z_0-9-]+:.*?##/ { printf "  \033[36m%-25s\033[0m %s\n", $$1, $$2 } /^##@/ { printf "\n\033[1m%s\033[0m\n", substr($$0, 5) } ' $(MAKEFILE_LIST)
 
 ##@ Build
 
@@ -118,14 +118,14 @@ test-unit-cover: ## Test unit case and generate coverage
 	@./hack/unit_test.sh cover
 	@echo "Unit test cover done!"
 
-.PHONY: test-sdv-cover
-test-sdv-cover: ## Test integration case and generate coverage
+.PHONY: test-integration-cover
+test-integration-cover: ## Test integration case and generate coverage
 	@echo "Integration test cover starting..."
-	@./hack/sdv_coverage.sh
+	@./hack/integration_coverage.sh
 	@echo "Integration test cover done!"
 
 .PHONY: test-cover
-test-cover: test-sdv-cover test-unit-cover ## Test both unit and sdv case and generate unity coverage
+test-cover: test-integration-cover test-unit-cover ## Test both unit and integration case and generate unity coverage
 	@echo "Test cover starting..."
 	@./hack/all_coverage.sh
 	@echo "Test cover done!"

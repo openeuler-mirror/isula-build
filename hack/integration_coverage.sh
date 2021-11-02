@@ -12,7 +12,7 @@
 # Author: Xiang Li
 # Create: 2020-03-01
 # Description: shell script for coverage
-# Note: use this file by typing make test-sdv-cover or make test-cover
+# Note: use this file by typing make test-integration-cover or make test-cover
 #       Do not run this script directly
 
 project_root=${PWD}
@@ -26,9 +26,10 @@ go_test_cover_method="-covermode=set"
 main_pkg="${vendor_name}/${project_name}/${main_relative_path}"
 main_test_file=${project_root}/${main_relative_path}/main_test.go
 main_file=${project_root}/${main_relative_path}/main.go
-coverage_file=${project_root}/cover_sdv_test_all.out
-coverage_html=${project_root}/cover_sdv_test_all.html
-coverage_log=${project_root}/cover_sdv_test_all.log
+coverage_file=${project_root}/cover_integration_test_all.out
+coverage_html=${project_root}/cover_integration_test_all.html
+coverage_daemon_log=${project_root}/cover_integration_test_all_daemon.log
+coverage_client_log=${project_root}/cover_integration_test_all_client.log
 main_test_binary_file=${project_root}/main.test
 
 function precheck() {
@@ -44,10 +45,10 @@ function modify_main_test() {
     cp "${main_test_file}" "${main_test_file}".bk
     # delete Args field for main.go
     local comment_pattern="Args:  util.NoArgs"
-    sed -i "/$comment_pattern/s/^#*/\/\/ /" "${main_file}"
+    sed -i "/${comment_pattern}/s/^#*/\/\/ /" "${main_file}"
     # add new line for main_test.go
     code_snippet="func TestMain(t *testing.T) { main() }"
-    echo "$code_snippet" >> "${main_test_file}"
+    echo "${code_snippet}" >> "${main_test_file}"
 }
 
 function recover_main_test() {
@@ -56,12 +57,12 @@ function recover_main_test() {
 }
 
 function build_main_test_binary() {
-    pkgs=$(go list ${go_test_mod_method} "${project_root}"/... | grep -Ev ${exclude_pattern} | tr "\r\n" ",")
-    go test -coverpkg="${pkgs}" ${main_pkg} ${go_test_mod_method} ${go_test_cover_method} ${go_test_count_method} -c -o="${main_test_binary_file}"
+    pkgs=$(go list "${go_test_mod_method}" "${project_root}"/... | grep -Ev "${exclude_pattern}" | tr "\r\n" ",")
+    go test -coverpkg="${pkgs}" "${main_pkg}" "${go_test_mod_method}" "${go_test_cover_method}" "${go_test_count_method}" -c -o="${main_test_binary_file}" > /dev/null 2>&1
 }
 
 function run_main_test_binary() {
-    ${main_test_binary_file} -test.coverprofile="${coverage_file}" > "${coverage_log}" 2>&1 &
+    ${main_test_binary_file} -test.coverprofile="${coverage_file}" > "${coverage_daemon_log}" 2>&1 &
     main_test_pid=$!
     for _ in $(seq 1 10); do
         if isula-build info > /dev/null 2>&1; then
@@ -74,15 +75,22 @@ function run_main_test_binary() {
 
 function run_coverage_test() {
     # do cover tests
-    echo "sdv coverage test"
-    # cover_test_xxx
-    # cover_test_xxx
-    # cover_test_xxx
-    # cover_test_xxx
+    while IFS= read -r testfile; do
+        printf "%-60s" "test $(basename "${testfile}"): "
+        echo -e "\n$(basename "${testfile}"):" >> "${coverage_client_log}"
+        if ! bash "${testfile}" >> "${coverage_client_log}" 2>&1; then
+            echo "FAIL"
+            return_code=1
+        else
+            echo "PASS"
+        fi
+    done < <(find "${project_root}"/tests/src -maxdepth 1 -name "cover_test_*" -type f -print)
+    # shellcheck disable=SC2248
+    return ${return_code}
 }
 
 function finish_coverage_test() {
-    kill -15 $main_test_pid
+    kill -15 "${main_test_pid}"
 }
 
 function generate_coverage() {
@@ -90,7 +98,7 @@ function generate_coverage() {
 }
 
 function cleanup() {
-    rm "$main_test_binary_file"
+    rm "${main_test_binary_file}"
 }
 
 precheck
@@ -102,3 +110,5 @@ run_coverage_test
 finish_coverage_test
 generate_coverage
 cleanup
+# shellcheck disable=SC2248
+exit ${return_code}
