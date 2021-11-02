@@ -185,7 +185,9 @@ func DecryptRSA(data string, key *rsa.PrivateKey, h crypto.Hash) (string, error)
 
 // GenRSAPublicKeyFile store public key from rsa key pair into local file
 func GenRSAPublicKeyFile(key *rsa.PrivateKey, path string) error {
-	if IsExist(path) {
+	if exist, err := IsExist(path); err != nil {
+		return err
+	} else if exist {
 		if err := os.Remove(path); err != nil {
 			return errors.Errorf("failed to delete the residual key file: %v", err)
 		}

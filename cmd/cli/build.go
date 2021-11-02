@@ -235,7 +235,9 @@ func checkAbsPath(path string) (string, error) {
 		}
 		path = util.MakeAbsolute(path, pwd)
 	}
-	if util.IsExist(path) {
+	if exist, err := util.IsExist(path); err != nil {
+		return "", err
+	} else if exist {
 		return "", errors.Errorf("output file already exist: %q, try to remove existing tarball or rename output file", path)
 	}
 
