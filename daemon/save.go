@@ -20,6 +20,7 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 
 	"github.com/containers/image/v5/docker/reference"
@@ -513,7 +514,13 @@ func (s *separatorSave) processImageLayers(imgInfos map[string]imageInfo) error 
 		libImagesMap  = make(imageLayersMap, 1)
 		appImagesMap  = make(imageLayersMap, 1)
 	)
-	for _, info := range imgInfos {
+	var sortedKey []string
+	for k := range imgInfos {
+		sortedKey = append(sortedKey, k)
+	}
+	sort.Strings(sortedKey)
+	for _, k := range sortedKey {
+		info := imgInfos[k]
 		if err := s.clearDirs(true); err != nil {
 			return errors.Wrap(err, "clear tmp dirs failed")
 		}
