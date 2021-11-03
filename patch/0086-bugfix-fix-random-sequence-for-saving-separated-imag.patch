@@ -1,0 +1,43 @@
+From d6c302a3d5563286614c59a442f4cd65a8351ce2 Mon Sep 17 00:00:00 2001
+From: DCCooper <1866858@gmail.com>
+Date: Tue, 2 Nov 2021 20:54:24 +0800
+Subject: [PATCH 1/2] bugfix: fix random sequence for saving separated image
+ tarball
+
+reason: sort the map key and read the key in alohabetical orger
+
+Signed-off-by: DCCooper <1866858@gmail.com>
+---
+ daemon/save.go | 9 ++++++++-
+ 1 file changed, 8 insertions(+), 1 deletion(-)
+
+diff --git a/daemon/save.go b/daemon/save.go
+index ecac5b6..9ad4e03 100644
+--- a/daemon/save.go
++++ b/daemon/save.go
+@@ -20,6 +20,7 @@ import (
+ 	"io/ioutil"
+ 	"os"
+ 	"path/filepath"
++	"sort"
+ 	"strings"
+ 
+ 	"github.com/containers/image/v5/docker/reference"
+@@ -513,7 +514,13 @@ func (s *separatorSave) processImageLayers(imgInfos map[string]imageInfo) error
+ 		libImagesMap  = make(imageLayersMap, 1)
+ 		appImagesMap  = make(imageLayersMap, 1)
+ 	)
+-	for _, info := range imgInfos {
++	var sortedKey []string
++	for k := range imgInfos {
++		sortedKey = append(sortedKey, k)
++	}
++	sort.Strings(sortedKey)
++	for _, k := range sortedKey {
++		info := imgInfos[k]
+ 		if err := s.clearDirs(true); err != nil {
+ 			return errors.Wrap(err, "clear tmp dirs failed")
+ 		}
+-- 
+1.8.3.1
+
