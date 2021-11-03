@@ -56,14 +56,18 @@ func IsDirectory(path string) bool {
 	return fi.IsDir()
 }
 
-// IsExist returns true if the path exists
-func IsExist(path string) bool {
-	if _, err := os.Lstat(path); err != nil {
-		if os.IsNotExist(err) {
-			return false
-		}
+// IsExist returns true if the path exists when err is nil
+// and return false if path not exists when err is nil
+// Caller should focus on whether the err is nil or not
+func IsExist(path string) (bool, error) {
+	_, err := os.Lstat(path)
+	if err == nil {
+		return true, nil
 	}
-	return true
+	if os.IsNotExist(err) {
+		return false, nil
+	}
+	return false, err
 }
 
 // IsSymbolFile returns true if the path file is a symbol file

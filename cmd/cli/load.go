@@ -202,7 +202,9 @@ func (sep *separatorLoadOption) check(pwd string) error {
 	}
 
 	sep.dir = util.MakeAbsolute(sep.dir, pwd)
-	if !util.IsExist(sep.dir) {
+	if exist, err := util.IsExist(sep.dir); err != nil {
+		return errors.Wrap(err, "resolve dir path failed")
+	} else if !exist {
 		return errors.Errorf("image tarball directory %q is not exist", sep.dir)
 	}
 

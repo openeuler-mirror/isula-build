@@ -112,7 +112,9 @@ func (sep *separatorSaveOption) check(pwd string) error {
 		sep.destPath = "Images"
 	}
 	sep.destPath = util.MakeAbsolute(sep.destPath, pwd)
-	if util.IsExist(sep.destPath) {
+	if exist, err := util.IsExist(sep.destPath); err != nil {
+		return errors.Wrap(err, "check dest path failed")
+	} else if exist {
 		return errors.Errorf("dest path already exist: %q, try to remove or rename it", sep.destPath)
 	}
 	if len(sep.renameFile) != 0 {
@@ -162,7 +164,9 @@ func (opt *saveOptions) checkSaveOpts(args []string) error {
 		return err
 	}
 	opt.path = util.MakeAbsolute(opt.path, pwd)
-	if util.IsExist(opt.path) {
+	if exist, err := util.IsExist(opt.path); err != nil {
+		return errors.Wrap(err, "check output path failed")
+	} else if exist {
 		return errors.Errorf("output file already exist: %q, try to remove existing tarball or rename output file", opt.path)
 	}
 	return nil

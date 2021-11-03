@@ -341,7 +341,9 @@ func setupWorkingDirectories() error {
 			return errors.Errorf("%q not an absolute dir, the \"dataroot\" and \"runroot\" must be an absolute path", dir)
 		}
 
-		if !util.IsExist(dir) {
+		if exist, err := util.IsExist(dir); err != nil {
+			return err
+		} else if !exist {
 			if err := os.MkdirAll(dir, constant.DefaultRootDirMode); err != nil {
 				return errors.Wrapf(err, "create directory for %q failed", dir)
 			}
@@ -363,7 +365,9 @@ func setupWorkingDirectories() error {
 
 func checkAndValidateConfig(cmd *cobra.Command) error {
 	// check if configuration.toml file exists, merge config if exists
-	if !util.IsExist(constant.ConfigurationPath) {
+	if exist, err := util.IsExist(constant.ConfigurationPath); err != nil {
+		return err
+	} else if !exist {
 		logrus.Warnf("Main config file missing, the default configuration is used")
 	} else {
 		conf, err := loadConfig(constant.ConfigurationPath)
@@ -378,14 +382,18 @@ func checkAndValidateConfig(cmd *cobra.Command) error {
 	}
 
 	// file policy.json must be exist
-	if !util.IsExist(constant.SignaturePolicyPath) {
+	if exist, err := util.IsExist(constant.SignaturePolicyPath); err != nil {
+		return err
+	} else if !exist {
 		return errors.Errorf("policy config file %v is not exist", constant.SignaturePolicyPath)
 	}
 
 	// check all config files
 	confFiles := []string{constant.RegistryConfigPath, constant.SignaturePolicyPath, constant.StorageConfigPath}
 	for _, file := range confFiles {
-		if util.IsExist(file) {
+		if exist, err := util.IsExist(file); err != nil {
+			return err
+		} else if exist {
 			fi, err := os.Stat(file)
 			if err != nil {
 				return errors.Wrapf(err, "stat file %q failed", file)
@@ -402,7 +410,9 @@ func checkAndValidateConfig(cmd *cobra.Command) error {
 	}
 
 	// if storage config file exists, merge storage config
-	if util.IsExist(constant.StorageConfigPath) {
+	if exist, err := util.IsExist(constant.StorageConfigPath); err != nil {
+		return err
+	} else if exist {
 		return mergeStorageConfig(cmd)
 	}
 
