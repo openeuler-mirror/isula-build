@@ -83,6 +83,7 @@ type separatorSave struct {
 	base       string
 	lib        string
 	dest       string
+	renameFile string
 	enabled    bool
 }
 
@@ -141,15 +142,7 @@ type tarballInfo struct {
 	BaseLayers    []string `json:"baseLayer"`
 }
 
-func (b *Backend) getSaveOptions(req *pb.SaveRequest) (saveOptions, error) {
-	var sep = separatorSave{
-		base:    req.GetSep().GetBase(),
-		lib:     req.GetSep().GetLib(),
-		dest:    req.GetSep().GetDest(),
-		log:     logrus.WithFields(logrus.Fields{"SaveID": req.GetSaveID()}),
-		enabled: req.GetSep().GetEnabled(),
-	}
-
+func (b *Backend) getSaveOptions(req *pb.SaveRequest) saveOptions {
 	var opt = saveOptions{
 		sysCtx:            image.GetSystemContext(),
 		localStore:        b.daemon.localStore,
@@ -161,11 +154,19 @@ func (b *Backend) getSaveOptions(req *pb.SaveRequest) (saveOptions, error) {
 		outputPath:        req.GetPath(),
 		logger:            logger.NewCliLogger(constant.CliLogBufferLen),
 		logEntry:          logrus.WithFields(logrus.Fields{"SaveID": req.GetSaveID(), "Format": req.GetFormat()}),
-		sep:               sep,
 	}
 	// normal save
-	if !sep.enabled {
-		return opt, nil
+	if !req.GetSep().GetEnabled() {
+		return opt
+	}
+
+	opt.sep = separatorSave{
+		base:       req.GetSep().GetBase(),
+		lib:        req.GetSep().GetLib(),
+		dest:       req.GetSep().GetDest(),
+		log:        logrus.WithFields(logrus.Fields{"SaveID": req.GetSaveID()}),
+		enabled:    req.GetSep().GetEnabled(),
+		renameFile: req.GetSep().GetRename(),
 	}
 
 	// save separated image
@@ -175,44 +176,22 @@ func (b *Backend) getSaveOptions(req *pb.SaveRequest) (saveOptions, error) {
 	baseDir := filepath.Join(tmpRoot, baseUntarTempDirName)
 	libDir := filepath.Join(tmpRoot, libUntarTempDirName)
 
-	opt.sep.tmpDir = imageTmpDir{
-		app:   appDir,
-		base:  baseDir,
-		lib:   libDir,
-		untar: untar,
-		root:  tmpRoot,
-	}
+	opt.sep.tmpDir = imageTmpDir{app: appDir, base: baseDir, lib: libDir, untar: untar, root: tmpRoot}
 	opt.outputPath = filepath.Join(untar, unionTarName)
-	renameFile := req.GetSep().GetRename()
-	if len(renameFile) != 0 {
-		var reName []renames
-		if err := util.LoadJSONFile(renameFile, &reName); err != nil {
-			return saveOptions{}, err
-		}
-		opt.sep.renameData = reName
-	}
 
-	return opt, nil
+	return opt
 }
 
 // Save receives a save request and save the image(s) into tarball
-func (b *Backend) Save(req *pb.SaveRequest, stream pb.Control_SaveServer) error {
+func (b *Backend) Save(req *pb.SaveRequest, stream pb.Control_SaveServer) (err error) {
 	logrus.WithFields(logrus.Fields{
 		"SaveID": req.GetSaveID(),
 		"Format": req.GetFormat(),
 	}).Info("SaveRequest received")
 
-	var err error
-	opts, err := b.getSaveOptions(req)
-	if err != nil {
-		return errors.Wrap(err, "process save options failed")
-	}
-
-	if err = checkFormat(&opts); err != nil {
-		return err
-	}
-	if err = filterImageName(&opts); err != nil {
-		return err
+	opts := b.getSaveOptions(req)
+	if err = opts.check(); err != nil {
+		return errors.Wrap(err, "check save options failed")
 	}
 
 	defer func() {
@@ -299,7 +278,47 @@ func messageHandler(stream pb.Control_SaveServer, cliLogger *logger.Logger) func
 	}
 }
 
-func checkFormat(opts *saveOptions) error {
+func (opts *saveOptions) check() error {
+	if err := opts.checkImageNameIsID(); err != nil {
+		return err
+	}
+	if err := opts.checkFormat(); err != nil {
+		return err
+	}
+	if err := opts.filterImageName(); err != nil {
+		return err
+	}
+	if err := opts.checkRenameFile(); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (opts *saveOptions) checkImageNameIsID() error {
+	imageNames := opts.oriImgList
+	if opts.sep.enabled {
+		if len(opts.sep.base) != 0 {
+			imageNames = append(imageNames, opts.sep.base)
+		}
+		if len(opts.sep.lib) != 0 {
+			imageNames = append(imageNames, opts.sep.lib)
+		}
+	}
+	for _, name := range imageNames {
+		_, img, err := image.FindImage(opts.localStore, name)
+		if err != nil {
+			return errors.Wrapf(err, "check image name failed when finding image name %q", name)
+		}
+		if strings.HasPrefix(img.ID, name) && opts.sep.enabled {
+			return errors.Errorf("using image ID %q as image name to save separated image is not allowed", name)
+		}
+	}
+
+	return nil
+}
+
+func (opts *saveOptions) checkFormat() error {
 	switch opts.format {
 	case constant.DockerTransport:
 		opts.format = constant.DockerArchiveTransport
@@ -312,7 +331,7 @@ func checkFormat(opts *saveOptions) error {
 	return nil
 }
 
-func filterImageName(opts *saveOptions) error {
+func (opts *saveOptions) filterImageName() error {
 	if opts.format == constant.OCIArchiveTransport {
 		opts.finalImageOrdered = opts.oriImgList
 		return nil
@@ -345,6 +364,18 @@ func filterImageName(opts *saveOptions) error {
 			finalImage.tags = append(finalImage.tags, tagged)
 		}
 		opts.finalImageSet[img.ID] = finalImage
+	}
+
+	return nil
+}
+
+func (opts *saveOptions) checkRenameFile() error {
+	if len(opts.sep.renameFile) != 0 {
+		var reName []renames
+		if err := util.LoadJSONFile(opts.sep.renameFile, &reName); err != nil {
+			return errors.Wrap(err, "check rename file failed")
+		}
+		opts.sep.renameData = reName
 	}
 
 	return nil
@@ -770,6 +801,11 @@ func getLayersID(layer []string) []string {
 
 func (s *separatorSave) constructSingleImgInfo(mani imageManifest, store *store.Store) (imageInfo, error) {
 	var libLayers, appLayers []string
+	// image name should not be empty here
+	if len(mani.RepoTags) == 0 {
+		return imageInfo{}, errors.New("image name and tag is empty")
+	}
+	// if there is more than one repoTag, will use first one as image name
 	imageRepoFields := strings.Split(mani.RepoTags[0], ":")
 	imageLayers := getLayersID(mani.Layers)
 

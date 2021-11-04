@@ -26,6 +26,11 @@ function pre_run() {
     lib_image_name="lib:latest"
     app1_image_name="app1:latest"
     app2_image_name="app2:latest"
+    base_image_short_name="b:latest"
+    lib_image_short_name="l:latest"
+    app1_image_short_name="a:latest"
+    app2_image_short_name="c:latest"
+
     lib_layer_number=5
     app1_layer_number=4
     app2_layer_number=3
@@ -37,18 +42,31 @@ function pre_run() {
     build_image "${app2_image_name}" "${workspace}"
 }
 
-function test_run() {
+function test_run1() {
     isula-build ctr-img save -b "${base_image_name}" -l "${lib_image_name}" -d "${workspace}"/Images "${app1_image_name}" "${app2_image_name}"
     check_result_equal $? 0
+    rm -rf "${workspace}"
+}
+
+# use short image name
+function test_run2() {
+    isula-build ctr-img tag "${base_image_name}" "${base_image_short_name}"
+    isula-build ctr-img tag "${lib_image_name}" "${lib_image_short_name}"
+    isula-build ctr-img tag "${app1_image_name}" "${app1_image_short_name}"
+    isula-build ctr-img tag "${app2_image_name}" "${app2_image_short_name}"
+    isula-build ctr-img save -b "${base_image_short_name}" -l "${lib_image_short_name}" -d "${workspace}"/Images "${app1_image_short_name}" "${app2_image_short_name}"
+    check_result_equal $? 0
+    rm -rf "${workspace}"
 }
 
 function cleanup() {
     rm -rf "${workspace}"
-    isula-build ctr-img rm "${lib_image_name}" "${app1_image_name}" "${app2_image_name}"
+    isula-build ctr-img rm "${lib_image_name}" "${app1_image_name}" "${app2_image_name}" "${base_image_short_name}" "${lib_image_short_name}" "${app1_image_short_name}" "${app2_image_short_name}"
 }
 
 pre_run
-test_run
+test_run1
+test_run2
 cleanup
 # shellcheck disable=SC2154
 exit "${exit_flag}"
