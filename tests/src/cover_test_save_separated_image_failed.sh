@@ -89,6 +89,33 @@ function test_run6() {
     rm -rf "${workspace}"/Images
 }
 
+# using image id to save
+function test_run7() {
+    base_image_id=$(isula-build ctr-img images ${base_image_name} | tail -n 2 | head -n 1 | awk '{print $3}')
+    lib_image_id=$(isula-build ctr-img images ${lib_image_name} | tail -n 2 | head -n 1 | awk '{print $3}')
+    app_image_id=$(isula-build ctr-img images ${app1_image_name} | tail -n 2 | head -n 1 | awk '{print $3}')
+    app1_image_id=$(isula-build ctr-img images ${app2_image_name} | tail -n 2 | head -n 1 | awk '{print $3}')
+    # all name is image id
+    isula-build ctr-img save -b "${base_image_id}" -l "${lib_image_id}" -d "${workspace}"/Images "${app1_image_id}" "${app2_image_id}"
+    check_result_not_equal $? 0
+    rm -rf "${workspace}"/Images
+
+    # app name is image id
+    isula-build ctr-img save -b "${base_image_name}" -l "${lib_image_name}" -d "${workspace}"/Images "${app1_image_id}" "${app2_image_name}"
+    check_result_not_equal $? 0
+    rm -rf "${workspace}"/Images
+
+    # lib name is image id
+    isula-build ctr-img save -b "${base_image_name}" -l "${lib_image_id}" -d "${workspace}"/Images "${app1_image_name}" "${app2_image_name}"
+    check_result_not_equal $? 0
+    rm -rf "${workspace}"/Images
+
+    # base name is image id
+    isula-build ctr-img save -b "${base_image_id}" -l "${lib_image_name}" -d "${workspace}"/Images "${app1_image_name}" "${app2_image_name}"
+    check_result_not_equal $? 0
+    rm -rf "${workspace}"/Images
+}
+
 function cleanup() {
     rm -rf "${workspace}"
     isula-build ctr-img rm "${bad_lib_image_name}" "${bad_app1_image_name}" "${bad_app2_image_name}" "${lib_image_name}" "${app1_image_name}" "${app2_image_name}"
@@ -102,6 +129,7 @@ test_run3
 test_run4
 test_run5
 test_run6
+test_run7
 cleanup
 # shellcheck disable=SC2154
 exit "${exit_flag}"
