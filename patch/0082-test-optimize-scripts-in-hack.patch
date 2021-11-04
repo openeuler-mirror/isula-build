@@ -1,0 +1,253 @@
+From 5d3a9a0f2e5510e68040d252190070925ee89fd0 Mon Sep 17 00:00:00 2001
+From: DCCooper <1866858@gmail.com>
+Date: Mon, 1 Nov 2021 23:37:44 +0800
+Subject: [PATCH 14/16] test: optimize scripts in hack
+
+reason:
+1. add framework for integration tests
+2. shellcheck for scripts
+
+Signed-off-by: DCCooper <1866858@gmail.com>
+---
+ Makefile                                      | 10 ++---
+ hack/all_coverage.sh                          |  4 +-
+ ...dv_coverage.sh => integration_coverage.sh} | 42 ++++++++++++-------
+ hack/merge_coverage.sh                        | 30 ++++++-------
+ hack/unit_test.sh                             | 10 ++---
+ 5 files changed, 53 insertions(+), 43 deletions(-)
+ rename hack/{sdv_coverage.sh => integration_coverage.sh} (63%)
+
+diff --git a/Makefile b/Makefile
+index 73482a41..c5384e07 100644
+--- a/Makefile
++++ b/Makefile
+@@ -42,7 +42,7 @@ endif
+ ##@ Help
+ .PHONY: help
+ help: ## Display the help info
+-	@awk 'BEGIN {FS = ":.*##"; printf "\nUsage:\n  make \033[36m<target>\033[0m\n"} /^[a-zA-Z_0-9-]+:.*?##/ { printf "  \033[36m%-20s\033[0m %s\n", $$1, $$2 } /^##@/ { printf "\n\033[1m%s\033[0m\n", substr($$0, 5) } ' $(MAKEFILE_LIST)
++	@awk 'BEGIN {FS = ":.*##"; printf "\nUsage:\n  make \033[36m<target>\033[0m\n"} /^[a-zA-Z_0-9-]+:.*?##/ { printf "  \033[36m%-25s\033[0m %s\n", $$1, $$2 } /^##@/ { printf "\n\033[1m%s\033[0m\n", substr($$0, 5) } ' $(MAKEFILE_LIST)
+ 
+ ##@ Build
+ 
+@@ -118,14 +118,14 @@ test-unit-cover: ## Test unit case and generate coverage
+ 	@./hack/unit_test.sh cover
+ 	@echo "Unit test cover done!"
+ 
+-.PHONY: test-sdv-cover
+-test-sdv-cover: ## Test integration case and generate coverage
++.PHONY: test-integration-cover
++test-integration-cover: ## Test integration case and generate coverage
+ 	@echo "Integration test cover starting..."
+-	@./hack/sdv_coverage.sh
++	@./hack/integration_coverage.sh
+ 	@echo "Integration test cover done!"
+ 
+ .PHONY: test-cover
+-test-cover: test-sdv-cover test-unit-cover ## Test both unit and sdv case and generate unity coverage
++test-cover: test-integration-cover test-unit-cover ## Test both unit and integration case and generate unity coverage
+ 	@echo "Test cover starting..."
+ 	@./hack/all_coverage.sh
+ 	@echo "Test cover done!"
+diff --git a/hack/all_coverage.sh b/hack/all_coverage.sh
+index 9f9eb5ff..0f23e9d4 100755
+--- a/hack/all_coverage.sh
++++ b/hack/all_coverage.sh
+@@ -20,7 +20,7 @@ SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" || exit; pwd)
+ source "${SCRIPT_DIR}"/merge_coverage.sh
+ 
+ unit_coverage=${PWD}/cover_unit_test_all.out
+-sdv_coverage=${PWD}/cover_sdv_test_all.out
++integration_coverage=${PWD}/cover_integration_test_all.out
+ output_file=${PWD}/cover_test_all
+ 
+-merge_cover "${output_file}" "${sdv_coverage}" "${unit_coverage}"
++merge_cover "${output_file}" "${integration_coverage}" "${unit_coverage}"
+diff --git a/hack/sdv_coverage.sh b/hack/integration_coverage.sh
+similarity index 63%
+rename from hack/sdv_coverage.sh
+rename to hack/integration_coverage.sh
+index 874d9373..7462c545 100755
+--- a/hack/sdv_coverage.sh
++++ b/hack/integration_coverage.sh
+@@ -12,7 +12,7 @@
+ # Author: Xiang Li
+ # Create: 2020-03-01
+ # Description: shell script for coverage
+-# Note: use this file by typing make test-sdv-cover or make test-cover
++# Note: use this file by typing make test-integration-cover or make test-cover
+ #       Do not run this script directly
+ 
+ project_root=${PWD}
+@@ -26,9 +26,10 @@ go_test_cover_method="-covermode=set"
+ main_pkg="${vendor_name}/${project_name}/${main_relative_path}"
+ main_test_file=${project_root}/${main_relative_path}/main_test.go
+ main_file=${project_root}/${main_relative_path}/main.go
+-coverage_file=${project_root}/cover_sdv_test_all.out
+-coverage_html=${project_root}/cover_sdv_test_all.html
+-coverage_log=${project_root}/cover_sdv_test_all.log
++coverage_file=${project_root}/cover_integration_test_all.out
++coverage_html=${project_root}/cover_integration_test_all.html
++coverage_daemon_log=${project_root}/cover_integration_test_all_daemon.log
++coverage_client_log=${project_root}/cover_integration_test_all_client.log
+ main_test_binary_file=${project_root}/main.test
+ 
+ function precheck() {
+@@ -44,10 +45,10 @@ function modify_main_test() {
+     cp "${main_test_file}" "${main_test_file}".bk
+     # delete Args field for main.go
+     local comment_pattern="Args:  util.NoArgs"
+-    sed -i "/$comment_pattern/s/^#*/\/\/ /" "${main_file}"
++    sed -i "/${comment_pattern}/s/^#*/\/\/ /" "${main_file}"
+     # add new line for main_test.go
+     code_snippet="func TestMain(t *testing.T) { main() }"
+-    echo "$code_snippet" >> "${main_test_file}"
++    echo "${code_snippet}" >> "${main_test_file}"
+ }
+ 
+ function recover_main_test() {
+@@ -56,12 +57,12 @@ function recover_main_test() {
+ }
+ 
+ function build_main_test_binary() {
+-    pkgs=$(go list ${go_test_mod_method} "${project_root}"/... | grep -Ev ${exclude_pattern} | tr "\r\n" ",")
+-    go test -coverpkg="${pkgs}" ${main_pkg} ${go_test_mod_method} ${go_test_cover_method} ${go_test_count_method} -c -o="${main_test_binary_file}"
++    pkgs=$(go list "${go_test_mod_method}" "${project_root}"/... | grep -Ev "${exclude_pattern}" | tr "\r\n" ",")
++    go test -coverpkg="${pkgs}" "${main_pkg}" "${go_test_mod_method}" "${go_test_cover_method}" "${go_test_count_method}" -c -o="${main_test_binary_file}" > /dev/null 2>&1
+ }
+ 
+ function run_main_test_binary() {
+-    ${main_test_binary_file} -test.coverprofile="${coverage_file}" > "${coverage_log}" 2>&1 &
++    ${main_test_binary_file} -test.coverprofile="${coverage_file}" > "${coverage_daemon_log}" 2>&1 &
+     main_test_pid=$!
+     for _ in $(seq 1 10); do
+         if isula-build info > /dev/null 2>&1; then
+@@ -74,15 +75,22 @@ function run_main_test_binary() {
+ 
+ function run_coverage_test() {
+     # do cover tests
+-    echo "sdv coverage test"
+-    # cover_test_xxx
+-    # cover_test_xxx
+-    # cover_test_xxx
+-    # cover_test_xxx
++    while IFS= read -r testfile; do
++        printf "%-60s" "test $(basename "${testfile}"): "
++        echo -e "\n$(basename "${testfile}"):" >> "${coverage_client_log}"
++        if ! bash "${testfile}" >> "${coverage_client_log}" 2>&1; then
++            echo "FAIL"
++            return_code=1
++        else
++            echo "PASS"
++        fi
++    done < <(find "${project_root}"/tests/src -maxdepth 1 -name "cover_test_*" -type f -print)
++    # shellcheck disable=SC2248
++    return ${return_code}
+ }
+ 
+ function finish_coverage_test() {
+-    kill -15 $main_test_pid
++    kill -15 "${main_test_pid}"
+ }
+ 
+ function generate_coverage() {
+@@ -90,7 +98,7 @@ function generate_coverage() {
+ }
+ 
+ function cleanup() {
+-    rm "$main_test_binary_file"
++    rm "${main_test_binary_file}"
+ }
+ 
+ precheck
+@@ -102,3 +110,5 @@ run_coverage_test
+ finish_coverage_test
+ generate_coverage
+ cleanup
++# shellcheck disable=SC2248
++exit ${return_code}
+diff --git a/hack/merge_coverage.sh b/hack/merge_coverage.sh
+index 6e529a34..f043dfaf 100644
+--- a/hack/merge_coverage.sh
++++ b/hack/merge_coverage.sh
+@@ -24,32 +24,32 @@ function merge_cover() {
+     output_coverage_file=${output_file_name}.out
+     output_html_file=${output_file_name}.html
+     output_merge_cover=${output_file_name}.merge
+-    grep -r -h -v "^mode:" "${input_coverages[@]}" | sort > "$output_merge_cover"
++    grep -r -h -v "^mode:" "${input_coverages[@]}" | sort > "${output_merge_cover}"
+     current=""
+     count=0
+-    echo "mode: set" > "$output_coverage_file"
++    echo "mode: set" > "${output_coverage_file}"
+     # read the cover report from merge_cover, convert it, write to final coverage
+     while read -r line; do
+-        block=$(echo "$line" | cut -d ' ' -f1-2)
+-        num=$(echo "$line" | cut -d ' ' -f3)
+-        if [ "$current" == "" ]; then
+-            current=$block
+-            count=$num
+-        elif [ "$block" == "$current" ]; then
++        block=$(echo "${line}" | cut -d ' ' -f1-2)
++        num=$(echo "${line}" | cut -d ' ' -f3)
++        if [ "${current}" == "" ]; then
++            current=${block}
++            count=${num}
++        elif [ "${block}" == "${current}" ]; then
+             count=$((count + num))
+         else
+             # if the sorted two lines are not in the same code block, write the statics result of last code block to the final coverage
+-            echo "$current" $count >> "${output_coverage_file}"
+-            current=$block
+-            count=$num
++            echo "${current} ${count}" >> "${output_coverage_file}"
++            current=${block}
++            count=${num}
+         fi
+-    done < "$output_merge_cover"
++    done < "${output_merge_cover}"
+     rm -rf "${output_merge_cover}"
+ 
+     # merge the results of last line to the final coverage
+-    if [ "$current" != "" ]; then
+-        echo "$current" "$count" >> "${output_coverage_file}"
++    if [ "${current}" != "" ]; then
++        echo "${current} ${count}" >> "${output_coverage_file}"
+     fi
+ 
+-    go tool cover -html="${output_coverage_file}" -o "$output_html_file"
++    go tool cover -html="${output_coverage_file}" -o "${output_html_file}"
+ }
+diff --git a/hack/unit_test.sh b/hack/unit_test.sh
+index 94a44a95..161feb6b 100755
+--- a/hack/unit_test.sh
++++ b/hack/unit_test.sh
+@@ -47,20 +47,20 @@ function run_unit_test() {
+     echo "Testing with args ${TEST_ARGS}"
+ 
+     rm -f "${testlog}"
+-    if [[ -n $run_coverage ]]; then
++    if [[ -n ${run_coverage} ]]; then
+         mkdir -p "${covers_folder}"
+     fi
+-    for package in $(go list ${go_test_mod_method} ./... | grep -Ev ${exclude_pattern}); do
++    for package in $(go list "${go_test_mod_method}" ./... | grep -Ev "${exclude_pattern}"); do
+         echo "Start to test: ${package}"
+-        if [[ -n $run_coverage ]]; then
+-            coverprofile_file="${covers_folder}/$(echo "$package" | tr / -).cover"
++        if [[ -n ${run_coverage} ]]; then
++            coverprofile_file="${covers_folder}/$(echo "${package}" | tr / -).cover"
+             coverprofile_flag="-coverprofile=${coverprofile_file}"
+             go_test_covermode_flag="-covermode=set"
+             go_test_race_flag=""
+         fi
+         # TEST_ARGS is " -args SKIP_REG=foo", so no double quote for it
+         # shellcheck disable=SC2086
+-        go test -v ${go_test_race_flag} ${go_test_mod_method} ${coverprofile_flag} ${go_test_covermode_flag} -coverpkg=${package} ${go_test_count_method} ${go_test_timeout_flag} "${package}" ${TEST_ARGS} >> "${testlog}"
++        go test -v ${go_test_race_flag} "${go_test_mod_method}" ${coverprofile_flag} "${go_test_covermode_flag}" -coverpkg=${package} "${go_test_count_method}" "${go_test_timeout_flag}" "${package}" ${TEST_ARGS} >> "${testlog}"
+     done
+ 
+     if grep -E -- "--- FAIL:|^FAIL" "${testlog}"; then
+-- 
+2.27.0
+

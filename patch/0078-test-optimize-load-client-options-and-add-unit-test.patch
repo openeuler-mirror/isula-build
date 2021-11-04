@@ -1,0 +1,409 @@
+From 2f8f5aa8c8444e9d9c39eba2c060e4e9fa4089bc Mon Sep 17 00:00:00 2001
+From: DCCooper <1866858@gmail.com>
+Date: Thu, 28 Oct 2021 15:03:04 +0800
+Subject: [PATCH 06/16] test: optimize load client options and add unit test
+
+Signed-off-by: DCCooper <1866858@gmail.com>
+---
+ cmd/cli/load.go      |  77 ++++++++--------
+ cmd/cli/load_test.go | 209 +++++++++++++++++++++++++++++++++++++++++++
+ cmd/cli/mock.go      |   7 +-
+ 3 files changed, 252 insertions(+), 41 deletions(-)
+
+diff --git a/cmd/cli/load.go b/cmd/cli/load.go
+index 2a9df772..cf142592 100644
+--- a/cmd/cli/load.go
++++ b/cmd/cli/load.go
+@@ -20,7 +20,6 @@ import (
+ 	"fmt"
+ 	"io"
+ 	"os"
+-	"path/filepath"
+ 
+ 	"github.com/pkg/errors"
+ 	"github.com/spf13/cobra"
+@@ -56,7 +55,7 @@ isula-build ctr-img load -i app:latest -d /home/Images -b /home/Images/base.tar.
+ // NewLoadCmd returns image load command
+ func NewLoadCmd() *cobra.Command {
+ 	loadCmd := &cobra.Command{
+-		Use:     "load [FLAGS]",
++		Use:     "load FLAGS",
+ 		Short:   "Load images",
+ 		Example: loadExample,
+ 		Args:    util.NoArgs,
+@@ -122,20 +121,13 @@ func runLoad(ctx context.Context, cli Cli) error {
+ 	return err
+ }
+ 
+-func resolveLoadPath(path string) (string, error) {
++func resolveLoadPath(path, pwd string) (string, error) {
+ 	// check input
+ 	if path == "" {
+ 		return "", errors.New("tarball path should not be empty")
+ 	}
+ 
+-	if !filepath.IsAbs(path) {
+-		pwd, err := os.Getwd()
+-		if err != nil {
+-			return "", errors.Wrap(err, "get current path failed while loading image")
+-		}
+-		path = util.MakeAbsolute(path, pwd)
+-	}
+-
++	path = util.MakeAbsolute(path, pwd)
+ 	if err := util.CheckLoadFile(path); err != nil {
+ 		return "", err
+ 	}
+@@ -144,30 +136,35 @@ func resolveLoadPath(path string) (string, error) {
+ }
+ 
+ func (opt *loadOptions) checkLoadOpts() error {
+-	// normal load
+-	if !opt.sep.isEnabled() {
+-		path, err := resolveLoadPath(opt.path)
+-		if err != nil {
+-			return err
+-		}
+-		opt.path = path
+-
+-		return nil
++	pwd, err := os.Getwd()
++	if err != nil {
++		return errors.New("get current path failed")
+ 	}
+ 
+ 	// load separated image
+-	opt.sep.enabled = true
+-	if len(opt.path) == 0 {
+-		return errors.New("app image should not be empty")
+-	}
++	if opt.sep.isEnabled() {
++		// Use opt.path as app image name when operating separated images
++		// this can be mark as a switch for handling separated images
++		opt.sep.app = opt.path
++
++		if len(opt.sep.app) == 0 {
++			return errors.New("app image name(-i) should not be empty")
++		}
++
++		if cErr := opt.sep.check(pwd); cErr != nil {
++			return cErr
++		}
++		opt.sep.enabled = true
+ 
+-	// Use opt.path as app image name when operating separated images
+-	// this can be mark as a switch for handling separated images
+-	opt.sep.app = opt.path
++		return nil
++	}
+ 
+-	if err := opt.sep.check(); err != nil {
++	// normal load
++	path, err := resolveLoadPath(opt.path, pwd)
++	if err != nil {
+ 		return err
+ 	}
++	opt.path = path
+ 
+ 	return nil
+ }
+@@ -176,35 +173,35 @@ func (sep *separatorLoadOption) isEnabled() bool {
+ 	return util.AnyFlagSet(sep.dir, sep.base, sep.lib, sep.app)
+ }
+ 
+-func (sep *separatorLoadOption) check() error {
+-	pwd, err := os.Getwd()
+-	if err != nil {
+-		return errors.New("get current path failed")
++func (sep *separatorLoadOption) check(pwd string) error {
++	if len(sep.dir) == 0 {
++		return errors.New("image tarball directory should not be empty")
+ 	}
++
++	if sep.base == sep.lib {
++		return errors.New("base and lib tarballs are the same")
++	}
++
+ 	if !util.IsValidImageName(sep.app) {
+ 		return errors.Errorf("invalid image name: %s", sep.app)
+ 	}
+ 
+ 	if len(sep.base) != 0 {
+-		path, err := resolveLoadPath(sep.base)
++		path, err := resolveLoadPath(sep.base, pwd)
+ 		if err != nil {
+ 			return errors.Wrap(err, "resolve base tarball path failed")
+ 		}
+ 		sep.base = path
+ 	}
+ 	if len(sep.lib) != 0 {
+-		path, err := resolveLoadPath(sep.lib)
++		path, err := resolveLoadPath(sep.lib, pwd)
+ 		if err != nil {
+ 			return errors.Wrap(err, "resolve lib tarball path failed")
+ 		}
+ 		sep.lib = path
+ 	}
+-	if len(sep.dir) == 0 {
+-		return errors.New("image tarball directory should not be empty")
+-	}
+-	if !filepath.IsAbs(sep.dir) {
+-		sep.dir = util.MakeAbsolute(sep.dir, pwd)
+-	}
++
++	sep.dir = util.MakeAbsolute(sep.dir, pwd)
+ 	if !util.IsExist(sep.dir) {
+ 		return errors.Errorf("image tarball directory %s is not exist", sep.dir)
+ 	}
+diff --git a/cmd/cli/load_test.go b/cmd/cli/load_test.go
+index b7bf2a57..0bad4cbd 100644
+--- a/cmd/cli/load_test.go
++++ b/cmd/cli/load_test.go
+@@ -16,6 +16,7 @@ package main
+ import (
+ 	"context"
+ 	"io/ioutil"
++	"os"
+ 	"path/filepath"
+ 	"testing"
+ 
+@@ -121,3 +122,211 @@ func TestRunLoad(t *testing.T) {
+ 		})
+ 	}
+ }
++
++func TestResolveLoadPath(t *testing.T) {
++	dir := fs.NewDir(t, t.Name())
++	fileWithContent := fs.NewFile(t, filepath.Join(t.Name(), "test.tar"))
++	ioutil.WriteFile(fileWithContent.Path(), []byte("This is test file"), constant.DefaultRootFileMode)
++	emptyFile := fs.NewFile(t, filepath.Join(t.Name(), "empty.tar"))
++
++	defer dir.Remove()
++	defer fileWithContent.Remove()
++	defer emptyFile.Remove()
++
++	type args struct {
++		path string
++		pwd  string
++	}
++	tests := []struct {
++		name    string
++		args    args
++		want    string
++		wantErr bool
++	}{
++		{
++			name: "TC-normal load path",
++			args: args{
++				path: fileWithContent.Path(),
++				pwd:  dir.Path(),
++			},
++			want: fileWithContent.Path(),
++		},
++		{
++			name: "TC-empty load path",
++			args: args{
++				pwd: dir.Path(),
++			},
++			wantErr: true,
++		},
++		{
++			name: "TC-empty load file",
++			args: args{
++				path: emptyFile.Path(),
++				pwd:  dir.Path(),
++			},
++			wantErr: true,
++		},
++	}
++	for _, tt := range tests {
++		t.Run(tt.name, func(t *testing.T) {
++			got, err := resolveLoadPath(tt.args.path, tt.args.pwd)
++			if (err != nil) != tt.wantErr {
++				t.Errorf("resolveLoadPath() error = %v, wantErr %v", err, tt.wantErr)
++				return
++			}
++			if got != tt.want {
++				t.Errorf("resolveLoadPath() = %v, want %v", got, tt.want)
++			}
++		})
++	}
++}
++
++func TestCheckLoadOpts(t *testing.T) {
++	root := fs.NewDir(t, t.Name())
++	defer root.Remove()
++	emptyFile, err := os.Create(filepath.Join(root.Path(), "empty.tar"))
++	assert.NilError(t, err)
++	fileWithContent, err := os.Create(filepath.Join(root.Path(), "test.tar"))
++	assert.NilError(t, err)
++	ioutil.WriteFile(fileWithContent.Name(), []byte("This is test file"), constant.DefaultRootFileMode)
++	baseFile, err := os.Create(filepath.Join(root.Path(), "base.tar"))
++	assert.NilError(t, err)
++	ioutil.WriteFile(baseFile.Name(), []byte("This is base file"), constant.DefaultRootFileMode)
++	libFile, err := os.Create(filepath.Join(root.Path(), "lib.tar"))
++	ioutil.WriteFile(libFile.Name(), []byte("This is lib file"), constant.DefaultRootFileMode)
++
++	type fields struct {
++		path   string
++		loadID string
++		sep    separatorLoadOption
++	}
++	tests := []struct {
++		name    string
++		fields  fields
++		wantErr bool
++	}{
++		{
++			name: "TC-normal load options",
++			fields: fields{
++				path: fileWithContent.Name(),
++			},
++		},
++		{
++			name:    "TC-empty load path",
++			wantErr: true,
++		},
++		{
++			name: "TC-empty load file",
++			fields: fields{
++				path: emptyFile.Name(),
++			},
++			wantErr: true,
++		},
++		{
++			name: "TC-separated load",
++			fields: fields{
++				path: "app:latest",
++				sep: separatorLoadOption{
++					dir:  root.Path(),
++					app:  "app:latest",
++					base: baseFile.Name(),
++					lib:  libFile.Name(),
++				},
++			},
++		},
++		{
++			name: "TC-separated load with empty app name",
++			fields: fields{
++				sep: separatorLoadOption{
++					dir:  root.Path(),
++					base: baseFile.Name(),
++					lib:  libFile.Name(),
++				},
++			},
++			wantErr: true,
++		},
++		{
++			name: "TC-separated load with empty dir",
++			fields: fields{
++				path: "app:latest",
++				sep: separatorLoadOption{
++					base: baseFile.Name(),
++					lib:  libFile.Name(),
++				},
++			},
++			wantErr: true,
++		},
++		{
++			name: "TC-separated load with invalid app name",
++			fields: fields{
++				path: "invalid:app:name",
++				sep: separatorLoadOption{
++					dir:  root.Path(),
++					base: baseFile.Name(),
++					lib:  libFile.Name(),
++				},
++			},
++			wantErr: true,
++		},
++		{
++			name: "TC-separated load with empty base tarball",
++			fields: fields{
++				path: "app:latest",
++				sep: separatorLoadOption{
++					dir:  root.Path(),
++					base: emptyFile.Name(),
++					lib:  libFile.Name(),
++				},
++			},
++			wantErr: true,
++		},
++		{
++			name: "TC-separated load with empty lib tarball",
++			fields: fields{
++				path: "app:latest",
++				sep: separatorLoadOption{
++					dir:  root.Path(),
++					base: baseFile.Name(),
++					lib:  emptyFile.Name(),
++				},
++			},
++			wantErr: true,
++		},
++		{
++			name: "TC-separated load with same base and lib tarball",
++			fields: fields{
++				path: "app:latest",
++				sep: separatorLoadOption{
++					dir:  root.Path(),
++					base: fileWithContent.Name(),
++					lib:  fileWithContent.Name(),
++				},
++			},
++			wantErr: true,
++		},
++		{
++			name: "TC-separated load with dir not exist",
++			fields: fields{
++				path: "app:latest",
++				sep: separatorLoadOption{
++					dir:  "path not exist",
++					base: baseFile.Name(),
++					lib:  libFile.Name(),
++				},
++			},
++			wantErr: true,
++		},
++	}
++	for _, tt := range tests {
++		t.Run(tt.name, func(t *testing.T) {
++			opt := &loadOptions{
++				path:   tt.fields.path,
++				loadID: tt.fields.loadID,
++				sep:    tt.fields.sep,
++			}
++			if err := opt.checkLoadOpts(); (err != nil) != tt.wantErr {
++				t.Errorf("loadOptions.checkLoadOpts() error = %v, wantErr %v", err, tt.wantErr)
++			}
++		})
++	}
++}
+diff --git a/cmd/cli/mock.go b/cmd/cli/mock.go
+index 142c87fa..23a8a031 100644
+--- a/cmd/cli/mock.go
++++ b/cmd/cli/mock.go
+@@ -16,6 +16,7 @@ package main
+ import (
+ 	"context"
+ 	"io"
++	"os"
+ 	"testing"
+ 
+ 	"github.com/gogo/protobuf/types"
+@@ -324,7 +325,11 @@ func (f *mockDaemon) load(_ context.Context, in *pb.LoadRequest, opts ...grpc.Ca
+ 		if path == "" {
+ 			return &mockLoadClient{}, errors.Errorf("tarball path should not be empty")
+ 		}
+-		_, err := resolveLoadPath(path)
++		pwd, err := os.Getwd()
++		if err != nil {
++			return &mockLoadClient{}, err
++		}
++		_, err = resolveLoadPath(path, pwd)
+ 		return &mockLoadClient{}, err
+ 	}
+ 
+-- 
+2.27.0
+
