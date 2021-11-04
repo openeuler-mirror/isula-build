@@ -1,0 +1,523 @@
+From b3e96588a3e236cec8ec5e62a1fb884cf2eabc80 Mon Sep 17 00:00:00 2001
+From: DCCooper <1866858@gmail.com>
+Date: Mon, 1 Nov 2021 23:38:06 +0800
+Subject: [PATCH 16/16] test: add integration tests for saving and loading
+ separated image
+
+Signed-off-by: DCCooper <1866858@gmail.com>
+---
+ .../cover_test_load_separated_image_failed.sh | 145 ++++++++++++++++++
+ ...cover_test_load_separated_image_success.sh |  89 +++++++++++
+ .../cover_test_save_separated_image_failed.sh | 107 +++++++++++++
+ ...cover_test_save_separated_image_success.sh |  54 +++++++
+ ...r_test_save_separated_image_with_rename.sh |  75 +++++++++
+ 5 files changed, 470 insertions(+)
+ create mode 100644 tests/src/cover_test_load_separated_image_failed.sh
+ create mode 100644 tests/src/cover_test_load_separated_image_success.sh
+ create mode 100644 tests/src/cover_test_save_separated_image_failed.sh
+ create mode 100644 tests/src/cover_test_save_separated_image_success.sh
+ create mode 100644 tests/src/cover_test_save_separated_image_with_rename.sh
+
+diff --git a/tests/src/cover_test_load_separated_image_failed.sh b/tests/src/cover_test_load_separated_image_failed.sh
+new file mode 100644
+index 00000000..26590d0c
+--- /dev/null
++++ b/tests/src/cover_test_load_separated_image_failed.sh
+@@ -0,0 +1,145 @@
++#!/bin/bash
++
++# Copyright (c) Huawei Technologies Co., Ltd. 2020. All rights reserved.
++# isula-build licensed under the Mulan PSL v2.
++# You can use this software according to the terms and conditions of the Mulan PSL v2.
++# You may obtain a copy of Mulan PSL v2 at:
++#     http://license.coscl.org.cn/MulanPSL2
++# THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER EXPRESS OR
++# IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY OR FIT FOR A PARTICULAR
++# PURPOSE.
++# See the Mulan PSL v2 for more details.
++# Author: Xiang Li
++# Create: 2021-11-01
++# Description: cover test for load separated image
++
++test_name=${BASH_SOURCE[0]}
++workspace=/tmp/${test_name}.$(date +%s)
++mkdir -p "${workspace}"
++dockerfile=${workspace}/Dockerfile
++tarball_dir=${workspace}/Images
++rename_json=${workspace}/rename.json
++top_dir=$(git rev-parse --show-toplevel)
++# shellcheck disable=SC1091
++source "${top_dir}"/tests/lib/separator.sh
++
++function pre_run() {
++    base_image_name="hub.oepkgs.net/library/busybox:latest"
++    lib_image_name="lib:latest"
++    app1_image_name="app1:latest"
++    app2_image_name="app2:latest"
++    lib_layer_number=5
++    app1_layer_number=4
++    app2_layer_number=3
++    touch_dockerfile "${base_image_name}" "${lib_image_name}" "${lib_layer_number}" "${dockerfile}"
++    build_image "${lib_image_name}" "${workspace}"
++    touch_dockerfile "${lib_image_name}" "${app1_image_name}" "${app1_layer_number}" "${dockerfile}"
++    build_image "${app1_image_name}" "${workspace}"
++    touch_dockerfile "${lib_image_name}" "${app2_image_name}" "${app2_layer_number}" "${dockerfile}"
++    build_image "${app2_image_name}" "${workspace}"
++    touch_rename_json "${rename_json}"
++    isula-build ctr-img save -b "${base_image_name}" -l "${lib_image_name}" -d "${tarball_dir}" "${app1_image_name}" "${app2_image_name}" -r "${rename_json}"
++    check_result_equal $? 0
++    isula-build ctr-img rm "${lib_image_name}" "${app1_image_name}" "${app2_image_name}"
++}
++
++# empty -d flag and missing -b
++function test_run1() {
++    isula-build ctr-img load -l "${tarball_dir}"/base1.tar.gz -i "${app1_image_name}"
++    check_result_not_equal $? 0
++    isula-build ctr-img rm "${lib_image_name}" "${app1_image_name}" "${app2_image_name}"
++}
++
++# empty -d flag and missing -l
++function test_run2() {
++    isula-build ctr-img load -b "${tarball_dir}"/base1.tar.gz -i "${app1_image_name}"
++    check_result_not_equal $? 0
++    isula-build ctr-img rm "${lib_image_name}" "${app1_image_name}" "${app2_image_name}"
++}
++
++# empty -d, -b, -l flag
++function test_run3() {
++    isula-build ctr-img load -i "${app1_image_name}"
++    check_result_not_equal $? 0
++    isula-build ctr-img rm "${lib_image_name}" "${app1_image_name}" "${app2_image_name}"
++}
++
++# use lib as base image tarball
++function test_run4() {
++    isula-build ctr-img load -d "${tarball_dir}" -b "${tarball_dir}"/lib1.tar.gz -i "${app1_image_name}"
++    check_result_not_equal $? 0
++    isula-build ctr-img rm "${lib_image_name}" "${app1_image_name}" "${app2_image_name}"
++}
++
++# missing app tarball
++function test_run5() {
++    mv "${tarball_dir}"/app1.tar.gz "${workspace}"
++    isula-build ctr-img load -d "${tarball_dir}" -l "${tarball_dir}"/lib1.tar.gz -i "${app1_image_name}"
++    check_result_not_equal $? 0
++    mv "${workspace}"/app1.tar.gz "${tarball_dir}"
++    isula-build ctr-img rm "${lib_image_name}" "${app1_image_name}" "${app2_image_name}"
++}
++
++# lib tarball not exist
++function test_run6() {
++    isula-build ctr-img load -d "${tarball_dir}" -l not_exist_lib.tar -i "${app1_image_name}"
++    check_result_not_equal $? 0
++    isula-build ctr-img rm "${lib_image_name}" "${app1_image_name}" "${app2_image_name}"
++}
++
++# base tarball not exist
++function test_run7() {
++    isula-build ctr-img load -d "${tarball_dir}" -b not_exist_base.tar -i "${app1_image_name}"
++    check_result_not_equal $? 0
++    isula-build ctr-img rm "${lib_image_name}" "${app1_image_name}" "${app2_image_name}"
++}
++
++# invalid base tarball
++function test_run8() {
++    invalid_tarball=${workspace}/base1.tar
++    echo "invalid base tarball" >> "${invalid_tarball}"
++    isula-build ctr-img load -d "${tarball_dir}" -b "${invalid_tarball}" -i "${app1_image_name}"
++    check_result_not_equal $? 0
++    rm -rf "${invalid_tarball}"
++    isula-build ctr-img rm "${lib_image_name}" "${app1_image_name}" "${app2_image_name}"
++}
++
++# invalid lib tarball
++function test_run9() {
++    invalid_tarball=${workspace}/lib1.tar
++    echo "invalid lib tarball" >> "${invalid_tarball}"
++    isula-build ctr-img load -d "${tarball_dir}" -l "${invalid_tarball}" -i "${app1_image_name}"
++    check_result_not_equal $? 0
++    rm -rf "${invalid_tarball}"
++    isula-build ctr-img rm "${lib_image_name}" "${app1_image_name}" "${app2_image_name}"
++}
++
++# manifest file corruption
++function test_run10() {
++    cp "${tarball_dir}"/manifest "${tarball_dir}"/manifest.bk
++    sed -i "1d" "${tarball_dir}"/manifest
++    isula-build ctr-img load -d "${tarball_dir}" -d "${tarball_dir}" -i "${app1_image_name}"
++    check_result_not_equal $? 0
++    mv "${tarball_dir}"/manifest.bk "${tarball_dir}"/manifest
++    isula-build ctr-img rm "${lib_image_name}" "${app1_image_name}" "${app2_image_name}"
++}
++
++function cleanup() {
++    rm -rf "${workspace}"
++    isula-build ctr-img rm "${lib_image_name}" "${app1_image_name}" "${app2_image_name}"
++}
++
++pre_run
++test_run1
++test_run2
++test_run3
++test_run4
++test_run5
++test_run6
++test_run7
++test_run8
++test_run9
++test_run10
++cleanup
++# shellcheck disable=SC2154
++exit "${exit_flag}"
+diff --git a/tests/src/cover_test_load_separated_image_success.sh b/tests/src/cover_test_load_separated_image_success.sh
+new file mode 100644
+index 00000000..266b3eba
+--- /dev/null
++++ b/tests/src/cover_test_load_separated_image_success.sh
+@@ -0,0 +1,89 @@
++#!/bin/bash
++
++# Copyright (c) Huawei Technologies Co., Ltd. 2020. All rights reserved.
++# isula-build licensed under the Mulan PSL v2.
++# You can use this software according to the terms and conditions of the Mulan PSL v2.
++# You may obtain a copy of Mulan PSL v2 at:
++#     http://license.coscl.org.cn/MulanPSL2
++# THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER EXPRESS OR
++# IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY OR FIT FOR A PARTICULAR
++# PURPOSE.
++# See the Mulan PSL v2 for more details.
++# Author: Xiang Li
++# Create: 2021-11-01
++# Description: cover test for load separated image
++
++test_name=${BASH_SOURCE[0]}
++workspace=/tmp/${test_name}.$(date +%s)
++mkdir -p "${workspace}"
++dockerfile=${workspace}/Dockerfile
++tarball_dir=${workspace}/Images
++rename_json=${workspace}/rename.json
++top_dir=$(git rev-parse --show-toplevel)
++# shellcheck disable=SC1091
++source "${top_dir}"/tests/lib/separator.sh
++
++function pre_run() {
++    base_image_name="hub.oepkgs.net/library/busybox:latest"
++    lib_image_name="lib:latest"
++    app1_image_name="app1:latest"
++    app2_image_name="app2:latest"
++    lib_layer_number=5
++    app1_layer_number=4
++    app2_layer_number=3
++    touch_dockerfile "${base_image_name}" "${lib_image_name}" "${lib_layer_number}" "${dockerfile}"
++    build_image "${lib_image_name}" "${workspace}"
++    touch_dockerfile "${lib_image_name}" "${app1_image_name}" "${app1_layer_number}" "${dockerfile}"
++    build_image "${app1_image_name}" "${workspace}"
++    touch_dockerfile "${lib_image_name}" "${app2_image_name}" "${app2_layer_number}" "${dockerfile}"
++    build_image "${app2_image_name}" "${workspace}"
++    touch_rename_json "${rename_json}"
++    isula-build ctr-img save -b "${base_image_name}" -l "${lib_image_name}" -d "${tarball_dir}" "${app1_image_name}" "${app2_image_name}" -r "${rename_json}"
++    check_result_equal $? 0
++    isula-build ctr-img rm "${lib_image_name}" "${app1_image_name}" "${app2_image_name}"
++}
++
++function test_run1() {
++    isula-build ctr-img load -d "${tarball_dir}" -b "${tarball_dir}"/base1.tar.gz -l "${tarball_dir}"/lib1.tar.gz -i "${app1_image_name}"
++    check_result_equal $? 0
++    isula-build ctr-img rm "${lib_image_name}" "${app1_image_name}" "${app2_image_name}"
++}
++
++function test_run2() {
++    isula-build ctr-img load -d "${tarball_dir}" -b "${tarball_dir}"/base1.tar.gz -i "${app1_image_name}"
++    check_result_equal $? 0
++    isula-build ctr-img rm "${lib_image_name}" "${app1_image_name}" "${app2_image_name}"
++}
++
++function test_run3() {
++    isula-build ctr-img load -d "${tarball_dir}" -l "${tarball_dir}"/lib1.tar.gz -i "${app1_image_name}"
++    check_result_equal $? 0
++    isula-build ctr-img rm "${lib_image_name}" "${app1_image_name}" "${app2_image_name}"
++}
++
++function test_run4() {
++    isula-build ctr-img load -d "${tarball_dir}" -i "${app1_image_name}"
++    check_result_equal $? 0
++    isula-build ctr-img rm "${lib_image_name}" "${app1_image_name}" "${app2_image_name}"
++}
++
++function test_run5() {
++    isula-build ctr-img load -d "${tarball_dir}" -i "${app1_image_name}" --no-check
++    check_result_equal $? 0
++    isula-build ctr-img rm "${lib_image_name}" "${app1_image_name}" "${app2_image_name}"
++}
++
++function cleanup() {
++    rm -rf "${workspace}"
++    isula-build ctr-img rm "${lib_image_name}" "${app1_image_name}" "${app2_image_name}"
++}
++
++pre_run
++test_run1
++test_run2
++test_run3
++test_run4
++test_run5
++cleanup
++# shellcheck disable=SC2154
++exit "${exit_flag}"
+diff --git a/tests/src/cover_test_save_separated_image_failed.sh b/tests/src/cover_test_save_separated_image_failed.sh
+new file mode 100644
+index 00000000..c64dcf5d
+--- /dev/null
++++ b/tests/src/cover_test_save_separated_image_failed.sh
+@@ -0,0 +1,107 @@
++#!/bin/bash
++
++# Copyright (c) Huawei Technologies Co., Ltd. 2020. All rights reserved.
++# isula-build licensed under the Mulan PSL v2.
++# You can use this software according to the terms and conditions of the Mulan PSL v2.
++# You may obtain a copy of Mulan PSL v2 at:
++#     http://license.coscl.org.cn/MulanPSL2
++# THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER EXPRESS OR
++# IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY OR FIT FOR A PARTICULAR
++# PURPOSE.
++# See the Mulan PSL v2 for more details.
++# Author: Xiang Li
++# Create: 2021-11-01
++# Description: cover test for save separated image
++
++test_name=${BASH_SOURCE[0]}
++workspace=/tmp/${test_name}.$(date +%s)
++mkdir -p "${workspace}"
++dockerfile=${workspace}/Dockerfile
++top_dir=$(git rev-parse --show-toplevel)
++# shellcheck disable=SC1091
++source "${top_dir}"/tests/lib/separator.sh
++
++function pre_run() {
++    base_image_name="hub.oepkgs.net/library/busybox:latest"
++    bad_lib_image_name="lib:bad"
++    bad_app1_image_name="app1:bad"
++    bad_app2_image_name="app2:bad"
++    lib_image_name="lib:latest"
++    app1_image_name="app1:latest"
++    app2_image_name="app2:latest"
++    bad_lib_layer_number=5
++    bad_app1_layer_number=4
++    bad_app2_layer_number=3
++    lib_layer_number=5
++    app1_layer_number=6
++    app2_layer_number=7
++
++    # build bad dockerfile
++    touch_bad_dockerfile "${base_image_name}" "${bad_lib_image_name}" "${bad_lib_layer_number}" "${dockerfile}"
++    build_image "${bad_lib_image_name}" "${workspace}"
++    touch_bad_dockerfile "${bad_lib_image_name}" "${bad_app1_image_name}" "${bad_app1_layer_number}" "${dockerfile}"
++    build_image "${bad_app1_image_name}" "${workspace}"
++    touch_bad_dockerfile "${bad_lib_image_name}" "${bad_app2_image_name}" "${bad_app2_layer_number}" "${dockerfile}"
++    build_image "${bad_app2_image_name}" "${workspace}"
++
++    # build normal dockerfile
++    touch_dockerfile "${base_image_name}" "${lib_image_name}" "${lib_layer_number}" "${dockerfile}"
++    build_image "${lib_image_name}" "${workspace}"
++    touch_dockerfile "${lib_image_name}" "${app1_image_name}" "${app1_layer_number}" "${dockerfile}"
++    build_image "${app1_image_name}" "${workspace}"
++    touch_dockerfile "${lib_image_name}" "${app2_image_name}" "${app2_layer_number}" "${dockerfile}"
++    build_image "${app2_image_name}" "${workspace}"
++}
++
++function test_run1() {
++    isula-build ctr-img save -b "${base_image_name}" -l "${bad_lib_image_name}" -d "${workspace}"/Images "${bad_app1_image_name}" "${bad_app2_image_name}"
++    check_result_not_equal $? 0
++    rm -rf "${workspace}"/Images
++}
++
++function test_run2() {
++    isula-build ctr-img save -b "invalid:base" -l "${bad_lib_image_name}" -d "${workspace}"/Images "${bad_app1_image_name}" "${bad_app2_image_name}"
++    check_result_not_equal $? 0
++    rm -rf "${workspace}"/Images
++}
++
++function test_run3() {
++    isula-build ctr-img save -b "${base_image_name}" -l "livalid:lib" -d "${workspace}"/Images "${bad_app1_image_name}" "${bad_app2_image_name}"
++    check_result_not_equal $? 0
++    rm -rf "${workspace}"/Images
++}
++
++function test_run4() {
++    isula-build ctr-img save -b "${base_image_name}" -l "${bad_lib_image_name}" -d "${workspace}"/Images "invalid:app" "${bad_app2_image_name}"
++    check_result_not_equal $? 0
++    rm -rf "${workspace}"/Images
++}
++
++function test_run5() {
++    isula-build ctr-img save -b "${base_image_name}" -l "${bad_lib_image_name}" -d "${workspace}"/Images "${app1_image_name}" "${app2_image_name}"
++    check_result_not_equal $? 0
++    rm -rf "${workspace}"/Images
++}
++
++function test_run6() {
++    isula-build ctr-img save -b "${base_image_name}" -l "${lib_image_name}" -d "${workspace}"/Images "${bad_app1_image_name}" "${bad_app2_image_name}"
++    check_result_not_equal $? 0
++    rm -rf "${workspace}"/Images
++}
++
++function cleanup() {
++    rm -rf "${workspace}"
++    isula-build ctr-img rm "${bad_lib_image_name}" "${bad_app1_image_name}" "${bad_app2_image_name}" "${lib_image_name}" "${app1_image_name}" "${app2_image_name}"
++    isula-build ctr-img rm -p
++}
++
++pre_run
++test_run1
++test_run2
++test_run3
++test_run4
++test_run5
++test_run6
++cleanup
++# shellcheck disable=SC2154
++exit "${exit_flag}"
+diff --git a/tests/src/cover_test_save_separated_image_success.sh b/tests/src/cover_test_save_separated_image_success.sh
+new file mode 100644
+index 00000000..2095bd33
+--- /dev/null
++++ b/tests/src/cover_test_save_separated_image_success.sh
+@@ -0,0 +1,54 @@
++#!/bin/bash
++
++# Copyright (c) Huawei Technologies Co., Ltd. 2020. All rights reserved.
++# isula-build licensed under the Mulan PSL v2.
++# You can use this software according to the terms and conditions of the Mulan PSL v2.
++# You may obtain a copy of Mulan PSL v2 at:
++#     http://license.coscl.org.cn/MulanPSL2
++# THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER EXPRESS OR
++# IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY OR FIT FOR A PARTICULAR
++# PURPOSE.
++# See the Mulan PSL v2 for more details.
++# Author: Xiang Li
++# Create: 2021-11-01
++# Description: cover test for save separated image
++
++test_name=${BASH_SOURCE[0]}
++workspace=/tmp/${test_name}.$(date +%s)
++mkdir -p "${workspace}"
++dockerfile=${workspace}/Dockerfile
++top_dir=$(git rev-parse --show-toplevel)
++# shellcheck disable=SC1091
++source "${top_dir}"/tests/lib/separator.sh
++
++function pre_run() {
++    base_image_name="hub.oepkgs.net/library/busybox:latest"
++    lib_image_name="lib:latest"
++    app1_image_name="app1:latest"
++    app2_image_name="app2:latest"
++    lib_layer_number=5
++    app1_layer_number=4
++    app2_layer_number=3
++    touch_dockerfile "${base_image_name}" "${lib_image_name}" "${lib_layer_number}" "${dockerfile}"
++    build_image "${lib_image_name}" "${workspace}"
++    touch_dockerfile "${lib_image_name}" "${app1_image_name}" "${app1_layer_number}" "${dockerfile}"
++    build_image "${app1_image_name}" "${workspace}"
++    touch_dockerfile "${lib_image_name}" "${app2_image_name}" "${app2_layer_number}" "${dockerfile}"
++    build_image "${app2_image_name}" "${workspace}"
++}
++
++function test_run() {
++    isula-build ctr-img save -b "${base_image_name}" -l "${lib_image_name}" -d "${workspace}"/Images "${app1_image_name}" "${app2_image_name}"
++    check_result_equal $? 0
++}
++
++function cleanup() {
++    rm -rf "${workspace}"
++    isula-build ctr-img rm "${lib_image_name}" "${app1_image_name}" "${app2_image_name}"
++}
++
++pre_run
++test_run
++cleanup
++# shellcheck disable=SC2154
++exit "${exit_flag}"
+diff --git a/tests/src/cover_test_save_separated_image_with_rename.sh b/tests/src/cover_test_save_separated_image_with_rename.sh
+new file mode 100644
+index 00000000..28904757
+--- /dev/null
++++ b/tests/src/cover_test_save_separated_image_with_rename.sh
+@@ -0,0 +1,75 @@
++#!/bin/bash
++
++# Copyright (c) Huawei Technologies Co., Ltd. 2020. All rights reserved.
++# isula-build licensed under the Mulan PSL v2.
++# You can use this software according to the terms and conditions of the Mulan PSL v2.
++# You may obtain a copy of Mulan PSL v2 at:
++#     http://license.coscl.org.cn/MulanPSL2
++# THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER EXPRESS OR
++# IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY OR FIT FOR A PARTICULAR
++# PURPOSE.
++# See the Mulan PSL v2 for more details.
++# Author: Xiang Li
++# Create: 2021-11-01
++# Description: cover test for save separated image
++
++test_name=${BASH_SOURCE[0]}
++workspace=/tmp/${test_name}.$(date +%s)
++mkdir -p "${workspace}"
++dockerfile=${workspace}/Dockerfile
++rename_json=${workspace}/rename.json
++invalid_rename_json=${workspace}/invalid.json
++none_exist_rename_json=${workspace}/none_exist.json
++top_dir=$(git rev-parse --show-toplevel)
++# shellcheck disable=SC1091
++source "${top_dir}"/tests/lib/separator.sh
++
++function pre_run() {
++    base_image_name="hub.oepkgs.net/library/busybox:latest"
++    lib_image_name="lib:latest"
++    app1_image_name="app1:latest"
++    app2_image_name="app2:latest"
++    lib_layer_number=5
++    app1_layer_number=4
++    app2_layer_number=3
++    touch_dockerfile "${base_image_name}" "${lib_image_name}" "${lib_layer_number}" "${dockerfile}"
++    build_image "${lib_image_name}" "${workspace}"
++    touch_dockerfile "${lib_image_name}" "${app1_image_name}" "${app1_layer_number}" "${dockerfile}"
++    build_image "${app1_image_name}" "${workspace}"
++    touch_dockerfile "${lib_image_name}" "${app2_image_name}" "${app2_layer_number}" "${dockerfile}"
++    build_image "${app2_image_name}" "${workspace}"
++}
++
++function test_run1() {
++    touch_rename_json "${rename_json}"
++    isula-build ctr-img save -b "${base_image_name}" -l "${lib_image_name}" -d "${workspace}"/Images -r "${rename_json}" "${app1_image_name}" "${app2_image_name}"
++    check_result_equal $? 0
++    rm -rf "${workspace}"/Images
++}
++
++function test_run2() {
++    touch_bad_rename_json "${invalid_rename_json}"
++    isula-build ctr-img save -b "${base_image_name}" -l "${lib_image_name}" -d "${workspace}"/Images -r "${invalid_rename_json}" "${app1_image_name}" "${app2_image_name}"
++    check_result_not_equal $? 0
++    rm -rf "${workspace}"/Images
++}
++
++function test_run3() {
++    isula-build ctr-img save -b "${base_image_name}" -l "${lib_image_name}" -d "${workspace}"/Images -r "${none_exist_rename_json}" "${app1_image_name}" "${app2_image_name}"
++    check_result_not_equal $? 0
++    rm -rf "${workspace}"/Images
++}
++
++function cleanup() {
++    rm -rf "${workspace}"
++    isula-build ctr-img rm "${lib_image_name}" "${app1_image_name}" "${app2_image_name}"
++}
++
++
++pre_run
++test_run1
++test_run2
++test_run3
++cleanup
++# shellcheck disable=SC2154
++exit "${exit_flag}"
+-- 
+2.27.0
+
