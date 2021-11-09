@@ -28,6 +28,8 @@ go_test_mod_method="-mod=vendor"
 go_test_count_method="-count=1"
 go_test_timeout_flag="-timeout=300s"
 go_test_race_flag="-race"
+go_test_covermode_flag="-covermode=atomic"
+go_test_coverprofile_flag="-coverprofile=/dev/null"
 
 function precheck() {
     if pgrep isula-builder > /dev/null 2>&1; then
@@ -54,13 +56,13 @@ function run_unit_test() {
         echo "Start to test: ${package}"
         if [[ -n ${run_coverage} ]]; then
             coverprofile_file="${covers_folder}/$(echo "${package}" | tr / -).cover"
-            coverprofile_flag="-coverprofile=${coverprofile_file}"
+            go_test_coverprofile_flag="-coverprofile=${coverprofile_file}"
             go_test_covermode_flag="-covermode=set"
             go_test_race_flag=""
         fi
         # TEST_ARGS is " -args SKIP_REG=foo", so no double quote for it
         # shellcheck disable=SC2086
-        go test -v ${go_test_race_flag} "${go_test_mod_method}" ${coverprofile_flag} "${go_test_covermode_flag}" -coverpkg=${package} "${go_test_count_method}" "${go_test_timeout_flag}" "${package}" ${TEST_ARGS} >> "${testlog}"
+        go test -v "${go_test_race_flag}" "${go_test_mod_method}" "${go_test_coverprofile_flag}" "${go_test_covermode_flag}" -coverpkg=${package} "${go_test_count_method}" "${go_test_timeout_flag}" "${package}" ${TEST_ARGS} >> "${testlog}"
     done
 
     if grep -E -- "--- FAIL:|^FAIL" "${testlog}"; then

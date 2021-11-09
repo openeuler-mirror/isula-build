@@ -139,7 +139,7 @@ type tarballInfo struct {
 	BaseTarName   string   `json:"base"`
 	BaseHash      string   `json:"baseHash"`
 	BaseImageName string   `json:"baseImageName"`
-	BaseLayers    []string `json:"baseLayer"`
+	BaseLayer     string   `json:"baseLayer"`
 }
 
 func (b *Backend) getSaveOptions(req *pb.SaveRequest) saveOptions {
@@ -381,7 +381,7 @@ func (opts *saveOptions) checkRenameFile() error {
 	return nil
 }
 
-func getLayerHashFromStorage(store *store.Store, name string) ([]string, error) {
+func (s *separatorSave) getLayerHashFromStorage(store *store.Store, name string) ([]string, error) {
 	if len(name) == 0 {
 		return nil, nil
 	}
@@ -632,8 +632,11 @@ func (info imageInfo) processTarName(suffix string) string {
 func (info *imageInfo) processBaseImg(sep *separatorSave, baseImagesMap map[string]string, tarball *tarballInfo) error {
 	// process base
 	tarball.BaseImageName = sep.base
+	if len(info.layers.base) != 0 {
+		sep.log.Infof("Base image %s has %d layers", sep.base, len(info.layers.base))
+		tarball.BaseLayer = info.layers.base[0]
+	}
 	for _, layerID := range info.layers.base {
-		tarball.BaseLayers = append(tarball.BaseLayers, layerID)
 		if baseImg, ok := baseImagesMap[layerID]; !ok {
 			srcLayerPath := filepath.Join(sep.tmpDir.untar, layerID)
 			destLayerPath := filepath.Join(sep.tmpDir.base, layerID)
@@ -673,6 +676,7 @@ func (info *imageInfo) processLibImg(sep *separatorSave, libImagesMap map[string
 	}
 
 	tarball.LibImageName = sep.lib
+	sep.log.Infof("Lib image %s has %d layers", sep.lib, len(info.layers.lib))
 	for _, layerID := range info.layers.lib {
 		tarball.LibLayers = append(tarball.LibLayers, layerID)
 		if libImg, ok := libImagesMap[layerID]; !ok {
@@ -709,6 +713,7 @@ func (info *imageInfo) processLibImg(sep *separatorSave, libImagesMap map[string
 
 func (info *imageInfo) processAppImg(sep *separatorSave, appImagesMap map[string]string, tarball *tarballInfo) error {
 	// process app
+	sep.log.Infof("App image %s has %d layers", info.nameTag, len(info.layers.app))
 	appTarName := info.processTarName(appTarNameSuffix)
 	appTarName = sep.rename(appTarName)
 	appTarPath := filepath.Join(sep.dest, appTarName)
@@ -834,13 +839,16 @@ func (s *separatorSave) constructSingleImgInfo(mani imageManifest, store *store.
 }
 
 func (s *separatorSave) checkLayersHash(layerHashMap map[string]string, store *store.Store) ([]string, []string, error) {
-	libHash, err := getLayerHashFromStorage(store, s.lib)
+	libHash, err := s.getLayerHashFromStorage(store, s.lib)
 	if err != nil {
 		return nil, nil, errors.Wrapf(err, "get lib image %s layers failed", s.lib)
 	}
-	baseHash, err := getLayerHashFromStorage(store, s.base)
+	baseHash, err := s.getLayerHashFromStorage(store, s.base)
 	if err != nil {
 		return nil, nil, errors.Wrapf(err, "get base image %s layers failed", s.base)
+	}
+	if len(baseHash) > 1 {
+		return nil, nil, errors.Errorf("number of base layers %d more than one", len(baseHash))
 	}
 	if len(libHash) >= len(layerHashMap) || len(baseHash) >= len(layerHashMap) {
 		return nil, nil, errors.Errorf("number of base or lib layers is equal or greater than saved app layers")
