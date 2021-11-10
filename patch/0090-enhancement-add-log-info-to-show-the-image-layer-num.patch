@@ -1,0 +1,117 @@
+From 38bed99e8cb58ad3c7fe0ef386c66c558d16b569 Mon Sep 17 00:00:00 2001
+From: DCCooper <1866858@gmail.com>
+Date: Tue, 9 Nov 2021 19:18:45 +0800
+Subject: [PATCH] enhancement: add log info to show the image layer number
+
+reason: when save separated image, the layer number should be
+printed out into log
+
+Signed-off-by: DCCooper <1866858@gmail.com>
+---
+ daemon/save.go    | 18 +++++++++++++-----
+ hack/unit_test.sh |  6 ++++--
+ 2 files changed, 17 insertions(+), 7 deletions(-)
+
+diff --git a/daemon/save.go b/daemon/save.go
+index 9c5e563..f14a485 100644
+--- a/daemon/save.go
++++ b/daemon/save.go
+@@ -139,7 +139,7 @@ type tarballInfo struct {
+ 	BaseTarName   string   `json:"base"`
+ 	BaseHash      string   `json:"baseHash"`
+ 	BaseImageName string   `json:"baseImageName"`
+-	BaseLayers    []string `json:"baseLayer"`
++	BaseLayer     string   `json:"baseLayer"`
+ }
+ 
+ func (b *Backend) getSaveOptions(req *pb.SaveRequest) saveOptions {
+@@ -381,7 +381,7 @@ func (opts *saveOptions) checkRenameFile() error {
+ 	return nil
+ }
+ 
+-func getLayerHashFromStorage(store *store.Store, name string) ([]string, error) {
++func (s *separatorSave) getLayerHashFromStorage(store *store.Store, name string) ([]string, error) {
+ 	if len(name) == 0 {
+ 		return nil, nil
+ 	}
+@@ -632,8 +632,11 @@ func (info imageInfo) processTarName(suffix string) string {
+ func (info *imageInfo) processBaseImg(sep *separatorSave, baseImagesMap map[string]string, tarball *tarballInfo) error {
+ 	// process base
+ 	tarball.BaseImageName = sep.base
++	if len(info.layers.base) != 0 {
++		sep.log.Infof("Base image %s has %d layers", sep.base, len(info.layers.base))
++		tarball.BaseLayer = info.layers.base[0]
++	}
+ 	for _, layerID := range info.layers.base {
+-		tarball.BaseLayers = append(tarball.BaseLayers, layerID)
+ 		if baseImg, ok := baseImagesMap[layerID]; !ok {
+ 			srcLayerPath := filepath.Join(sep.tmpDir.untar, layerID)
+ 			destLayerPath := filepath.Join(sep.tmpDir.base, layerID)
+@@ -673,6 +676,7 @@ func (info *imageInfo) processLibImg(sep *separatorSave, libImagesMap map[string
+ 	}
+ 
+ 	tarball.LibImageName = sep.lib
++	sep.log.Infof("Lib image %s has %d layers", sep.lib, len(info.layers.lib))
+ 	for _, layerID := range info.layers.lib {
+ 		tarball.LibLayers = append(tarball.LibLayers, layerID)
+ 		if libImg, ok := libImagesMap[layerID]; !ok {
+@@ -709,6 +713,7 @@ func (info *imageInfo) processLibImg(sep *separatorSave, libImagesMap map[string
+ 
+ func (info *imageInfo) processAppImg(sep *separatorSave, appImagesMap map[string]string, tarball *tarballInfo) error {
+ 	// process app
++	sep.log.Infof("App image %s has %d layers", info.nameTag, len(info.layers.app))
+ 	appTarName := info.processTarName(appTarNameSuffix)
+ 	appTarName = sep.rename(appTarName)
+ 	appTarPath := filepath.Join(sep.dest, appTarName)
+@@ -834,14 +839,17 @@ func (s *separatorSave) constructSingleImgInfo(mani imageManifest, store *store.
+ }
+ 
+ func (s *separatorSave) checkLayersHash(layerHashMap map[string]string, store *store.Store) ([]string, []string, error) {
+-	libHash, err := getLayerHashFromStorage(store, s.lib)
++	libHash, err := s.getLayerHashFromStorage(store, s.lib)
+ 	if err != nil {
+ 		return nil, nil, errors.Wrapf(err, "get lib image %s layers failed", s.lib)
+ 	}
+-	baseHash, err := getLayerHashFromStorage(store, s.base)
++	baseHash, err := s.getLayerHashFromStorage(store, s.base)
+ 	if err != nil {
+ 		return nil, nil, errors.Wrapf(err, "get base image %s layers failed", s.base)
+ 	}
++	if len(baseHash) > 1 {
++		return nil, nil, errors.Errorf("number of base layers %d more than one", len(baseHash))
++	}
+ 	if len(libHash) >= len(layerHashMap) || len(baseHash) >= len(layerHashMap) {
+ 		return nil, nil, errors.Errorf("number of base or lib layers is equal or greater than saved app layers")
+ 	}
+diff --git a/hack/unit_test.sh b/hack/unit_test.sh
+index 161feb6..b6a7978 100755
+--- a/hack/unit_test.sh
++++ b/hack/unit_test.sh
+@@ -28,6 +28,8 @@ go_test_mod_method="-mod=vendor"
+ go_test_count_method="-count=1"
+ go_test_timeout_flag="-timeout=300s"
+ go_test_race_flag="-race"
++go_test_covermode_flag="-covermode=atomic"
++go_test_coverprofile_flag="-coverprofile=/dev/null"
+ 
+ function precheck() {
+     if pgrep isula-builder > /dev/null 2>&1; then
+@@ -54,13 +56,13 @@ function run_unit_test() {
+         echo "Start to test: ${package}"
+         if [[ -n ${run_coverage} ]]; then
+             coverprofile_file="${covers_folder}/$(echo "${package}" | tr / -).cover"
+-            coverprofile_flag="-coverprofile=${coverprofile_file}"
++            go_test_coverprofile_flag="-coverprofile=${coverprofile_file}"
+             go_test_covermode_flag="-covermode=set"
+             go_test_race_flag=""
+         fi
+         # TEST_ARGS is " -args SKIP_REG=foo", so no double quote for it
+         # shellcheck disable=SC2086
+-        go test -v ${go_test_race_flag} "${go_test_mod_method}" ${coverprofile_flag} "${go_test_covermode_flag}" -coverpkg=${package} "${go_test_count_method}" "${go_test_timeout_flag}" "${package}" ${TEST_ARGS} >> "${testlog}"
++        go test -v "${go_test_race_flag}" "${go_test_mod_method}" "${go_test_coverprofile_flag}" "${go_test_covermode_flag}" -coverpkg=${package} "${go_test_count_method}" "${go_test_timeout_flag}" "${package}" ${TEST_ARGS} >> "${testlog}"
+     done
+ 
+     if grep -E -- "--- FAIL:|^FAIL" "${testlog}"; then
+-- 
+1.8.3.1
+
