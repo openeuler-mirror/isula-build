@@ -14,6 +14,7 @@
 package util
 
 import (
+	"bufio"
 	"crypto"
 	"crypto/aes"
 	"crypto/cipher"
@@ -234,6 +235,33 @@ func ReadPublicKey(path string) (rsa.PublicKey, error) {
 	return *key, nil
 }
 
+func checkSumReader(path string) (string, error) {
+	const bufferSize = 32 * 1024 // 32KB
+
+	file, err := os.Open(filepath.Clean(path))
+	if err != nil {
+		return "", errors.Wrapf(err, "hash file failed")
+	}
+	defer func() {
+		if cErr := file.Close(); cErr != nil && err == nil {
+			err = cErr
+		}
+	}()
+	buf := make([]byte, bufferSize)
+	reader := bufio.NewReader(file)
+	hasher := sha256.New()
+	for {
+		switch n, err := reader.Read(buf); err {
+		case nil:
+			hasher.Write(buf[:n])
+		case io.EOF:
+			return fmt.Sprintf("%x", hasher.Sum(nil)), nil
+		default:
+			return "", err
+		}
+	}
+}
+
 func hashFile(path string) (string, error) {
 	cleanPath := filepath.Clean(path)
 	if f, err := os.Stat(cleanPath); err != nil {
@@ -242,12 +270,7 @@ func hashFile(path string) (string, error) {
 		return "", errors.New("failed to hash directory")
 	}
 
-	file, err := ioutil.ReadFile(cleanPath) // nolint:gosec
-	if err != nil {
-		return "", errors.Wrapf(err, "hash file failed")
-	}
-
-	return fmt.Sprintf("%x", sha256.Sum256(file)), nil
+	return checkSumReader(path)
 }
 
 func hashDir(path string) (string, error) {
@@ -261,11 +284,10 @@ func hashDir(path string) (string, error) {
 			return nil
 		}
 		if !info.IsDir() {
-			f, err := ioutil.ReadFile(cleanPath) // nolint:gosec
+			fileHash, err := hashFile(cleanPath)
 			if err != nil {
 				return err
 			}
-			fileHash := fmt.Sprintf("%x", sha256.Sum256(f))
 			checkSum = fmt.Sprintf("%s%s", checkSum, fileHash)
 		}
 		return nil

@@ -15,10 +15,13 @@ package util
 
 import (
 	"crypto"
+	"crypto/rand"
 	"crypto/sha1"
 	"crypto/sha256"
 	"crypto/sha512"
+	"fmt"
 	"hash"
+	"io"
 	"io/ioutil"
 	"os"
 	"path/filepath"
@@ -31,6 +34,9 @@ import (
 )
 
 const (
+	sizeKB        = 1024
+	sizeMB        = 1024 * sizeKB
+	sizeGB        = 1024 * sizeMB
 	maxRepeatTime = 1000000
 )
 
@@ -449,6 +455,84 @@ func TestCheckSum(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			if err := CheckSum(tt.args.path, tt.args.target); (err != nil) != tt.wantErr {
 				t.Errorf("CheckSum() error = %v, wantErr %v", err, tt.wantErr)
+			}
+		})
+	}
+}
+
+func createFileWithSize(path string, size int) error {
+	file, err := os.Create(path)
+	if err != nil {
+		return err
+	}
+	_, err = io.CopyN(file, rand.Reader, int64(size))
+	return err
+}
+
+func benchmarkSHA256SumWithFileSize(b *testing.B, fileSize int) {
+	b.ReportAllocs()
+	filepath := fs.NewFile(b, b.Name())
+	defer filepath.Remove()
+	_ = createFileWithSize(filepath.Path(), fileSize)
+	b.ResetTimer()
+	for n := 0; n < b.N; n++ {
+		_, _ = SHA256Sum(filepath.Path())
+	}
+}
+
+func BenchmarkSHA256Sum(b *testing.B) {
+	tests := []struct {
+		fileSuffix string
+		fileSize   int
+	}{
+		{fileSuffix: "100MB", fileSize: 100 * sizeMB},
+		{fileSuffix: "200MB", fileSize: 200 * sizeMB},
+		{fileSuffix: "500MB", fileSize: 500 * sizeMB},
+		{fileSuffix: "1GB", fileSize: 1 * sizeGB},
+		{fileSuffix: "2GB", fileSize: 2 * sizeGB},
+		{fileSuffix: "4GB", fileSize: 4 * sizeGB},
+		{fileSuffix: "8GB", fileSize: 8 * sizeGB},
+	}
+
+	for _, t := range tests {
+		name := fmt.Sprintf("BenchmarkSHA256SumWithFileSize_%s", t.fileSuffix)
+		b.Run(name, func(b *testing.B) {
+			benchmarkSHA256SumWithFileSize(b, t.fileSize)
+		})
+	}
+}
+
+func TestCreateFileWithSize(t *testing.T) {
+	newFile := fs.NewFile(t, t.Name())
+	defer newFile.Remove()
+	type args struct {
+		path string
+		size int
+	}
+	tests := []struct {
+		name    string
+		args    args
+		wantErr bool
+	}{
+		{
+			name: "TC-generate 500MB file",
+			args: args{
+				path: newFile.Path(),
+				size: 500 * sizeMB,
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := createFileWithSize(tt.args.path, tt.args.size)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("createFileWithSize() error = %v, wantErr %v", err, tt.wantErr)
+			}
+			if err == nil {
+				file, _ := os.Stat(tt.args.path)
+				if file.Size() != int64(tt.args.size) {
+					t.Errorf("createFileWithSize() size = %v, actually %v", tt.args.size, file.Size())
+				}
 			}
 		})
 	}
