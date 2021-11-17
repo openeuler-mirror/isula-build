@@ -1,0 +1,45 @@
+From c39db6aff78c1da4d6004c5ea92058121e706092 Mon Sep 17 00:00:00 2001
+From: xingweizheng <xingweizheng@huawei.com>
+Date: Wed, 27 Oct 2021 20:13:59 +0800
+Subject: [PATCH] add repo to local image when output transporter is docker://
+
+---
+ builder/dockerfile/builder.go      | 2 +-
+ builder/dockerfile/builder_test.go | 4 ++--
+ 2 files changed, 3 insertions(+), 3 deletions(-)
+
+diff --git a/builder/dockerfile/builder.go b/builder/dockerfile/builder.go
+index df8c6ce..7fff71b 100644
+--- a/builder/dockerfile/builder.go
++++ b/builder/dockerfile/builder.go
+@@ -627,7 +627,7 @@ func parseOutputTag(output string) string {
+ 		if repo == "" {
+ 			return ""
+ 		}
+-		tag = repoAndTag[len(repo):]
++		tag = strings.TrimLeft(repoAndTag, "/")
+ 	}
+ 
+ 	return tag
+diff --git a/builder/dockerfile/builder_test.go b/builder/dockerfile/builder_test.go
+index c2fec6c..20cca43 100644
+--- a/builder/dockerfile/builder_test.go
++++ b/builder/dockerfile/builder_test.go
+@@ -1300,12 +1300,12 @@ func TestParseTag(t *testing.T) {
+ 		{
+ 			name:   "docker output",
+ 			output: "docker://localhost:5000/isula/test:latest",
+-			tag:    "isula/test:latest",
++			tag:    "localhost:5000/isula/test:latest",
+ 		},
+ 		{
+ 			name:   "docker output",
+ 			output: "docker://localhost:5000/isula/test",
+-			tag:    "isula/test",
++			tag:    "localhost:5000/isula/test",
+ 		},
+ 		{
+ 			name:   "invalid docker output",
+-- 
+1.8.3.1
+
