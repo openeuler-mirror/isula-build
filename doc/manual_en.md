@@ -529,6 +529,33 @@ Loaded image as c07ddb44daa97e9e8d2d68316b296cc9343ab5f3d2babc5e6e03b80cd580478e
 > - isula-build allows you to import a container image with a maximum size of 50 GB.
 > - isula-build automatically recgonizes the image format and loads it from the image layers file.
 
+#### load: Importing Separated Images
+
+The isula-build ctr-img load command is used to assemble a complete image that is exported by layer and load the image to the system.
+
+The command prototype is as follows:
+
+```
+isula-build ctr-img load -d IMAGES_DIR [-b BASE_IMAGE] [-l LIB_IMAGE] -i APP_IMAGE
+```
+
+IMAGE: name of the application image to be imported: TAG (it cannot be the image ID).
+
+The following Flags are supported:
+
+- -d: Specifies the folder where the application layer image is stored. This parameter is mandatory. The folder contains at least the app image and complete manifest file. You can store the files at the base layer and lib layer separately and specify them by using the -b and -l parameters.
+- -b: specifies the path of the image at the base layer. This parameter is optional. If this parameter is not specified, the path specified by -d is used by default.
+- -l: specifies the path of the image at the lib layer. This parameter is optional. If this parameter is not specified, the path specified by -d is used by default.
+- -i: Specifies the name of the application image to be imported. This parameter is mandatory.
+- –no-check: skips SHA256 verification. This parameter is optional.
+
+> **Note:**
+>
+> - You need to enter the image name parameter. The value of Image_NAME:TAG must be used to specify a unique image. If Image_ID is used or no tag is added, multiple images may be mapped, or the same image may have different IDs during the import and export process. As a result, the execution result deviates from the user's expectation.
+> - When -no-check is used, the sha256 checksum of the tarball is skipped. Abandoning the checksum checksum check on tarballs may introduce uncertainties. Users need to be clear and accept the possible impact and consequences of such actions.
+> - The capacity of the isula-build running directory /var/lib/isula-build/ must be at least twice the total size of the tiered mirror. If you want to store images A (10 MB), B (20 MB), and C (30 MB), ensure that the size of the disk where /var/lib/isula-build resides is 120 MB (2 x (10 + 20 + 30)).
+> - When a hierarchical image is saved or loaded, the file needs to be read into the memory when the SHA256 value of the file is calculated. Therefore, linear memory consumption occurs when concurrent operations are performed.
+
 #### rm: Deleting a Local Persistent Image
 
 You can run the rm command to delete an image from the local persistent storage. The command is as follows:
@@ -615,6 +642,51 @@ Save success with image: [busybox:latest nginx:latest]
 >- Save exports an image in .tar format by default. If necessary, you can save the image and then manually compress it.
 >- When exporting an image using image name, specify the entire image name with format: REPOSITORY:TAG.
 
+#### save: Exporting Separated Images
+
+The isula-build ctr-img save command can be used to export base/lib/app layers. If multiple application layers depend on the same base and lib, only one copy is exported. If -d is not used to specify the destination directory, the exported base/lib/app image package is saved in the Imagesimages directory.
+
+The command prototype is as follows:
+
+```
+isula-build ctr-img save -b BASE_IMAGE:TAG [-l LIB_IMAGE:TAG] [-r rename.json] [ -d DST_DIR] IMAGE [IMAGE…]
+```
+
+IMAGE: name of the application image to be exported: TAG (it cannot be the image ID). You can export multiple application images with the same base/lib at the same time.
+
+The following Flags are supported:
+
+- -b, --base: mandatory. Specifies the image tag at the base layer, for example, euleros:latest. This parameter is mandatory. It is used to check whether the base image is the same as the base image in the app. The image name can contain a maximum of 255 characters (a-z0-9-*./). The tag name can contain a maximum of 128 characters (same as Docker).
+- -l, --lib: optional. Specifies the image at the lib layer, for example, euleros:libfoo. This parameter is optional. If there is no lib layer in actual applications, this parameter is optional.
+
+- -d: This parameter is optional. This parameter is mandatory to ensure that the directory for storing hierarchical images obtained by concurrent processes does not conflict. Specifies the directory for saving the exported results. The directory must be empty. If save is executed concurrently, ensure that the directory name is unique. Otherwise, the saved image may be incomplete or incorrect.
+
+- -r: specifies the name description file of the exported image .tar package. The file is in JSON format. If this parameter is not specified, the name of the exported app-layer image is "ImageName_tag_app_image.tar.gz" by default. The default image at the lib layer is "ImageName_tag_lib_image.tar.gz". The default value of the Base layer image is "ImageName_tag_base_image.tar.gz".
+
+If you need to rename the file, create the corresponding JSON file as prompted. The format of the JSON file is as follows:
+
+```
+[ 
+    { "name": "repo_tag_app_image.tar.gz", 
+      "rename": "some_app_image.tar.gz" 
+    } 
+    …
+]
+```
+
+> **Note:**
+>
+> - When saving a hierarchical image, specify the image name instead of the image ID. Otherwise, an error will be reported.
+> - When saving a layered image, ensure that the base image has only one layer and -b must specify an image.
+> - When saving a hierarchical image, you need to specify the directory (-d) for storing the hierarchical image. If this directory is not specified, the Images folder in the current directory is used.
+> - When saving a layered image, ensure that the directory for storing the layered image is empty. Otherwise, an error is reported.
+> - A manifest file is generated when a layered image is saved. The manifest file records the name and sha256sum of the compressed package of each layered image. During loading, the sha256sum of each compressed package is verified to prevent incorrect use.
+> - If the lib layer is not available in the actual application scenario, you do not need to add the -l parameter.
+> - The app image must be the same as the base/lib image.
+> - You need to enter the image name parameter. The value of Image_NAME:TAG must be used to specify a unique image. If Image_ID is used or no tag is added, multiple images may be mapped, or the same image may have different IDs during the import and export process. As a result, the execution result deviates from the user's expectation.
+> - When multiple images are layered, if these images have the same lib layer, specify the name of the lib layer image. Otherwise, the saving fails.
+> - The capacity of the isula-build running directory /var/lib/isula-build/ must be at least twice the total size of the tiered mirror. If you want to store images A (10 MB), B (20 MB), and C (30 MB), ensure that the size of the disk where /var/lib/isula-build resides is 120 MB (2 x (10 + 20 + 30)).
+> - When a hierarchical image is saved or loaded, the file needs to be read into the memory when the SHA256 value of the file is calculated. Therefore, linear memory consumption occurs when concurrent operations are performed.
 
 #### tag: Tagging Local Persistent Images
 
