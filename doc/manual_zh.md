@@ -526,6 +526,33 @@ Loaded image as c07ddb44daa97e9e8d2d68316b296cc9343ab5f3d2babc5e6e03b80cd580478e
 > - isula-build 支持导入最大50G的容器层叠镜像。
 > - isula-build 会自动识别容器层叠镜像的格式并进行导入。
 
+#### load: 导入分层镜像
+
+isula-build ctr-img load可以将isula-build ctr-img save分层导出的镜像，拼装回完整的镜像并load到系统中。
+
+命令原型如下：
+
+```
+isula-build ctr-img load -d IMAGES_DIR [-b BASE_IMAGE] [-l LIB_IMAGE] -i APP_IMAGE
+```
+
+IMAGE：需要导入的应用镜像名:TAG（不能是镜像ID）。
+
+支持如下Flags：
+
+- -d：必选，指定应用分层镜像所在的文件夹。文件夹中至少包含app镜像和完整的manifest文件。可以将base层和lib层文件分别存放，然后通过-b和-l参数指定。
+- -b：可选，指定base层镜像的路径。如果不指定，默认在-d指定的路径中。
+- -l：可选，指定lib层镜像的路径。如果不指定，默认在-d指定的路径中。
+- -i：必选，指定需要导入的应用镜像名字。
+- –no-check：可选，跳过sha256校验。
+
+> **说明：**
+>
+> - 需要输入镜像名的参数，要使用IMAGE_NAME:TAG的方式指明唯一的镜像，因为使用IMAGE_ID或不加TAG可能对应多个镜像，或者在导入导出过程中相同的镜像会有不同的ID，导致偏离用户预期的执行结果。
+> - 使用–no-check时，会跳过对tarball的sha256校验和检查。放弃对tarball进行校验和检查可能引入不确定因素，用户需明确和接受此类行为可能带来的影响和结果。
+> - 由于涉及中间状态转换、保存，isula-build运行目录/var/lib/isula-build/需保证容量至少为需要进行分层镜像总大小的两倍。假设需要对A（10MB）, B（20MB）, C（30MB） 三个镜像进行保存分层镜像，则需要保证/var/lib/isula-build所在磁盘大小为2*(10+20+30)=120M。
+> - 在保存、加载分层镜像时，在计算文件的sha256值时需要将文件读取进入内存中，故并发操作时，会有线性内存消耗。
+
 #### rm: 删除本地持久化镜像
 
 可通过rm命令删除当前本地持久化存储的镜像。命令原型为：
@@ -610,6 +637,53 @@ Save success with image: [busybox:latest nginx:latest]
 >
 > - save 导出的镜像默认格式为未压缩的tar格式，如有需求，用户可以再save之后手动压缩。
 > - 在使用镜像名导出镜像时，需要给出完整的镜像名格式：REPOSITORY:TAG。
+
+#### save: 导出分层镜像
+
+isula-build ctr-img save可以将base/lib/app分层导出，且如果多个app层依赖相同的base和lib，只会导出一份。如果不用-d指定导出的目标目录，导出的base/lib/app镜像包会被保存在Images目录下。
+
+命令原型如下：
+
+```
+isula-build ctr-img save -b BASE_IMAGE:TAG [-l LIB_IMAGE:TAG] [-r rename.json] [ -d DST_DIR] IMAGE [IMAGE…]
+```
+
+IMAGE：需要导出的应用镜像名:TAG（不能是镜像ID）。可以同时导出多个base/lib相同的应用镜像。
+
+支持如下Flags:
+
+- -b, --base：必选。指定base层镜像tag，例如euleros:latest。这个参数是必选的，用于比对base镜像和app中的基础镜像是否相同。镜像名允许[a-z0-9-*./]，最大长度为255，tag名允许[a-z0-9-*.]最大长度为128（与docker相同）。
+
+- -l, --lib：可选。指定lib层镜像，例如的euleros:libfoo。这个参数是可选的，如果实际应用中没有lib层，可以不加该参数。
+
+- -d：可选，如果是并发执行，为了保证并发进程得到的分层镜像保存目录不冲突，该参数必选。指定导出结果的保存目录。该目录必须为空目录，且如果save是并发执行的，需要用户自己保证该目录名称不可重复，否则保存的镜像会不完整或有错误。
+
+- -r：指定对导出镜像tar压缩包的重命名描述文件，json格式。 如果不加该参数，则导出的app层镜像名默认为“镜像名_tag_app_image.tar.gz”；lib层镜像默认为“镜像名_tag_lib_image.tar.gz”；base层镜像默认为“镜像名_tag_base_image.tar.gz”。
+
+  如果需要进行重命名，则根据提示创建相应的json文件。json文件的格式如下： 
+
+  ```
+  [ 
+      { "name": "repo_tag_app_image.tar.gz", 
+        "rename": "some_app_image.tar.gz" 
+      } 
+      …
+  ]
+  ```
+
+> **说明：**
+>
+> - 在保存分层镜像时，需指定镜像名称而非镜像ID，否则会报错。
+> - 在保存分层镜像时，需要确保base镜像只有一层且-b必须指定镜像。
+> - 在保存分层镜像时，需指定分层镜像保存的目录(-d)，如果未指定，则使用当前目录下的Images文件夹。
+> - 在保存分层镜像时，需要确定分层镜像保存的目录为空，否则报错。
+> - 保存分层镜像时会生成一个 manifest 文件，里面记录每个分层镜像的压缩包名称及sha256sum，加载时会校验每个压缩包的 sha256sum， 以免被错误使用。
+> - 如果实际应用场景没有lib层，则不需要增加-l参数。
+> - app镜像必须为base/lib相同的镜像。
+> - 需要输入镜像名的参数，要使用IMAGE_NAME:TAG的方式指明唯一的镜像，因为使用IMAGE_ID或不加TAG可能对应多个镜像，或者在导入导出过程中相同的镜像会有不同的ID，导致偏离用户预期的执行结果。
+> - 当对多个镜像进行分层时，如果这些镜像都拥有相同的lib层，需指明lib层镜像的名称，否则保存失败。
+> - 由于涉及中间状态转换、保存，isula-build运行目录/var/lib/isula-build/需保证容量至少为需要进行分层镜像总大小的两倍。假设需要对A（10MB）, B（20MB）, C（30MB） 三个镜像进行保存分层镜像，则需要保证/var/lib/isula-build所在磁盘大小为2*(10+20+30)=120M
+> - 在保存、加载分层镜像时，在计算文件的sha256值时需要将文件读取进入内存中，故并发操作时，会有线性内存消耗。
 
 
 #### tag: 给本地持久化镜像打标签
