@@ -1,7 +1,7 @@
 package selinux
 
 import (
-	"github.com/pkg/errors"
+	"errors"
 )
 
 const (
@@ -11,9 +11,10 @@ const (
 	Permissive = 0
 	// Disabled constant to indicate SELinux is disabled
 	Disabled = -1
-
+	// maxCategory is the maximum number of categories used within containers
+	maxCategory = 1024
 	// DefaultCategoryRange is the upper bound on the category range
-	DefaultCategoryRange = uint32(1024)
+	DefaultCategoryRange = uint32(maxCategory)
 )
 
 var (
@@ -30,8 +31,15 @@ var (
 	// ErrLevelSyntax is returned when a sensitivity or category do not have correct syntax in a level
 	ErrLevelSyntax = errors.New("invalid level syntax")
 
+	// ErrContextMissing is returned if a requested context is not found in a file.
+	ErrContextMissing = errors.New("context does not have a match")
+	// ErrVerifierNil is returned when a context verifier function is nil.
+	ErrVerifierNil = errors.New("verifier function is nil")
+
 	// CategoryRange allows the upper bound on the category range to be adjusted
 	CategoryRange = DefaultCategoryRange
+
+	privContainerMountLabel string
 )
 
 // Context is a representation of the SELinux label broken into 4 parts
@@ -63,8 +71,12 @@ func FileLabel(fpath string) (string, error) {
 	return fileLabel(fpath)
 }
 
-// SetFSCreateLabel tells kernel the label to create all file system objects
-// created by this task. Setting label="" to return to default.
+// SetFSCreateLabel tells the kernel what label to use for all file system objects
+// created by this task.
+// Set the label to an empty string to return to the default label. Calls to SetFSCreateLabel
+// should be wrapped in runtime.LockOSThread()/runtime.UnlockOSThread() until file system
+// objects created by this task are finished to guarantee another goroutine does not migrate
+// to the current thread before execution is complete.
 func SetFSCreateLabel(label string) error {
 	return setFSCreateLabel(label)
 }
@@ -113,19 +125,27 @@ func CalculateGlbLub(sourceRange, targetRange string) (string, error) {
 }
 
 // SetExecLabel sets the SELinux label that the kernel will use for any programs
-// that are executed by the current process thread, or an error.
+// that are executed by the current process thread, or an error. Calls to SetExecLabel
+// should  be wrapped in runtime.LockOSThread()/runtime.UnlockOSThread() until execution
+// of the program is finished to guarantee another goroutine does not migrate to the current
+// thread before execution is complete.
 func SetExecLabel(label string) error {
 	return setExecLabel(label)
 }
 
 // SetTaskLabel sets the SELinux label for the current thread, or an error.
-// This requires the dyntransition permission.
+// This requires the dyntransition permission. Calls to SetTaskLabel should
+// be wrapped in runtime.LockOSThread()/runtime.UnlockOSThread() to guarantee
+// the current thread does not run in a new mislabeled thread.
 func SetTaskLabel(label string) error {
 	return setTaskLabel(label)
 }
 
 // SetSocketLabel takes a process label and tells the kernel to assign the
-// label to the next socket that gets created
+// label to the next socket that gets created. Calls to SetSocketLabel
+// should be wrapped in runtime.LockOSThread()/runtime.UnlockOSThread() until
+// the the socket is created to guarantee another goroutine does not migrate
+// to the current thread before execution is complete.
 func SetSocketLabel(label string) error {
 	return setSocketLabel(label)
 }
@@ -141,7 +161,10 @@ func PeerLabel(fd uintptr) (string, error) {
 }
 
 // SetKeyLabel takes a process label and tells the kernel to assign the
-// label to the next kernel keyring that gets created
+// label to the next kernel keyring that gets created. Calls to SetKeyLabel
+// should be wrapped in runtime.LockOSThread()/runtime.UnlockOSThread() until
+// the kernel keyring is created to guarantee another goroutine does not migrate
+// to the current thread before execution is complete.
 func SetKeyLabel(label string) error {
 	return setKeyLabel(label)
 }
@@ -232,6 +255,8 @@ func CopyLevel(src, dest string) (string, error) {
 // Chcon changes the fpath file object to the SELinux label label.
 // If fpath is a directory and recurse is true, then Chcon walks the
 // directory tree setting the label.
+//
+// The fpath itself is guaranteed to be relabeled last.
 func Chcon(fpath string, label string, recurse bool) error {
 	return chcon(fpath, label, recurse)
 }
@@ -246,4 +271,20 @@ func DupSecOpt(src string) ([]string, error) {
 // labeling support for future container processes.
 func DisableSecOpt() []string {
 	return disableSecOpt()
+}
+
+// GetDefaultContextWithLevel gets a single context for the specified SELinux user
+// identity that is reachable from the specified scon context. The context is based
+// on the per-user /etc/selinux/{SELINUXTYPE}/contexts/users/<username> if it exists,
+// and falls back to the global /etc/selinux/{SELINUXTYPE}/contexts/default_contexts
+// file.
+func GetDefaultContextWithLevel(user, level, scon string) (string, error) {
+	return getDefaultContextWithLevel(user, level, scon)
+}
+
+// PrivContainerMountLabel returns mount label for privileged containers
+func PrivContainerMountLabel() string {
+	// Make sure label is initialized.
+	_ = label("")
+	return privContainerMountLabel
 }

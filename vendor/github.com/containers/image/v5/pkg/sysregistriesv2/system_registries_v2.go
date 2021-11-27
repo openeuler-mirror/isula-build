@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"reflect"
 	"regexp"
 	"sort"
 	"strings"
@@ -20,7 +21,7 @@ import (
 // systemRegistriesConfPath is the path to the system-wide registry
 // configuration file and is used to add/subtract potential registries for
 // obtaining images.  You can override this at build time with
-// -ldflags '-X github.com/containers/image/sysregistries.systemRegistriesConfPath=$your_path'
+// -ldflags '-X github.com/containers/image/v5/sysregistries.systemRegistriesConfPath=$your_path'
 var systemRegistriesConfPath = builtinRegistriesConfPath
 
 // builtinRegistriesConfPath is the path to the registry configuration file.
@@ -30,16 +31,24 @@ const builtinRegistriesConfPath = "/etc/containers/registries.conf"
 // systemRegistriesConfDirPath is the path to the system-wide registry
 // configuration directory and is used to add/subtract potential registries for
 // obtaining images.  You can override this at build time with
-// -ldflags '-X github.com/containers/image/sysregistries.systemRegistriesConfDirecotyPath=$your_path'
+// -ldflags '-X github.com/containers/image/v5/sysregistries.systemRegistriesConfDirectoryPath=$your_path'
 var systemRegistriesConfDirPath = builtinRegistriesConfDirPath
 
 // builtinRegistriesConfDirPath is the path to the registry configuration directory.
 // DO NOT change this, instead see systemRegistriesConfDirectoryPath above.
 const builtinRegistriesConfDirPath = "/etc/containers/registries.conf.d"
 
+// AuthenticationFileHelper is a special key for credential helpers indicating
+// the usage of consulting containers-auth.json files instead of a credential
+// helper.
+const AuthenticationFileHelper = "containers-auth.json"
+
 // Endpoint describes a remote location of a registry.
 type Endpoint struct {
-	// The endpoint's remote location.
+	// The endpoint's remote location. Can be empty iff Prefix contains
+	// wildcard in the format: "*.example.com" for subdomain matching.
+	// Please refer to FindRegistry / PullSourcesFromReference instead
+	// of accessing/interpreting `Location` directly.
 	Location string `toml:"location,omitempty"`
 	// If true, certs verification will be skipped and HTTP (non-TLS)
 	// connections will be allowed.
@@ -57,14 +66,29 @@ var userRegistriesDir = filepath.FromSlash(".config/containers/registries.conf.d
 // The function errors if the newly created reference is not parsable.
 func (e *Endpoint) rewriteReference(ref reference.Named, prefix string) (reference.Named, error) {
 	refString := ref.String()
-	if !refMatchesPrefix(refString, prefix) {
+	var newNamedRef string
+	// refMatchingPrefix returns the length of the match. Everything that
+	// follows the match gets appended to registries location.
+	prefixLen := refMatchingPrefix(refString, prefix)
+	if prefixLen == -1 {
 		return nil, fmt.Errorf("invalid prefix '%v' for reference '%v'", prefix, refString)
 	}
-
-	newNamedRef := strings.Replace(refString, prefix, e.Location, 1)
+	// In the case of an empty `location` field, simply return the original
+	// input ref as-is.
+	//
+	// FIXME: already validated in postProcessRegistries, so check can probably
+	// be dropped.
+	// https://github.com/containers/image/pull/1191#discussion_r610621608
+	if e.Location == "" {
+		if !strings.HasPrefix(prefix, "*.") {
+			return nil, fmt.Errorf("invalid prefix '%v' for empty location, should be in the format: *.example.com", prefix)
+		}
+		return ref, nil
+	}
+	newNamedRef = e.Location + refString[prefixLen:]
 	newParsedRef, err := reference.ParseNamed(newNamedRef)
 	if err != nil {
-		return nil, errors.Wrapf(err, "error rewriting reference")
+		return nil, errors.Wrapf(err, "rewriting reference")
 	}
 
 	return newParsedRef, nil
@@ -77,6 +101,11 @@ type Registry struct {
 	// and we pull from "example.com/bar/myimage:latest", the image will
 	// effectively be pulled from "example.com/foo/bar/myimage:latest".
 	// If no Prefix is specified, it defaults to the specified location.
+	// Prefix can also be in the format: "*.example.com" for matching
+	// subdomains. The wildcard should only be in the beginning and should also
+	// not contain any namespaces or special characters: "/", "@" or ":".
+	// Please refer to FindRegistry / PullSourcesFromReference instead
+	// of accessing/interpreting `Prefix` directly.
 	Prefix string `toml:"prefix"`
 	// A registry is an Endpoint too
 	Endpoint
@@ -144,9 +173,17 @@ type V1RegistriesConf struct {
 
 // Nonempty returns true if config contains at least one configuration entry.
 func (config *V1RegistriesConf) Nonempty() bool {
-	return (len(config.V1TOMLConfig.Search.Registries) != 0 ||
-		len(config.V1TOMLConfig.Insecure.Registries) != 0 ||
-		len(config.V1TOMLConfig.Block.Registries) != 0)
+	copy := *config // A shallow copy
+	if copy.V1TOMLConfig.Search.Registries != nil && len(copy.V1TOMLConfig.Search.Registries) == 0 {
+		copy.V1TOMLConfig.Search.Registries = nil
+	}
+	if copy.V1TOMLConfig.Insecure.Registries != nil && len(copy.V1TOMLConfig.Insecure.Registries) == 0 {
+		copy.V1TOMLConfig.Insecure.Registries = nil
+	}
+	if copy.V1TOMLConfig.Block.Registries != nil && len(copy.V1TOMLConfig.Block.Registries) == 0 {
+		copy.V1TOMLConfig.Block.Registries = nil
+	}
+	return !reflect.DeepEqual(copy, V1RegistriesConf{})
 }
 
 // V2RegistriesConf is the sysregistries v2 configuration format.
@@ -154,6 +191,14 @@ type V2RegistriesConf struct {
 	Registries []Registry `toml:"registry"`
 	// An array of host[:port] (not prefix!) entries to use for resolving unqualified image references
 	UnqualifiedSearchRegistries []string `toml:"unqualified-search-registries"`
+	// An array of global credential helpers to use for authentication
+	// (e.g., ["pass", "secretservice"]).  The helpers are consulted in the
+	// specified order.  Note that "containers-auth.json" is a reserved
+	// value for consulting auth files as specified in
+	// containers-auth.json(5).
+	//
+	// If empty, CredentialHelpers defaults to  ["containers-auth.json"].
+	CredentialHelpers []string `toml:"credential-helpers"`
 
 	// ShortNameMode defines how short-name resolution should be handled by
 	// _consumers_ of this package.  Depending on the mode, the user should
@@ -167,17 +212,31 @@ type V2RegistriesConf struct {
 	ShortNameMode string `toml:"short-name-mode"`
 
 	shortNameAliasConf
+
+	// If you add any field, make sure to update Nonempty() below.
 }
 
 // Nonempty returns true if config contains at least one configuration entry.
 func (config *V2RegistriesConf) Nonempty() bool {
-	return (len(config.Registries) != 0 ||
-		len(config.UnqualifiedSearchRegistries) != 0)
+	copy := *config // A shallow copy
+	if copy.Registries != nil && len(copy.Registries) == 0 {
+		copy.Registries = nil
+	}
+	if copy.UnqualifiedSearchRegistries != nil && len(copy.UnqualifiedSearchRegistries) == 0 {
+		copy.UnqualifiedSearchRegistries = nil
+	}
+	if copy.CredentialHelpers != nil && len(copy.CredentialHelpers) == 0 {
+		copy.CredentialHelpers = nil
+	}
+	if !copy.shortNameAliasConf.nonempty() {
+		copy.shortNameAliasConf = shortNameAliasConf{}
+	}
+	return !reflect.DeepEqual(copy, V2RegistriesConf{})
 }
 
 // parsedConfig is the result of parsing, and possibly merging, configuration files;
 // it is the boundary between the process of reading+ingesting the files, and
-// later interpreting the configuraiton based on caller’s requests.
+// later interpreting the configuration based on caller’s requests.
 type parsedConfig struct {
 	// NOTE: Update also parsedConfig.updateWithConfigurationFrom!
 
@@ -212,9 +271,15 @@ func (e *InvalidRegistries) Error() string {
 func parseLocation(input string) (string, error) {
 	trimmed := strings.TrimRight(input, "/")
 
-	if trimmed == "" {
-		return "", &InvalidRegistries{s: "invalid location: cannot be empty"}
-	}
+	// FIXME: This check needs to exist but fails for empty Location field with
+	// wildcarded prefix. Removal of this check "only" allows invalid input in,
+	// and does not prevent correct operation.
+	// https://github.com/containers/image/pull/1191#discussion_r610122617
+	//
+	//	if trimmed == "" {
+	//		return "", &InvalidRegistries{s: "invalid location: cannot be empty"}
+	//	}
+	//
 
 	if strings.HasPrefix(trimmed, "http://") || strings.HasPrefix(trimmed, "https://") {
 		msg := fmt.Sprintf("invalid location '%s': URI schemes are not supported", input)
@@ -293,11 +358,19 @@ func (config *V2RegistriesConf) postProcessRegistries() error {
 		}
 
 		if reg.Prefix == "" {
+			if reg.Location == "" {
+				return &InvalidRegistries{s: "invalid condition: both location and prefix are unset"}
+			}
 			reg.Prefix = reg.Location
 		} else {
 			reg.Prefix, err = parseLocation(reg.Prefix)
 			if err != nil {
 				return err
+			}
+			// FIXME: allow config authors to always use Prefix.
+			// https://github.com/containers/image/pull/1191#discussion_r610622495
+			if !strings.HasPrefix(reg.Prefix, "*.") && reg.Location == "" {
+				return &InvalidRegistries{s: "invalid condition: location is unset and prefix is not in the format: *.example.com"}
 			}
 		}
 
@@ -307,8 +380,19 @@ func (config *V2RegistriesConf) postProcessRegistries() error {
 			if err != nil {
 				return err
 			}
+
+			//FIXME: unqualifiedSearchRegistries now also accepts empty values
+			//and shouldn't
+			// https://github.com/containers/image/pull/1191#discussion_r610623216
+			if mir.Location == "" {
+				return &InvalidRegistries{s: "invalid condition: mirror location is unset"}
+			}
 		}
-		regMap[reg.Location] = append(regMap[reg.Location], reg)
+		if reg.Location == "" {
+			regMap[reg.Prefix] = append(regMap[reg.Prefix], reg)
+		} else {
+			regMap[reg.Location] = append(regMap[reg.Location], reg)
+		}
 	}
 
 	// Given a registry can be mentioned multiple times (e.g., to have
@@ -318,7 +402,13 @@ func (config *V2RegistriesConf) postProcessRegistries() error {
 	// Note: we need to iterate over the registries array to ensure a
 	// deterministic behavior which is not guaranteed by maps.
 	for _, reg := range config.Registries {
-		others, ok := regMap[reg.Location]
+		var others []*Registry
+		var ok bool
+		if reg.Location == "" {
+			others, ok = regMap[reg.Prefix]
+		} else {
+			others, ok = regMap[reg.Location]
+		}
 		if !ok {
 			return fmt.Errorf("Internal error in V2RegistriesConf.PostProcess: entry in regMap is missing")
 		}
@@ -405,9 +495,15 @@ type configWrapper struct {
 
 // newConfigWrapper returns a configWrapper for the specified SystemContext.
 func newConfigWrapper(ctx *types.SystemContext) configWrapper {
+	return newConfigWrapperWithHomeDir(ctx, homedir.Get())
+}
+
+// newConfigWrapperWithHomeDir is an internal implementation detail of newConfigWrapper,
+// it exists only to allow testing it with an artificial home directory.
+func newConfigWrapperWithHomeDir(ctx *types.SystemContext, homeDir string) configWrapper {
 	var wrapper configWrapper
-	userRegistriesFilePath := filepath.Join(homedir.Get(), userRegistriesFile)
-	userRegistriesDirPath := filepath.Join(homedir.Get(), userRegistriesDir)
+	userRegistriesFilePath := filepath.Join(homeDir, userRegistriesFile)
+	userRegistriesDirPath := filepath.Join(homeDir, userRegistriesDir)
 
 	// decide configPath using per-user path or system file
 	if ctx != nil && ctx.SystemRegistriesConfPath != "" {
@@ -444,7 +540,7 @@ func newConfigWrapper(ctx *types.SystemContext) configWrapper {
 	return wrapper
 }
 
-// ConfigurationSourceDescription returns a string containres paths of registries.conf and registries.conf.d
+// ConfigurationSourceDescription returns a string containers paths of registries.conf and registries.conf.d
 func ConfigurationSourceDescription(ctx *types.SystemContext) string {
 	wrapper := newConfigWrapper(ctx)
 	configSources := []string{wrapper.configPath}
@@ -531,7 +627,7 @@ func dropInConfigs(wrapper configWrapper) ([]string, error) {
 		if err != nil && !os.IsNotExist(err) {
 			// Ignore IsNotExist errors: most systems won't have a registries.conf.d
 			// directory.
-			return nil, errors.Wrapf(err, "error reading registries.conf.d")
+			return nil, errors.Wrapf(err, "reading registries.conf.d")
 		}
 	}
 
@@ -573,7 +669,7 @@ func tryUpdatingCache(ctx *types.SystemContext, wrapper configWrapper) (*parsedC
 				return nil, err // Should never happen
 			}
 		} else {
-			return nil, errors.Wrapf(err, "error loading registries configuration %q", wrapper.configPath)
+			return nil, errors.Wrapf(err, "loading registries configuration %q", wrapper.configPath)
 		}
 	}
 
@@ -586,7 +682,7 @@ func tryUpdatingCache(ctx *types.SystemContext, wrapper configWrapper) (*parsedC
 		// Enforce v2 format for drop-in-configs.
 		dropIn, err := loadConfigFile(path, true)
 		if err != nil {
-			return nil, errors.Wrapf(err, "error loading drop-in registries configuration %q", path)
+			return nil, errors.Wrapf(err, "loading drop-in registries configuration %q", path)
 		}
 		config.updateWithConfigurationFrom(dropIn)
 	}
@@ -595,11 +691,17 @@ func tryUpdatingCache(ctx *types.SystemContext, wrapper configWrapper) (*parsedC
 		config.shortNameMode = defaultShortNameMode
 	}
 
+	if len(config.partialV2.CredentialHelpers) == 0 {
+		config.partialV2.CredentialHelpers = []string{AuthenticationFileHelper}
+	}
+
 	// populate the cache
 	configCache[wrapper] = config
 	return config, nil
 }
 
+// GetRegistries has been deprecated. Use FindRegistry instead.
+//
 // GetRegistries loads and returns the registries specified in the config.
 // Note the parsed content of registry config files is cached.  For reloading,
 // use `InvalidateCache` and re-call `GetRegistries`.
@@ -657,27 +759,72 @@ func GetShortNameMode(ctx *types.SystemContext) (types.ShortNameMode, error) {
 	return config.shortNameMode, err
 }
 
-// refMatchesPrefix returns true iff ref,
+// CredentialHelpers returns the global top-level credential helpers.
+func CredentialHelpers(sys *types.SystemContext) ([]string, error) {
+	config, err := getConfig(sys)
+	if err != nil {
+		return nil, err
+	}
+	return config.partialV2.CredentialHelpers, nil
+}
+
+// refMatchingSubdomainPrefix returns the length of ref
+// iff ref, which is a registry, repository namespace, repository or image reference (as formatted by
+// reference.Domain(), reference.Named.Name() or reference.Reference.String()
+// — note that this requires the name to start with an explicit hostname!),
+// matches a Registry.Prefix value containing wildcarded subdomains in the
+// format: *.example.com. Wildcards are only accepted at the beginning, so
+// other formats like example.*.com will not work. Wildcarded prefixes also
+// cannot contain port numbers or namespaces in them.
+func refMatchingSubdomainPrefix(ref, prefix string) int {
+	index := strings.Index(ref, prefix[1:])
+	if index == -1 {
+		return -1
+	}
+	if strings.Contains(ref[:index], "/") {
+		return -1
+	}
+	index += len(prefix[1:])
+	if index == len(ref) {
+		return index
+	}
+	switch ref[index] {
+	case ':', '/', '@':
+		return index
+	default:
+		return -1
+	}
+}
+
+// refMatchingPrefix returns the length of the prefix iff ref,
 // which is a registry, repository namespace, repository or image reference (as formatted by
 // reference.Domain(), reference.Named.Name() or reference.Reference.String()
 // — note that this requires the name to start with an explicit hostname!),
 // matches a Registry.Prefix value.
 // (This is split from the caller primarily to make testing easier.)
-func refMatchesPrefix(ref, prefix string) bool {
+func refMatchingPrefix(ref, prefix string) int {
 	switch {
+	case strings.HasPrefix(prefix, "*."):
+		return refMatchingSubdomainPrefix(ref, prefix)
 	case len(ref) < len(prefix):
-		return false
+		return -1
 	case len(ref) == len(prefix):
-		return ref == prefix
+		if ref == prefix {
+			return len(prefix)
+		}
+		return -1
 	case len(ref) > len(prefix):
 		if !strings.HasPrefix(ref, prefix) {
-			return false
+			return -1
 		}
 		c := ref[len(prefix)]
 		// This allows "example.com:5000" to match "example.com",
 		// which is unintended; that will get fixed eventually, DON'T RELY
 		// ON THE CURRENT BEHAVIOR.
-		return c == ':' || c == '/' || c == '@'
+		if c == ':' || c == '/' || c == '@' {
+			return len(prefix)
+		}
+		return -1
 	default:
 		panic("Internal error: impossible comparison outcome")
 	}
@@ -694,10 +841,16 @@ func FindRegistry(ctx *types.SystemContext, ref string) (*Registry, error) {
 		return nil, err
 	}
 
+	return findRegistryWithParsedConfig(config, ref)
+}
+
+// findRegistryWithParsedConfig implements `FindRegistry` with a pre-loaded
+// parseConfig.
+func findRegistryWithParsedConfig(config *parsedConfig, ref string) (*Registry, error) {
 	reg := Registry{}
 	prefixLen := 0
 	for _, r := range config.partialV2.Registries {
-		if refMatchesPrefix(ref, r.Prefix) {
+		if refMatchingPrefix(ref, r.Prefix) != -1 {
 			length := len(r.Prefix)
 			if length > prefixLen {
 				reg = r
@@ -766,10 +919,21 @@ func loadConfigFile(path string, forceV2 bool) (*parsedConfig, error) {
 		res.shortNameMode = types.ShortNameModeInvalid
 	}
 
+	// Valid wildcarded prefixes must be in the format: *.example.com
+	// FIXME: Move to postProcessRegistries
+	// https://github.com/containers/image/pull/1191#discussion_r610623829
+	for i := range res.partialV2.Registries {
+		prefix := res.partialV2.Registries[i].Prefix
+		if strings.HasPrefix(prefix, "*.") && strings.ContainsAny(prefix, "/@:") {
+			msg := fmt.Sprintf("Wildcarded prefix should be in the format: *.example.com. Current prefix %q is incorrectly formatted", prefix)
+			return nil, &InvalidRegistries{s: msg}
+		}
+	}
+
 	// Parse and validate short-name aliases.
 	cache, err := newShortNameAliasCache(path, &res.partialV2.shortNameAliasConf)
 	if err != nil {
-		return nil, errors.Wrap(err, "error validating short-name aliases")
+		return nil, errors.Wrap(err, "validating short-name aliases")
 	}
 	res.aliasCache = cache
 	// Clear conf.partialV2.shortNameAliasConf to make it available for garbage collection and
@@ -817,6 +981,11 @@ func (c *parsedConfig) updateWithConfigurationFrom(updates *parsedConfig) {
 	if updates.partialV2.UnqualifiedSearchRegistries != nil {
 		c.partialV2.UnqualifiedSearchRegistries = updates.partialV2.UnqualifiedSearchRegistries
 		c.unqualifiedSearchRegistriesOrigin = updates.unqualifiedSearchRegistriesOrigin
+	}
+
+	// == Merge credential helpers:
+	if updates.partialV2.CredentialHelpers != nil {
+		c.partialV2.CredentialHelpers = updates.partialV2.CredentialHelpers
 	}
 
 	// == Merge shortNameMode:

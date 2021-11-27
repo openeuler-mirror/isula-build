@@ -44,7 +44,7 @@ import (
 	mountpk "github.com/containers/storage/pkg/mount"
 	"github.com/containers/storage/pkg/parsers"
 	"github.com/containers/storage/pkg/system"
-	rsystem "github.com/opencontainers/runc/libcontainer/system"
+	"github.com/opencontainers/runc/libcontainer/userns"
 	"github.com/opencontainers/selinux/go-selinux/label"
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
@@ -62,6 +62,8 @@ var (
 	enableDirpermLock sync.Once
 	enableDirperm     bool
 )
+
+const defaultPerms = os.FileMode(0555)
 
 func init() {
 	graphdriver.Register("aufs", Init)
@@ -196,7 +198,7 @@ func supportsAufs() error {
 	// proc/filesystems for when aufs is supported
 	exec.Command("modprobe", "aufs").Run()
 
-	if rsystem.RunningInUserNS() {
+	if userns.RunningInUserNS() {
 		return ErrAufsNested
 	}
 
@@ -312,20 +314,22 @@ func (a *Driver) createDirsFor(id, parent string) error {
 		"diff",
 	}
 
-	// Directory permission is 0755.
+	// Directory permission is 0555.
 	// The path of directories are <aufs_root_path>/mnt/<image_id>
 	// and <aufs_root_path>/diff/<image_id>
 	for _, p := range paths {
 		rootPair := idtools.NewIDMappingsFromMaps(a.uidMaps, a.gidMaps).RootPair()
+		rootPerms := defaultPerms
 		if parent != "" {
 			st, err := system.Stat(path.Join(a.rootPath(), p, parent))
 			if err != nil {
 				return err
 			}
+			rootPerms = os.FileMode(st.Mode())
 			rootPair.UID = int(st.UID())
 			rootPair.GID = int(st.GID())
 		}
-		if err := idtools.MkdirAllAndChownNew(path.Join(a.rootPath(), p, id), os.FileMode(0755), rootPair); err != nil {
+		if err := idtools.MkdirAllAndChownNew(path.Join(a.rootPath(), p, id), rootPerms, rootPair); err != nil {
 			return err
 		}
 	}
@@ -480,6 +484,21 @@ func (a *Driver) Put(id string) error {
 		logrus.Debugf("Failed to unmount %s aufs: %v", id, err)
 	}
 	return err
+}
+
+// ReadWriteDiskUsage returns the disk usage of the writable directory for the ID.
+// For AUFS, it queries the mountpoint for this ID.
+func (a *Driver) ReadWriteDiskUsage(id string) (*directory.DiskUsage, error) {
+	a.locker.Lock(id)
+	defer a.locker.Unlock(id)
+	a.pathCacheLock.Lock()
+	m, exists := a.pathCache[id]
+	if !exists {
+		m = a.getMountpoint(id)
+		a.pathCache[id] = m
+	}
+	a.pathCacheLock.Unlock()
+	return directory.Usage(m)
 }
 
 // isParent returns if the passed in parent is the direct parent of the passed in layer
@@ -711,14 +730,14 @@ func useDirperm() bool {
 	enableDirpermLock.Do(func() {
 		base, err := ioutil.TempDir("", "storage-aufs-base")
 		if err != nil {
-			logrus.Errorf("error checking dirperm1: %v", err)
+			logrus.Errorf("Checking dirperm1: %v", err)
 			return
 		}
 		defer os.RemoveAll(base)
 
 		union, err := ioutil.TempDir("", "storage-aufs-union")
 		if err != nil {
-			logrus.Errorf("error checking dirperm1: %v", err)
+			logrus.Errorf("Checking dirperm1: %v", err)
 			return
 		}
 		defer os.RemoveAll(union)
@@ -729,7 +748,7 @@ func useDirperm() bool {
 		}
 		enableDirperm = true
 		if err := Unmount(union); err != nil {
-			logrus.Errorf("error checking dirperm1: failed to unmount %v", err)
+			logrus.Errorf("Checking dirperm1: failed to unmount %v", err)
 		}
 	})
 	return enableDirperm

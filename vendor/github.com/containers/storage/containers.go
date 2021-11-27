@@ -1,11 +1,11 @@
 package storage
 
 import (
-	"encoding/json"
 	"fmt"
 	"io/ioutil"
 	"os"
 	"path/filepath"
+	"sync"
 	"time"
 
 	"github.com/containers/storage/pkg/idtools"
@@ -114,6 +114,7 @@ type containerStore struct {
 	byid       map[string]*Container
 	bylayer    map[string]*Container
 	byname     map[string]*Container
+	loadMut    sync.Mutex
 }
 
 func copyContainer(c *Container) *Container {
@@ -312,6 +313,9 @@ func (r *containerStore) Create(id string, names []string, image, layer, metadat
 	}
 	if options.MountOpts != nil {
 		options.Flags["MountOpts"] = append([]string{}, options.MountOpts...)
+	}
+	if options.Volatile {
+		options.Flags["Volatile"] = true
 	}
 	names = dedupeNames(names)
 	for _, name := range names {
@@ -612,4 +616,15 @@ func (r *containerStore) TouchedSince(when time.Time) bool {
 
 func (r *containerStore) Locked() bool {
 	return r.lockfile.Locked()
+}
+
+func (r *containerStore) ReloadIfChanged() error {
+	r.loadMut.Lock()
+	defer r.loadMut.Unlock()
+
+	modified, err := r.Modified()
+	if err == nil && modified {
+		return r.Load()
+	}
+	return err
 }
