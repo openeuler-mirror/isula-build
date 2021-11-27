@@ -72,7 +72,7 @@ func (d *Destination) HasThreadSafePutBlob() bool {
 }
 
 // PutBlob writes contents of stream and returns data representing the result (with all data filled in).
-// inputInfo.Digest can be optionally provided if known; it is not mandatory for the implementation to verify it.
+// inputInfo.Digest can be optionally provided if known; if provided, and stream is read to the end without error, the digest MUST match the stream contents.
 // inputInfo.Size is the expected length of stream, if known.
 // May update cache.
 // WARNING: The contents of stream are being verified on the fly.  Until stream.Read() returns io.EOF, the contents of the data SHOULD NOT be available
@@ -86,7 +86,9 @@ func (d *Destination) PutBlob(ctx context.Context, stream io.Reader, inputInfo t
 // (e.g. if the blob is a filesystem layer, this signifies that the changes it describes need to be applied again when composing a filesystem tree).
 // info.Digest must not be empty.
 // If canSubstitute, TryReusingBlob can use an equivalent equivalent of the desired blob; in that case the returned info may not match the input.
-// If the blob has been successfully reused, returns (true, info, nil); info must contain at least a digest and size.
+// If the blob has been successfully reused, returns (true, info, nil); info must contain at least a digest and size, and may
+// include CompressionOperation and CompressionAlgorithm fields to indicate that a change to the compression type should be
+// reflected in the manifest that will be written.
 // If the transport can not reuse the requested blob, TryReusingBlob returns (false, {}, nil); it returns a non-nil error only on an unexpected failure.
 // May use and/or update cache.
 func (d *Destination) TryReusingBlob(ctx context.Context, info types.BlobInfo, cache types.BlobInfoCache, canSubstitute bool) (bool, types.BlobInfo, error) {

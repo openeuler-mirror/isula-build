@@ -126,14 +126,18 @@ type BlobInfo struct {
 	Annotations map[string]string
 	MediaType   string
 	// CompressionOperation is used in Image.UpdateLayerInfos to instruct
-	// whether the original layer should be preserved or (de)compressed. The
-	// field defaults to preserve the original layer.
+	// whether the original layer's "compressed or not" should be preserved,
+	// possibly while changing the compression algorithm from one to another,
+	// or if it should be compressed or decompressed.  The field defaults to
+	// preserve the original layer's compressedness.
 	// TODO: To remove together with CryptoOperation in re-design to remove
 	// field out out of BlobInfo.
 	CompressionOperation LayerCompression
 	// CompressionAlgorithm is used in Image.UpdateLayerInfos to set the correct
 	// MIME type for compressed layers (e.g., gzip or zstd). This field MUST be
-	// set when `CompressionOperation == Compress`.
+	// set when `CompressionOperation == Compress` and MAY be set when
+	// `CompressionOperation == PreserveOriginal` and the compression type is
+	// being changed for an already-compressed layer.
 	CompressionAlgorithm *compression.Algorithm
 	// CryptoOperation is used in Image.UpdateLayerInfos to instruct
 	// whether the original layer was encrypted/decrypted
@@ -143,7 +147,7 @@ type BlobInfo struct {
 }
 
 // BICTransportScope encapsulates transport-dependent representation of a “scope” where blobs are or are not present.
-// BlobInfocache.RecordKnownLocations / BlobInfocache.CandidateLocations record data aboud blobs keyed by (scope, digest).
+// BlobInfocache.RecordKnownLocations / BlobInfocache.CandidateLocations record data about blobs keyed by (scope, digest).
 // The scope will typically be similar to an ImageReference, or a superset of it within which blobs are reusable.
 //
 // NOTE: The contents of this structure may be recorded in a persistent file, possibly shared across different
@@ -175,7 +179,7 @@ type BICReplacementCandidate struct {
 // It records two kinds of data:
 // - Sets of corresponding digest vs. uncompressed digest ("DiffID") pairs:
 //   One of the two digests is known to be uncompressed, and a single uncompressed digest may correspond to more than one compressed digest.
-//   This allows matching compressed layer blobs to existing local uncompressed layers (to avoid unnecessary download and decompresssion),
+//   This allows matching compressed layer blobs to existing local uncompressed layers (to avoid unnecessary download and decompression),
 //   or uncompressed layer blobs to existing remote compressed layers (to avoid unnecessary compression and upload)/
 //
 //   It is allowed to record an (uncompressed digest, the same uncompressed digest) correspondence, to express that the digest is known
@@ -194,6 +198,9 @@ type BICReplacementCandidate struct {
 //
 // None of the methods return an error indication: errors when neither reading from, nor writing to, the cache, should be fatal;
 // users of the cache should just fall back to copying the blobs the usual way.
+//
+// The BlobInfoCache interface is deprecated.  Consumers of this library should use one of the implementations provided by
+// subpackages of the library's "pkg/blobinfocache" package in preference to implementing the interface on their own.
 type BlobInfoCache interface {
 	// UncompressedDigest returns an uncompressed digest corresponding to anyDigest.
 	// May return anyDigest if it is known to be uncompressed.
@@ -212,7 +219,7 @@ type BlobInfoCache interface {
 	// CandidateLocations returns a prioritized, limited, number of blobs and their locations that could possibly be reused
 	// within the specified (transport scope) (if they still exist, which is not guaranteed).
 	//
-	// If !canSubstitute, the returned cadidates will match the submitted digest exactly; if canSubstitute,
+	// If !canSubstitute, the returned candidates will match the submitted digest exactly; if canSubstitute,
 	// data from previous RecordDigestUncompressedPair calls is used to also look up variants of the blob which have the same
 	// uncompressed digest.
 	CandidateLocations(transport ImageTransport, scope BICTransportScope, digest digest.Digest, canSubstitute bool) []BICReplacementCandidate
@@ -292,7 +299,7 @@ type ImageDestination interface {
 	IgnoresEmbeddedDockerReference() bool
 
 	// PutBlob writes contents of stream and returns data representing the result.
-	// inputInfo.Digest can be optionally provided if known; it is not mandatory for the implementation to verify it.
+	// inputInfo.Digest can be optionally provided if known; if provided, and stream is read to the end without error, the digest MUST match the stream contents.
 	// inputInfo.Size is the expected length of stream, if known.
 	// inputInfo.MediaType describes the blob format, if known.
 	// May update cache.
@@ -306,7 +313,9 @@ type ImageDestination interface {
 	// (e.g. if the blob is a filesystem layer, this signifies that the changes it describes need to be applied again when composing a filesystem tree).
 	// info.Digest must not be empty.
 	// If canSubstitute, TryReusingBlob can use an equivalent equivalent of the desired blob; in that case the returned info may not match the input.
-	// If the blob has been successfully reused, returns (true, info, nil); info must contain at least a digest and size.
+	// If the blob has been successfully reused, returns (true, info, nil); info must contain at least a digest and size, and may
+	// include CompressionOperation and CompressionAlgorithm fields to indicate that a change to the compression type should be
+	// reflected in the manifest that will be written.
 	// If the transport can not reuse the requested blob, TryReusingBlob returns (false, {}, nil); it returns a non-nil error only on an unexpected failure.
 	// May use and/or update cache.
 	TryReusingBlob(ctx context.Context, info BlobInfo, cache BlobInfoCache, canSubstitute bool) (bool, BlobInfo, error)
@@ -325,6 +334,9 @@ type ImageDestination interface {
 	// MUST be called after PutManifest (signatures may reference manifest contents).
 	PutSignatures(ctx context.Context, signatures [][]byte, instanceDigest *digest.Digest) error
 	// Commit marks the process of storing the image as successful and asks for the image to be persisted.
+	// unparsedToplevel contains data about the top-level manifest of the source (which may be a single-arch image or a manifest list
+	// if PutManifest was only called for the single-arch image with instanceDigest == nil), primarily to allow lookups by the
+	// original manifest list digest, if desired.
 	// WARNING: This does not have any transactional semantics:
 	// - Uploaded data MAY be visible to others before Commit() is called
 	// - Uploaded data MAY be removed or MAY remain around if Close() is called without Commit() (i.e. rollback is allowed but not guaranteed)
@@ -397,6 +409,12 @@ type Image interface {
 	// UpdatedImage returns a types.Image modified according to options.
 	// Everything in options.InformationOnly should be provided, other fields should be set only if a modification is desired.
 	// This does not change the state of the original Image object.
+	// The returned error will be a manifest.ManifestLayerCompressionIncompatibilityError if
+	// manifests of type options.ManifestMIMEType can not include layers that are compressed
+	// in accordance with the CompressionOperation and CompressionAlgorithm specified in one
+	// or more options.LayerInfos items, though retrying with a different
+	// options.ManifestMIMEType or with different CompressionOperation+CompressionAlgorithm
+	// values might succeed.
 	UpdatedImage(ctx context.Context, options ManifestUpdateOptions) (Image, error)
 	// SupportsEncryption returns an indicator that the image supports encryption
 	//
@@ -567,7 +585,7 @@ type SystemContext struct {
 
 	// === OCI.Transport overrides ===
 	// If not "", a directory containing a CA certificate (ending with ".crt"),
-	// a client certificate (ending with ".cert") and a client ceritificate key
+	// a client certificate (ending with ".cert") and a client certificate key
 	// (ending with ".key") used when downloading OCI image layers.
 	OCICertPath string
 	// Allow downloading OCI image layers over HTTP, or HTTPS with failed TLS verification. Note that this does not affect other TLS connections.
@@ -579,13 +597,13 @@ type SystemContext struct {
 
 	// === docker.Transport overrides ===
 	// If not "", a directory containing a CA certificate (ending with ".crt"),
-	// a client certificate (ending with ".cert") and a client ceritificate key
-	// (ending with ".key") used when talking to a Docker Registry.
+	// a client certificate (ending with ".cert") and a client certificate key
+	// (ending with ".key") used when talking to a container registry.
 	DockerCertPath string
 	// If not "", overrides the system’s default path for a directory containing host[:port] subdirectories with the same structure as DockerCertPath above.
 	// Ignored if DockerCertPath is non-empty.
 	DockerPerHostCertDirPath string
-	// Allow contacting docker registries over HTTP, or HTTPS with failed TLS verification. Note that this does not affect other TLS connections.
+	// Allow contacting container registries over HTTP, or HTTPS with failed TLS verification. Note that this does not affect other TLS connections.
 	DockerInsecureSkipTLSVerify OptionalBool
 	// if nil, the library tries to parse ~/.docker/config.json to retrieve credentials
 	// Ignored if DockerBearerRegistryToken is non-empty.
@@ -600,8 +618,14 @@ type SystemContext struct {
 	DockerDisableV1Ping bool
 	// If true, dockerImageDestination.SupportedManifestMIMETypes will omit the Schema1 media types from the supported list
 	DockerDisableDestSchema1MIMETypes bool
+	// If true, the physical pull source of docker transport images logged as info level
+	DockerLogMirrorChoice bool
 	// Directory to use for OSTree temporary files
 	OSTreeTmpDirPath string
+	// If true, all blobs will have precomputed digests to ensure layers are not uploaded that already exist on the registry.
+	// Note that this requires writing blobs to temporary files, and takes more time than the default behavior,
+	// when the digest for a blob is unknown.
+	DockerRegistryPushPrecomputeDigests bool
 
 	// === docker/daemon.Transport overrides ===
 	// A directory containing a CA certificate (ending with ".crt"),
@@ -616,6 +640,8 @@ type SystemContext struct {
 	// === dir.Transport overrides ===
 	// DirForceCompress compresses the image layers if set to true
 	DirForceCompress bool
+	// DirForceDecompress decompresses the image layers if set to true
+	DirForceDecompress bool
 
 	// CompressionFormat is the format to use for the compression of the blobs
 	CompressionFormat *compression.Algorithm

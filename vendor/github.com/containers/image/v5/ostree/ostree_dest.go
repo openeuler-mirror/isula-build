@@ -1,3 +1,4 @@
+//go:build containers_image_ostree
 // +build containers_image_ostree
 
 package ostree
@@ -20,6 +21,7 @@ import (
 	"time"
 	"unsafe"
 
+	"github.com/containers/image/v5/internal/putblobdigest"
 	"github.com/containers/image/v5/manifest"
 	"github.com/containers/image/v5/types"
 	"github.com/containers/storage/pkg/archive"
@@ -138,7 +140,7 @@ func (d *ostreeImageDestination) HasThreadSafePutBlob() bool {
 }
 
 // PutBlob writes contents of stream and returns data representing the result.
-// inputInfo.Digest can be optionally provided if known; it is not mandatory for the implementation to verify it.
+// inputInfo.Digest can be optionally provided if known; if provided, and stream is read to the end without error, the digest MUST match the stream contents.
 // inputInfo.Size is the expected length of stream, if known.
 // inputInfo.MediaType describes the blob format, if known.
 // May update cache.
@@ -158,25 +160,23 @@ func (d *ostreeImageDestination) PutBlob(ctx context.Context, stream io.Reader, 
 	}
 	defer blobFile.Close()
 
-	digester := digest.Canonical.Digester()
-	tee := io.TeeReader(stream, digester.Hash())
-
+	digester, stream := putblobdigest.DigestIfCanonicalUnknown(stream, inputInfo)
 	// TODO: This can take quite some time, and should ideally be cancellable using ctx.Done().
-	size, err := io.Copy(blobFile, tee)
+	size, err := io.Copy(blobFile, stream)
 	if err != nil {
 		return types.BlobInfo{}, err
 	}
-	computedDigest := digester.Digest()
+	blobDigest := digester.Digest()
 	if inputInfo.Size != -1 && size != inputInfo.Size {
-		return types.BlobInfo{}, errors.Errorf("Size mismatch when copying %s, expected %d, got %d", computedDigest, inputInfo.Size, size)
+		return types.BlobInfo{}, errors.Errorf("Size mismatch when copying %s, expected %d, got %d", blobDigest, inputInfo.Size, size)
 	}
 	if err := blobFile.Sync(); err != nil {
 		return types.BlobInfo{}, err
 	}
 
-	hash := computedDigest.Hex()
-	d.blobs[hash] = &blobToImport{Size: size, Digest: computedDigest, BlobPath: blobPath}
-	return types.BlobInfo{Digest: computedDigest, Size: size}, nil
+	hash := blobDigest.Hex()
+	d.blobs[hash] = &blobToImport{Size: size, Digest: blobDigest, BlobPath: blobPath}
+	return types.BlobInfo{Digest: blobDigest, Size: size}, nil
 }
 
 func fixFiles(selinuxHnd *C.struct_selabel_handle, root string, dir string, usermode bool) error {
@@ -339,7 +339,9 @@ func (d *ostreeImageDestination) importConfig(repo *otbuiltin.Repo, blob *blobTo
 // (e.g. if the blob is a filesystem layer, this signifies that the changes it describes need to be applied again when composing a filesystem tree).
 // info.Digest must not be empty.
 // If canSubstitute, TryReusingBlob can use an equivalent equivalent of the desired blob; in that case the returned info may not match the input.
-// If the blob has been successfully reused, returns (true, info, nil); info must contain at least a digest and size.
+// If the blob has been successfully reused, returns (true, info, nil); info must contain at least a digest and size, and may
+// include CompressionOperation and CompressionAlgorithm fields to indicate that a change to the compression type should be
+// reflected in the manifest that will be written.
 // If the transport can not reuse the requested blob, TryReusingBlob returns (false, {}, nil); it returns a non-nil error only on an unexpected failure.
 // May use and/or update cache.
 func (d *ostreeImageDestination) TryReusingBlob(ctx context.Context, info types.BlobInfo, cache types.BlobInfoCache, canSubstitute bool) (bool, types.BlobInfo, error) {
