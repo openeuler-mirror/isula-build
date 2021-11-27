@@ -2,19 +2,19 @@
 
 Please note we provide an open source software notice along with this product and/or this product firmware (in the following just “this product”). The open source software licenses are granted by the respective right holders. And the open source licenses prevail all other license information with regard to the respective open source software contained in the product, including but not limited to End User Software Licensing Agreement. This notice is provided on behalf of Huawei Technologies Co. Ltd. and any of its local subsidiaries which may have provided this product to you in your local country.
 
-**Warranty Disclaimer**   
+**Warranty Disclaimer**
 
 THE OPEN SOURCE SOFTWARE IN THIS PRODUCT IS DISTRIBUTED IN THE HOPE THAT IT WILL BE USEFUL, BUT WITHOUT ANY WARRANTY, WITHOUT EVEN THE IMPLIED WARRANTY OF MERCHANTABILITY OR FITNESS FOR A PARTICULAR PURPOSE. SEE THE APPLICABLE LICENSES FOR MORE DETAILS.
 
-**Copyright Notice and License Texts**  
+**Copyright Notice and License Texts**
 
-**Software**: github.com/BurntSushi/toml v0.3.1  
+**Software**: github.com/BurntSushi/toml v0.4.1
 
-**Copyright notice:**  
+**Copyright notice:**
 
-Copyright (c) 2013 TOML authors  
+Copyright (c) 2013 TOML authors
 
-**License:** MIT  
+**License:** MIT
 
 Copyright <YEAR> <COPYRIGHT HOLDER>
 
@@ -37,13 +37,13 @@ LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
 OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
 WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
-**Software**: github.com/bndr/gotabulate v1.1.3-0.20170315142410-bc555436bfd5  
+**Software**: github.com/bndr/gotabulate v1.1.3-0.20210209140214-21a495b00e22
 
-**Copyright notice:**  
+**Copyright notice:**
 
-Copyright (c) 2014 Vadim Kravcenko  
+Copyright (c) 2014 Vadim Kravcenko
 
-**License:** Apache License Version 2.0  
+**License:** Apache License Version 2.0
 
 Apache License
                            Version 2.0, January 2004
@@ -247,77 +247,76 @@ Apache License
    See the License for the specific language governing permissions and
    limitations under the License.
 
-
-**Software**: github.com/containerd/containerd v1.3.4  
+**Software**: github.com/containerd/containerd v1.5.8
 
 **Copyright notice:**
 
-Copyright The containerd Authors  
-Copyright 2012-2015 Docker, Inc.  
+Copyright The containerd Authors
+Copyright 2012-2015 Docker, Inc.
 
-**License:** Apache License Version 2.0  
-
-Please see above.
-
-**Software**: github.com/containerd/go-runc v0.0.0-20200220073739-7016d3ce2328
-
-**Copyright notice:**  
-
-Copyright The containerd Authors.  
-
-**License:** Apache License Version 2.0  
+**License:** Apache License Version 2.0
 
 Please see above.
 
-**Software**: github.com/containers/image/v5 v5.9.0  
+**Software**: github.com/containerd/go-runc v1.0.0
 
-**Copyright notice:**  
-Copyright (C) 2004, 2006 The Linux Foundation and its contributors.  
-Copyright 2012-2017 Docker, Inc.  
-Copyright 2015 Jesse Sipprell.  
-Copyright (c) 2006, 2008 Junio C Hamano  
-Copyright The containerd Authors.  
+**Copyright notice:**
 
-**License:** Apache License Version 2.0  
+Copyright The containerd Authors.
 
-Please see above.  
+**License:** Apache License Version 2.0
 
-**Software**: github.com/containers/storage v1.23.7  
+Please see above.
 
-**Copyright notice:**  
-Copyright (C) 2004, 2006 The Linux Foundation and its contributors.  
-Copyright 2013-2018 Docker, Inc.  
-Copyright 2014-2016 The Docker & Go Authors.   
-Copyright (c) 2006, 2008 Junio C Hamano  
-Copyright (C) 2019 Aleksa Sarai <cyphar@cyphar.com>  
-Copyright (C) 2019 SUSE LLC  
+**Software**: github.com/containers/image/v5 v5.17.0
 
-**License:** Apache License Version 2.0  
+**Copyright notice:**
+Copyright (C) 2004, 2006 The Linux Foundation and its contributors.
+Copyright 2012-2017 Docker, Inc.
+Copyright 2015 Jesse Sipprell.
+Copyright (c) 2006, 2008 Junio C Hamano
+Copyright The containerd Authors.
 
-Please see above.  
+**License:** Apache License Version 2.0
 
-**Software**: github.com/coreos/go-systemd v0.0.0-20190719114852-fd7a80b32e1f  
+Please see above.
 
-**Copyright notice:**  
-Copyright 2015-2020 CoreOS Inc.  
-Copyright 2015 RedHat, Inc.  
-Copyright (C) 2004, 2006 The Linux Foundation and its contributors.  
-Copyright (c) 2006, 2008 Junio C Hamano  
-Copyright 2014 Docker, Inc.  
+**Software**: github.com/containers/storage v1.37.0
 
-**License:** Apache License Version 2.0  
+**Copyright notice:**
+Copyright (C) 2004, 2006 The Linux Foundation and its contributors.
+Copyright 2013-2018 Docker, Inc.
+Copyright 2014-2016 The Docker & Go Authors.
+Copyright (c) 2006, 2008 Junio C Hamano
+Copyright (C) 2019 Aleksa Sarai <cyphar@cyphar.com>
+Copyright (C) 2019 SUSE LLC
 
-Please see above.  
+**License:** Apache License Version 2.0
 
-**Software**: github.com/cyphar/filepath-securejoin v0.2.2  
+Please see above.
 
-**Copyright notice:**  
-Copyright (C) 2014-2015 Docker Inc & Go Authors. All rights reserved.  
-Copyright (C) 2017 SUSE LLC. All rights reserved.  
-Copyright (c) 2006, 2008 Junio C Hamano  
+**Software**: github.com/coreos/go-systemd v0.0.0-20191104093116-d3cd4ed1dbcf
 
-**License:** BSD-3-Clause  
-Redistribution and use in source and binary forms, with or without  
+**Copyright notice:**
+Copyright 2015-2020 CoreOS Inc.
+Copyright 2015 RedHat, Inc.
+Copyright (C) 2004, 2006 The Linux Foundation and its contributors.
+Copyright (c) 2006, 2008 Junio C Hamano
+Copyright 2014 Docker, Inc.
+
+**License:** Apache License Version 2.0
+
+Please see above.
+
+**Software**: github.com/cyphar/filepath-securejoin v0.2.3
+
+**Copyright notice:**
+Copyright (C) 2014-2015 Docker Inc & Go Authors. All rights reserved.
+Copyright (C) 2017 SUSE LLC. All rights reserved.
+Copyright (c) 2006, 2008 Junio C Hamano
+
+**License:** BSD-3-Clause
+Redistribution and use in source and binary forms, with or without
 modification, are permitted provided that the following conditions are
 met:
 
@@ -345,103 +344,103 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 **Software**: github.com/docker/distribution v2.7.1+incompatible
 
-**Copyright notice:**  
-Copyright (C) 2004, 2006 The Linux Foundation and its contributors.  
-Copyright (c) 2006, 2008 Junio C Hamano  
-Copyright (c) 2013 Damien Le Berrigaud and Nick Wade  
+**Copyright notice:**
+Copyright (C) 2004, 2006 The Linux Foundation and its contributors.
+Copyright (c) 2006, 2008 Junio C Hamano
+Copyright (c) 2013 Damien Le Berrigaud and Nick Wade
 
-**License:** Apache License Version 2.0  
+**License:** Apache License Version 2.0
 
-Please see above.  
+Please see above.
 
-**Software**: github.com/docker/docker v20.10.2+incompatible  
+**Software**: github.com/docker/docker v20.10.11+incompatible
 
-**Copyright notice:**  
-Copyright (C) 2014-2018 Docker Inc  
-Copyright (c) 2012-2018 Mat Ryer and Tyler Bunnell  
-Copyright (c) 2014-2018 The Docker & Go Authors.   
-Copyright (c) 2015 John Howard (Microsoft)  
-Copyright 2012 The Go Authors  
-Copyright 1999-2013 Gentoo Foundation  
-Copyright 2009-2012 Canonical Ltd.  
+**Copyright notice:**
+Copyright (C) 2014-2018 Docker Inc
+Copyright (c) 2012-2018 Mat Ryer and Tyler Bunnell
+Copyright (c) 2014-2018 The Docker & Go Authors.
+Copyright (c) 2015 John Howard (Microsoft)
+Copyright 2012 The Go Authors
+Copyright 1999-2013 Gentoo Foundation
+Copyright 2009-2012 Canonical Ltd.
 
-**License:** Apache License Version 2.0  
+**License:** Apache License Version 2.0
 
-Please see above.  
+Please see above.
 
-**Software**: github.com/docker/libnetwork v0.8.0-dev.2.0.20190625141545-5a177b73e316  
+**Software**: github.com/docker/libnetwork v0.8.0-dev.2.0.20190625141545-5a177b73e316
 
-**Copyright notice:**  
-Copyright 2014-2016 The Docker & Go Authors  
-Copyright (c) 2006, 2008 Junio C Hamano  
+**Copyright notice:**
+Copyright 2014-2016 The Docker & Go Authors
+Copyright (c) 2006, 2008 Junio C Hamano
 
-**License:** Apache License Version 2.0  
+**License:** Apache License Version 2.0
 
-Please see above.  
+Please see above.
 
-**Software**: github.com/gofrs/flock v0.7.1  
+**Software**: github.com/gofrs/flock v0.8.1
 
-**Copyright notice:**  
-Copyright (C) 2014-2015 Docker Inc  
+**Copyright notice:**
+Copyright (C) 2014-2015 Docker Inc
 
-**License:** BSD-3-Clause  
+**License:** BSD-3-Clause
 
-Please see above.  
+Please see above.
 
-**Software**: github.com/opencontainers/go-digest v1.0.0  
+**Software**: github.com/opencontainers/go-digest v1.0.0
 
-**Copyright notice:**  
-Copyright (C) 2004, 2006 The Linux Foundation and its contributors.  
-Copyright 2019, 2020 OCI Contributors  
-Copyright © 2016 Docker, Inc.  
-Copyright (c) 2006, 2008 Junio C Hamano  
+**Copyright notice:**
+Copyright (C) 2004, 2006 The Linux Foundation and its contributors.
+Copyright 2019, 2020 OCI Contributors
+Copyright © 2016 Docker, Inc.
+Copyright (c) 2006, 2008 Junio C Hamano
 
-**License:** Apache License Version 2.0  
+**License:** Apache License Version 2.0
 
-Please see above.  
+Please see above.
 
-**Software**: github.com/opencontainers/image-spec v1.0.2-0.20190823105129-775207bd45b6  
+**Software**: github.com/opencontainers/image-spec v1.0.2-0.20210819154149-5ad6f50d6283
 
-**Copyright notice:**  
-Copyright 2016-2018 The Linux Foundation.  
-Copyright (C) 2004, 2006 The Linux Foundation and its contributors.  
-Copyright (c) 2006, 2008 Junio C Hamano  
+**Copyright notice:**
+Copyright 2016-2018 The Linux Foundation.
+Copyright (C) 2004, 2006 The Linux Foundation and its contributors.
+Copyright (c) 2006, 2008 Junio C Hamano
 
-**License:** Apache License Version 2.0  
+**License:** Apache License Version 2.0
 
-Please see above.  
+Please see above.
 
-**Software**: github.com/opencontainers/runtime-spec v1.0.2  
+**Software**: github.com/opencontainers/runtime-spec v1.0.3-0.20210326190908-1c3f411f0417
 
-**Copyright notice:**  
-Copyright 2016-2018 The Linux Foundation.  
-Copyright (C) 2004, 2006 The Linux Foundation and its contributors.  
-Copyright (c) 2006, 2008 Junio C Hamano  
+**Copyright notice:**
+Copyright 2016-2018 The Linux Foundation.
+Copyright (C) 2004, 2006 The Linux Foundation and its contributors.
+Copyright (c) 2006, 2008 Junio C Hamano
 
-**License:** Apache License Version 2.0  
+**License:** Apache License Version 2.0
 
-Please see above.  
+Please see above.
 
-**Software**: github.com/opencontainers/runtime-tools v0.9.0  
+**Software**: github.com/opencontainers/runtime-tools v0.9.0
 
-**Copyright notice:**  
-Copyright 2013-2016 Docker, Inc.  
-Copyright 2016-2018 The Linux Foundation.  
-Copyright (C) 2004, 2006 The Linux Foundation and its contributors.  
-Copyright (c) 2006, 2008 Junio C Hamano  
-Copyright (C) 2014-2018 W. Trevor King <wking@tremily.us>  
+**Copyright notice:**
+Copyright 2013-2016 Docker, Inc.
+Copyright 2016-2018 The Linux Foundation.
+Copyright (C) 2004, 2006 The Linux Foundation and its contributors.
+Copyright (c) 2006, 2008 Junio C Hamano
+Copyright (C) 2014-2018 W. Trevor King <wking@tremily.us>
 
-**License:** Apache License Version 2.0  
+**License:** Apache License Version 2.0
 
-Please see above.  
+Please see above.
 
-**Software**: github.com/pkg/errors v0.9.1  
+**Software**: github.com/pkg/errors v0.9.1
 
-**Copyright notice:**  
-Copyright (c) 2006, 2008 Junio C Hamano  
-Copyright (c) 2015, Dave Cheney <dave@cheney.net>  
+**Copyright notice:**
+Copyright (c) 2006, 2008 Junio C Hamano
+Copyright (c) 2015, Dave Cheney <dave@cheney.net>
 
-**License:** BSD-2-Clause  
+**License:** BSD-2-Clause
 
 Redistribution and use in source and binary forms, with or without
 modification, are permitted provided that the following conditions are met:
@@ -464,67 +463,146 @@ CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
 OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-**Software**: github.com/sirupsen/logrus v1.7.0  
+**Software**: github.com/sirupsen/logrus v1.8.1
 
-**Copyright notice:**  
+**Copyright notice:**
 
-Copyright (c) 2014 Simon Eskildsen  
-Copyright (c) 2012 Miki Tebeka <miki.tebeka@gmail.com>.  
-Copyright (c) 2006, 2008 Junio C Hamano  
+Copyright (c) 2014 Simon Eskildsen
+Copyright (c) 2012 Miki Tebeka <miki.tebeka@gmail.com>.
+Copyright (c) 2006, 2008 Junio C Hamano
 
-**License:** MIT  
+**License:** MIT
 
-Please see above.  
+Please see above.
 
-**Software**: github.com/spf13/cobra v1.0.0  
+**Software**: github.com/spf13/cobra v1.2.1
 
-**Copyright notice:**  
-Copyright (C) 2007 Free Software Foundation, Inc.  
-Copyright 2015 Red Hat Inc.  
-Copyright (C) 1989, 1991 Free Software Foundation, Inc.,  
-Copyright 2016 French Ben.  
-Copyright (c) 2006, 2008 Junio C Hamano  
-Copyright © 2013-2020 Steve Francia <spf@spf13.com>  
+**Copyright notice:**
+Copyright (C) 2007 Free Software Foundation, Inc.
+Copyright 2015 Red Hat Inc.
+Copyright (C) 1989, 1991 Free Software Foundation, Inc.,
+Copyright 2016 French Ben.
+Copyright (c) 2006, 2008 Junio C Hamano
+Copyright © 2013-2020 Steve Francia <spf@spf13.com>
 
-**License:** Apache License Version 2.0  
+**License:** Apache License Version 2.0
 
-Please see above.  
+Please see above.
 
-**Software**: github.com/spf13/cobra v1.0.0   
+**Software**: github.com/spf13/cobra v1.0.0
 
-**Copyright notice:**  
-Copyright 2009-2016 The Go Authors.  
-Copyright (c) 2012 Alex Ogier.  
-Copyright (c) 2012 The Go Authors.   
+**Copyright notice:**
+Copyright 2009-2016 The Go Authors.
+Copyright (c) 2012 Alex Ogier.
+Copyright (c) 2012 The Go Authors.
 
-**License:** BSD-3-Clause  
+**License:** BSD-3-Clause
 
-Please see above.  
+Please see above.
 
-**Software**: golang/go  
+**Software**: golang/go
 
-**Copyright notice:**  
-Copyright 2009-2020 The Go Authors.  
+**Copyright notice:**
+Copyright 2009-2020 The Go Authors.
 
-**License:** BSD  
+**License:** BSD
 
-Please see above.  
+Please see above.
 
-**Software**: google.golang.org/grpc v1.29.1  
+**Software**: google.golang.org/grpc v1.42.0
 
-**Copyright notice:**  
-Copyright 2019 gRPC authors  
+**Copyright notice:**
+Copyright 2019 gRPC authors
 
-**License:** Apache License Version 2.0  
+**License:** Apache License Version 2.0
 
-Please see above.  
+Please see above.
 
 **Software**: gotest.tools/v3 v.3.0.3
 
-**Copyright notice:**  
+**Copyright notice:**
 Copyright 2018 gotest.tools authors
 Copyright (c) 2013, Patrick Mezard
 
 **License:** Apache License Version 2.0
+
+Please see above.
+
+**Software**: github.com/gogo/protobuf v1.3.2
+
+**Copyright notice:**
+
+Copyright 2010 The Go Authors.  All rights reserved.
+Copyright 2011 The Go Authors.  All rights reserved.
+Copyright 2012 The Go Authors.  All rights reserved.
+Copyright 2016 The Go Authors.  All rights reserved.
+Copyright 2017 The Go Authors.  All rights reserved.
+Copyright 2018 The Go Authors.  All rights reserved.
+Copyright (c) 2013, The GoGo Authors. All rights reserved.
+Copyright (c) 2016, The GoGo Authors. All rights reserved.
+Copyright (c) 2018, The GoGo Authors. All rights reserved.
+
+**License:** 3-Clause BSD License
+
+**Software**: github.com/syndtr/gocapability v0.0.0-20200815063812-42c35b437635
+
+**Copyright notice:**
+
+Copyright 2013 Suryandaru Triandana <syndtr@gmail.com>
+Copyright (c) 2013, Suryandaru Triandana <syndtr@gmail.com>
+
+**License:** BSD-2-Clause License
+
+Please see above.
+
+**Software**: golang.org/x/crypto v0.0.0-20211117183948-ae814b36b871
+
+**Copyright notice:**
+
+Copyright 2010 The Go Authors. All rights reserved.
+Copyright 2011 The Go Authors. All rights reserved.
+Copyright 2012 The Go Authors. All rights reserved.
+Copyright 2013 The Go Authors. All rights reserved.
+Copyright 2016 The Go Authors. All rights reserved.
+Copyright 2019 The Go Authors. All rights reserved.
+Copyright (c) 2009 The Go Authors. All rights reserved.
+
+**License:** BSD-3-Clause
+
+Please see above.
+
+**Software**: golang.org/x/sync v0.0.0-20210220032951-036812b2e83c
+
+**Copyright notice:**
+
+Copyright 2016 The Go Authors. All rights reserved.
+Copyright 2017 The Go Authors. All rights reserved.
+Copyright (c) 2009 The Go Authors. All rights reserved.
+
+**License:** BSD-3-Clause
+
+Please see above.
+
+**Software**: golang.org/x/sys v0.0.0-20211124211545-fe61309f8881
+
+**Copyright notice:**
+
+Copyright 2009,2010 The Go Authors. All rights reserved.
+Copyright 2009 The Go Authors. All rights reserved.
+Copyright 2010 The Go Authors. All rights reserved.
+Copyright 2011 The Go Authors. All rights reserved.
+Copyright 2012 The Go Authors. All rights reserved.
+Copyright 2013 The Go Authors. All rights reserved.
+Copyright 2014 The Go Authors. All rights reserved.
+Copyright 2015 The Go Authors. All rights reserved.
+Copyright 2016 The Go Authors. All rights reserved.
+Copyright 2017 The Go Authors. All rights reserved.
+Copyright 2018 The Go Authors. All rights reserved.
+Copyright 2019 The Go Authors. All rights reserved.
+Copyright 2020 The Go Authors. All rights reserved.
+Copyright 2021 The Go Authors. All rights reserved.
+Copyright (c) 2009 The Go Authors. All rights reserved.
+
+**License:** BSD-3-Clause
 
 Please see above.
