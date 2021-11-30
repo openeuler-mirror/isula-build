@@ -62,7 +62,7 @@ function run_unit_test() {
         fi
         # TEST_ARGS is " -args SKIP_REG=foo", so no double quote for it
         # shellcheck disable=SC2086
-        go test -v "${go_test_race_flag}" "${go_test_mod_method}" "${go_test_coverprofile_flag}" "${go_test_covermode_flag}" -coverpkg=${package} "${go_test_count_method}" "${go_test_timeout_flag}" "${package}" ${TEST_ARGS} >> "${testlog}"
+        go test -v ${go_test_race_flag} "${go_test_mod_method}" "${go_test_coverprofile_flag}" "${go_test_covermode_flag}" -coverpkg=${package} "${go_test_count_method}" "${go_test_timeout_flag}" "${package}" ${TEST_ARGS} >> "${testlog}"
     done
 
     if grep -E -- "--- FAIL:|^FAIL" "${testlog}"; then
