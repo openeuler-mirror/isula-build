@@ -14,14 +14,14 @@ diff --git a/vendor/github.com/containers/storage/pkg/archive/archive.go b/vendo
 index 4472511..479ade8 100644
 --- a/vendor/github.com/containers/storage/pkg/archive/archive.go
 +++ b/vendor/github.com/containers/storage/pkg/archive/archive.go
-@@ -396,7 +396,7 @@ func ReadSecurityXattrToTarHeader(path string, hdr *tar.Header) error {
+@@ -397,7 +397,7 @@ func ReadSecurityXattrToTarHeader(path string, hdr *tar.Header) error {
  	if hdr.Xattrs == nil {
  		hdr.Xattrs = make(map[string]string)
  	}
 -	for _, xattr := range []string{"security.capability", "security.ima"} {
 +	for _, xattr := range []string{"security.capability", "security.ima", "security.evm"} {
  		capability, err := system.Lgetxattr(path, xattr)
- 		if err != nil && err != system.EOPNOTSUPP && err != system.ErrNotSupportedPlatform {
+ 		if err != nil && !errors.Is(err, system.EOPNOTSUPP) && err != system.ErrNotSupportedPlatform {
  			return errors.Wrapf(err, "failed to read %q attribute from %q", xattr, path)
 -- 
 2.27.0

@@ -12,17 +12,17 @@ diff --git a/vendor/github.com/containers/image/v5/pkg/docker/config/config.go b
 index cf82ee8..1165d15 100644
 --- a/vendor/github.com/containers/image/v5/pkg/docker/config/config.go
 +++ b/vendor/github.com/containers/image/v5/pkg/docker/config/config.go
-@@ -146,14 +146,7 @@ func getAuthFilePaths(sys *types.SystemContext) []authPath {
+@@ -219,14 +219,7 @@ func getAuthFilePaths(sys *types.SystemContext, homeDir string) []authPath {
  		paths = append(paths,
  			authPath{path: filepath.Join(dockerConfig, "config.json"), legacyFormat: false},
  		)
 -	} else {
 -		paths = append(paths,
--			authPath{path: filepath.Join(homedir.Get(), dockerHomePath), legacyFormat: false},
+-			authPath{path: filepath.Join(homeDir, dockerHomePath), legacyFormat: false},
 -		)
  	}
 -	paths = append(paths,
--		authPath{path: filepath.Join(homedir.Get(), dockerLegacyHomePath), legacyFormat: true},
+-		authPath{path: filepath.Join(homeDir, dockerLegacyHomePath), legacyFormat: true},
 -	)
  	return paths
  }
