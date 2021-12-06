@@ -11,7 +11,7 @@ cwd=${PWD}
 src=${cwd}/${pkg}
 tar_file=v"$(awk -F"-" '{print $1}' < VERSION-openeuler)".tar.gz
 
-tar -zxvf "${tar_file}"
+mkdir ${src} && tar -zxvf "${tar_file}" -C ${src} --strip-components 1
 if [ ! -d patch ]; then
     tar -zxvf patch.tar.gz
 fi
