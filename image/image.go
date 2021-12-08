@@ -626,7 +626,8 @@ func GetNamedTaggedReference(image string) (reference.NamedTagged, string, error
 		return nil, "", nil
 	}
 
-	if slashLastIndex, sepLastIndex := strings.LastIndex(image, "/"), strings.LastIndex(image, ":"); sepLastIndex == -1 || (sepLastIndex < slashLastIndex) {
+	slashLastIndex, sepLastIndex := strings.LastIndex(image, "/"), strings.LastIndex(image, ":")
+	if sepLastIndex == -1 || (sepLastIndex < slashLastIndex) {
 		image = fmt.Sprintf("%s:%s", image, constant.DefaultTag)
 	}
 

@@ -77,9 +77,9 @@ type saveOptions struct {
 }
 
 type separatorSave struct {
+	log        *logrus.Entry
 	renameData []renames
 	tmpDir     imageTmpDir
-	log        *logrus.Entry
 	base       string
 	lib        string
 	dest       string
@@ -190,7 +190,7 @@ func (b *Backend) Save(req *pb.SaveRequest, stream pb.Control_SaveServer) (err e
 	}).Info("SaveRequest received")
 
 	opts := b.getSaveOptions(req)
-	if err = opts.check(); err != nil {
+	if err = opts.manage(); err != nil {
 		return errors.Wrap(err, "check save options failed")
 	}
 
@@ -278,17 +278,17 @@ func messageHandler(stream pb.Control_SaveServer, cliLogger *logger.Logger) func
 	}
 }
 
-func (opts *saveOptions) check() error {
+func (opts *saveOptions) manage() error {
 	if err := opts.checkImageNameIsID(); err != nil {
 		return err
 	}
-	if err := opts.checkFormat(); err != nil {
+	if err := opts.setFormat(); err != nil {
 		return err
 	}
 	if err := opts.filterImageName(); err != nil {
 		return err
 	}
-	if err := opts.checkRenameFile(); err != nil {
+	if err := opts.loadRenameFile(); err != nil {
 		return err
 	}
 
@@ -318,7 +318,7 @@ func (opts *saveOptions) checkImageNameIsID() error {
 	return nil
 }
 
-func (opts *saveOptions) checkFormat() error {
+func (opts *saveOptions) setFormat() error {
 	switch opts.format {
 	case constant.DockerTransport:
 		opts.format = constant.DockerArchiveTransport
@@ -337,7 +337,7 @@ func (opts *saveOptions) filterImageName() error {
 		return nil
 	}
 
-	visitedImage := make(map[string]bool)
+	visitedImage := make(map[string]bool, 1)
 	for _, imageName := range opts.oriImgList {
 		if _, exists := visitedImage[imageName]; exists {
 			continue
@@ -351,8 +351,7 @@ func (opts *saveOptions) filterImageName() error {
 
 		finalImage, ok := opts.finalImageSet[img.ID]
 		if !ok {
-			finalImage = &savedImage{exist: true}
-			finalImage.tags = []reference.NamedTagged{}
+			finalImage = &savedImage{exist: true, tags: []reference.NamedTagged{}}
 			opts.finalImageOrdered = append(opts.finalImageOrdered, img.ID)
 		}
 
@@ -369,7 +368,7 @@ func (opts *saveOptions) filterImageName() error {
 	return nil
 }
 
-func (opts *saveOptions) checkRenameFile() error {
+func (opts *saveOptions) loadRenameFile() error {
 	if len(opts.sep.renameFile) != 0 {
 		var reName []renames
 		if err := util.LoadJSONFile(opts.sep.renameFile, &reName); err != nil {
@@ -494,12 +493,11 @@ func (s *separatorSave) adjustLayers() ([]imageManifest, error) {
 	return man, nil
 }
 
-func separateImage(opt saveOptions) error {
+func separateImage(opt saveOptions) (err error) {
 	s := &opt.sep
 	s.log.Infof("Start saving separated images %v", opt.oriImgList)
-	var errList []error
 
-	if err := os.MkdirAll(s.dest, constant.DefaultRootDirMode); err != nil {
+	if err = os.MkdirAll(s.dest, constant.DefaultRootDirMode); err != nil {
 		return err
 	}
 
@@ -507,30 +505,26 @@ func separateImage(opt saveOptions) error {
 		if tErr := os.RemoveAll(s.tmpDir.root); tErr != nil && !os.IsNotExist(tErr) {
 			s.log.Warnf("Removing save tmp directory %q failed: %v", s.tmpDir.root, tErr)
 		}
-		if len(errList) != 0 {
+		if err != nil {
 			if rErr := os.RemoveAll(s.dest); rErr != nil && !os.IsNotExist(rErr) {
 				s.log.Warnf("Removing save dest directory %q failed: %v", s.dest, rErr)
 			}
 		}
 	}()
-	if err := util.UnpackFile(opt.outputPath, s.tmpDir.untar, archive.Gzip, true); err != nil {
-		errList = append(errList, err)
+	if err = util.UnpackFile(opt.outputPath, s.tmpDir.untar, archive.Gzip, true); err != nil {
 		return errors.Wrapf(err, "unpack %q failed", opt.outputPath)
 	}
-	manifest, err := s.adjustLayers()
-	if err != nil {
-		errList = append(errList, err)
-		return errors.Wrap(err, "adjust layers failed")
+	manifest, aErr := s.adjustLayers()
+	if aErr != nil {
+		return errors.Wrap(aErr, "adjust layers failed")
 	}
 
-	imgInfos, err := s.constructImageInfos(manifest, opt.localStore)
-	if err != nil {
-		errList = append(errList, err)
-		return errors.Wrap(err, "process image infos failed")
+	imgInfos, cErr := s.constructImageInfos(manifest, opt.localStore)
+	if cErr != nil {
+		return errors.Wrap(cErr, "process image infos failed")
 	}
 
-	if err := s.processImageLayers(imgInfos); err != nil {
-		errList = append(errList, err)
+	if err = s.processImageLayers(imgInfos); err != nil {
 		return err
 	}
 
@@ -552,7 +546,7 @@ func (s *separatorSave) processImageLayers(imgInfos map[string]imageInfo) error 
 	sort.Strings(sortedKey)
 	for _, k := range sortedKey {
 		info := imgInfos[k]
-		if err := s.clearDirs(true); err != nil {
+		if err := s.clearTempDirs(); err != nil {
 			return errors.Wrap(err, "clear tmp dirs failed")
 		}
 		var t tarballInfo
@@ -584,32 +578,13 @@ func (s *separatorSave) processImageLayers(imgInfos map[string]imageInfo) error 
 	return nil
 }
 
-func (s *separatorSave) clearDirs(reCreate bool) error {
-	tmpDir := s.tmpDir
-	dirs := []string{tmpDir.base, tmpDir.app, tmpDir.lib}
-	var mkTmpDirs = func(dirs []string) error {
-		for _, dir := range dirs {
-			if err := os.MkdirAll(dir, constant.DefaultRootDirMode); err != nil {
-				return err
-			}
+func (s *separatorSave) clearTempDirs() error {
+	dirs := []string{s.tmpDir.base, s.tmpDir.app, s.tmpDir.lib}
+	for _, dir := range dirs {
+		if err := os.RemoveAll(dir); err != nil {
+			return err
 		}
-		return nil
-	}
-
-	var rmTmpDirs = func(dirs []string) error {
-		for _, dir := range dirs {
-			if err := os.RemoveAll(dir); err != nil {
-				return err
-			}
-		}
-		return nil
-	}
-
-	if err := rmTmpDirs(dirs); err != nil {
-		return err
-	}
-	if reCreate {
-		if err := mkTmpDirs(dirs); err != nil {
+		if err := os.MkdirAll(dir, constant.DefaultRootDirMode); err != nil {
 			return err
 		}
 	}

@@ -63,14 +63,13 @@ function run_unit_test() {
         # TEST_ARGS is " -args SKIP_REG=foo", so no double quote for it
         # shellcheck disable=SC2086
         go test -v ${go_test_race_flag} "${go_test_mod_method}" "${go_test_coverprofile_flag}" "${go_test_covermode_flag}" -coverpkg=${package} "${go_test_count_method}" "${go_test_timeout_flag}" "${package}" ${TEST_ARGS} >> "${testlog}"
+        grep "^[?|ok].*${package}" "${testlog}"
     done
 
     if grep -E -- "--- FAIL:|^FAIL" "${testlog}"; then
         echo "Testing failed... Please check ${testlog}"
+        return 1
     fi
-    tail -n 1 "${testlog}"
-
-    rm -f "${testlog}"
 }
 
 function generate_unit_test_coverage() {
@@ -82,4 +81,6 @@ function generate_unit_test_coverage() {
 
 precheck
 run_unit_test
+exit_flag=$?
 generate_unit_test_coverage
+exit $exit_flag

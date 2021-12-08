@@ -14,6 +14,7 @@
 package main
 
 import (
+	"fmt"
 	"io/ioutil"
 	"os"
 	"testing"
@@ -143,7 +144,7 @@ func TestRunAndDataRootSet(t *testing.T) {
 			if err != nil {
 				t.Fatalf("get default store options failed with error: %v", err)
 			}
-			
+
 			var storeOpt store.DaemonStoreOptions
 			storeOpt.RunRoot = option.RunRoot
 			storeOpt.DataRoot = option.GraphRoot
@@ -157,6 +158,15 @@ func TestRunAndDataRootSet(t *testing.T) {
 		setF        func()
 		expectation store.DaemonStoreOptions
 	}{
+		{
+			// first run so can not be affected by other testcase
+			name: "TC3 - all not set",
+			setF: setStorage("[storage]\ndriver = \"overlay\""),
+			expectation: store.DaemonStoreOptions{
+				DataRoot: "/var/lib/isula-build/storage",
+				RunRoot:  "/var/run/isula-build/storage",
+			},
+		},
 		{
 			name: "TC1 - cmd set, configuration and storage not set",
 			setF: func() {
@@ -176,17 +186,10 @@ func TestRunAndDataRootSet(t *testing.T) {
 			expectation: result,
 		},
 		{
-			name: "TC3 - all not set",
-			setF: setStorage("[storage]"),
-			expectation: store.DaemonStoreOptions{
-				DataRoot: "/var/lib/containers/storage",
-				RunRoot:  "/var/run/containers/storage",
-			},
-		},
-		{
 			name: "TC4 - cmd and configuration not set, storage set",
 			setF: func() {
-				config := "[storage]\nrunroot = \"" + runRoot.Join("storage") + "\"\ngraphroot = \"" + dataRoot.Join("storage") + "\""
+				config := fmt.Sprintf("[storage]\ndriver = \"%s\"\nrunroot = \"%s\"\ngraphroot = \"%s\"\n",
+					"overlay", runRoot.Join("storage"), dataRoot.Join("storage"))
 				sT := setStorage(config)
 				sT()
 			},
