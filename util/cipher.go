@@ -212,6 +212,9 @@ func GenRSAPublicKeyFile(key *rsa.PrivateKey, path string) error {
 	if err := pem.Encode(file, block); err != nil {
 		return err
 	}
+	if cErr := file.Close(); cErr != nil {
+		return cErr
+	}
 
 	return nil
 }
@@ -230,7 +233,10 @@ func ReadPublicKey(path string) (rsa.PublicKey, error) {
 	if err != nil {
 		return rsa.PublicKey{}, err
 	}
-	key := pubInterface.(*rsa.PublicKey)
+	key, ok := pubInterface.(*rsa.PublicKey)
+	if !ok {
+		return rsa.PublicKey{}, errors.New("failed to find public key type")
+	}
 
 	return *key, nil
 }

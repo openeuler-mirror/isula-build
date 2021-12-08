@@ -69,9 +69,9 @@ type separatorLoad struct {
 }
 
 type loadOptions struct {
+	logEntry *logrus.Entry
 	path     string
 	format   string
-	logEntry *logrus.Entry
 	sep      separatorLoad
 }
 
@@ -355,7 +355,7 @@ func (s *separatorLoad) getTarballInfo() error {
 		return errors.Wrap(err, "join manifest file path failed")
 	}
 
-	var t = make(map[string]tarballInfo)
+	var t = make(map[string]tarballInfo, 1)
 	if err = util.LoadJSONFile(manifest, &t); err != nil {
 		return errors.Wrap(err, "load manifest file failed")
 	}
@@ -370,7 +370,7 @@ func (s *separatorLoad) getTarballInfo() error {
 }
 
 func (s *separatorLoad) constructTarballInfo() (err error) {
-	s.log.Infof("construct image tarball info for %s", s.appName)
+	s.log.Infof("Construct image tarball info for %s", s.appName)
 	// fill up path for separator
 	// this case should not happened since client side already check this flag
 	if len(s.appName) == 0 {
@@ -408,26 +408,25 @@ func (s *separatorLoad) tarballCheckSum() error {
 		return nil
 	}
 
-	// app image tarball can not be empty
-	if len(s.appPath) == 0 {
-		return errors.New("app image tarball path can not be empty")
+	type checkInfo struct {
+		path       string
+		hash       string
+		str        string
+		canBeEmpty bool
 	}
-	if err := util.CheckSum(s.appPath, s.info.AppHash); err != nil {
-		return errors.Wrapf(err, "check sum for file %q failed", s.appPath)
-	}
-
-	// base image tarball can not be empty
-	if len(s.basePath) == 0 {
-		return errors.New("base image tarball path can not be empty")
-	}
-	if err := util.CheckSum(s.basePath, s.info.BaseHash); err != nil {
-		return errors.Wrapf(err, "check sum for file %q failed", s.basePath)
-	}
-
-	// lib image may be empty image
-	if len(s.libPath) != 0 {
-		if err := util.CheckSum(s.libPath, s.info.LibHash); err != nil {
-			return errors.Wrapf(err, "check sum for file %q failed", s.libPath)
+	checkLen := 3
+	var checkList = make([]checkInfo, 0, checkLen)
+	checkList = append(checkList, checkInfo{path: s.basePath, hash: s.info.BaseHash, canBeEmpty: false, str: "base image"})
+	checkList = append(checkList, checkInfo{path: s.libPath, hash: s.info.LibHash, canBeEmpty: true, str: "lib image"})
+	checkList = append(checkList, checkInfo{path: s.appPath, hash: s.info.AppHash, canBeEmpty: false, str: "app image"})
+	for _, p := range checkList {
+		if len(p.path) == 0 && !p.canBeEmpty {
+			return errors.Errorf("%s tarball path can not be empty", p.str)
+		}
+		if len(p.path) != 0 {
+			if err := util.CheckSum(p.path, p.hash); err != nil {
+				return errors.Wrapf(err, "check sum for file %q failed", p.path)
+			}
 		}
 	}
 
@@ -457,18 +456,18 @@ func (s *separatorLoad) unpackTarballs() error {
 		return errors.Wrap(err, "failed to make temporary directories")
 	}
 
-	// unpack base first and the later images will be moved here
-	if err := util.UnpackFile(s.basePath, s.tmpDir.base, archive.Gzip, false); err != nil {
-		return errors.Wrapf(err, "unpack base tarball %q failed", s.basePath)
-	}
+	type unpackInfo struct{ path, dir, str string }
+	unpackLen := 3
+	var unpackList = make([]unpackInfo, 0, unpackLen)
+	unpackList = append(unpackList, unpackInfo{path: s.basePath, dir: s.tmpDir.base, str: "base image"})
+	unpackList = append(unpackList, unpackInfo{path: s.appPath, dir: s.tmpDir.app, str: "app image"})
+	unpackList = append(unpackList, unpackInfo{path: s.libPath, dir: s.tmpDir.lib, str: "lib image"})
 
-	if err := util.UnpackFile(s.appPath, s.tmpDir.app, archive.Gzip, false); err != nil {
-		return errors.Wrapf(err, "unpack app tarball %q failed", s.appPath)
-	}
-
-	if len(s.libPath) != 0 {
-		if err := util.UnpackFile(s.libPath, s.tmpDir.lib, archive.Gzip, false); err != nil {
-			return errors.Wrapf(err, "unpack lib tarball %q failed", s.libPath)
+	for _, p := range unpackList {
+		if len(p.path) != 0 {
+			if err := util.UnpackFile(p.path, p.dir, archive.Gzip, false); err != nil {
+				return errors.Wrapf(err, "unpack %s tarball %q failed", p.str, p.path)
+			}
 		}
 	}
 
