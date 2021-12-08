@@ -1,0 +1,99 @@
+From 1e56fb7d42b3a91ed7b11485d65dd52b12012a81 Mon Sep 17 00:00:00 2001
+From: DCCooper <1866858@gmail.com>
+Date: Wed, 8 Dec 2021 12:51:03 +0800
+Subject: [PATCH 1/2] test: fix go test failed but show success
+
+Signed-off-by: DCCooper <1866858@gmail.com>
+---
+ cmd/daemon/main_test.go | 23 +++++++++++++----------
+ hack/unit_test.sh       |  7 ++++---
+ 2 files changed, 17 insertions(+), 13 deletions(-)
+
+diff --git a/cmd/daemon/main_test.go b/cmd/daemon/main_test.go
+index d98ea83..3947f7a 100644
+--- a/cmd/daemon/main_test.go
++++ b/cmd/daemon/main_test.go
+@@ -14,6 +14,7 @@
+ package main
+ 
+ import (
++	"fmt"
+ 	"io/ioutil"
+ 	"os"
+ 	"testing"
+@@ -143,7 +144,7 @@ func TestRunAndDataRootSet(t *testing.T) {
+ 			if err != nil {
+ 				t.Fatalf("get default store options failed with error: %v", err)
+ 			}
+-			
++
+ 			var storeOpt store.DaemonStoreOptions
+ 			storeOpt.RunRoot = option.RunRoot
+ 			storeOpt.DataRoot = option.GraphRoot
+@@ -158,6 +159,15 @@ func TestRunAndDataRootSet(t *testing.T) {
+ 		expectation store.DaemonStoreOptions
+ 	}{
+ 		{
++			// first run so can not be affected by other testcase
++			name: "TC3 - all not set",
++			setF: setStorage("[storage]\ndriver = \"overlay\""),
++			expectation: store.DaemonStoreOptions{
++				DataRoot: "/var/lib/isula-build/storage",
++				RunRoot:  "/var/run/isula-build/storage",
++			},
++		},
++		{
+ 			name: "TC1 - cmd set, configuration and storage not set",
+ 			setF: func() {
+ 				cmd.PersistentFlags().Set("runroot", runRoot.Path())
+@@ -176,17 +186,10 @@ func TestRunAndDataRootSet(t *testing.T) {
+ 			expectation: result,
+ 		},
+ 		{
+-			name: "TC3 - all not set",
+-			setF: setStorage("[storage]"),
+-			expectation: store.DaemonStoreOptions{
+-				DataRoot: "/var/lib/containers/storage",
+-				RunRoot:  "/var/run/containers/storage",
+-			},
+-		},
+-		{
+ 			name: "TC4 - cmd and configuration not set, storage set",
+ 			setF: func() {
+-				config := "[storage]\nrunroot = \"" + runRoot.Join("storage") + "\"\ngraphroot = \"" + dataRoot.Join("storage") + "\""
++				config := fmt.Sprintf("[storage]\ndriver = \"%s\"\nrunroot = \"%s\"\ngraphroot = \"%s\"\n",
++					"overlay", runRoot.Join("storage"), dataRoot.Join("storage"))
+ 				sT := setStorage(config)
+ 				sT()
+ 			},
+diff --git a/hack/unit_test.sh b/hack/unit_test.sh
+index 0237605..e13bca3 100755
+--- a/hack/unit_test.sh
++++ b/hack/unit_test.sh
+@@ -63,14 +63,13 @@ function run_unit_test() {
+         # TEST_ARGS is " -args SKIP_REG=foo", so no double quote for it
+         # shellcheck disable=SC2086
+         go test -v ${go_test_race_flag} "${go_test_mod_method}" "${go_test_coverprofile_flag}" "${go_test_covermode_flag}" -coverpkg=${package} "${go_test_count_method}" "${go_test_timeout_flag}" "${package}" ${TEST_ARGS} >> "${testlog}"
++        grep "^[?|ok].*${package}" "${testlog}"
+     done
+ 
+     if grep -E -- "--- FAIL:|^FAIL" "${testlog}"; then
+         echo "Testing failed... Please check ${testlog}"
++        return 1
+     fi
+-    tail -n 1 "${testlog}"
+-
+-    rm -f "${testlog}"
+ }
+ 
+ function generate_unit_test_coverage() {
+@@ -82,4 +81,6 @@ function generate_unit_test_coverage() {
+ 
+ precheck
+ run_unit_test
++exit_flag=$?
+ generate_unit_test_coverage
++exit $exit_flag
+-- 
+1.8.3.1
+
