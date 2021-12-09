@@ -1,0 +1,29 @@
+From 0aa3f0bda673bc3defd9990e71507aa39f6fcb55 Mon Sep 17 00:00:00 2001
+From: jingxiaolu <lujingxiao@huawei.com>
+Date: Tue, 30 Nov 2021 10:45:14 +0800
+Subject: [PATCH 1/3] tests: fixes make test-unit-cover not generates cover
+ files
+
+Fixes: #I4KDKL
+
+Signed-off-by: jingxiaolu <lujingxiao@huawei.com>
+---
+ hack/unit_test.sh | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/hack/unit_test.sh b/hack/unit_test.sh
+index b6a7978..0237605 100755
+--- a/hack/unit_test.sh
++++ b/hack/unit_test.sh
+@@ -62,7 +62,7 @@ function run_unit_test() {
+         fi
+         # TEST_ARGS is " -args SKIP_REG=foo", so no double quote for it
+         # shellcheck disable=SC2086
+-        go test -v "${go_test_race_flag}" "${go_test_mod_method}" "${go_test_coverprofile_flag}" "${go_test_covermode_flag}" -coverpkg=${package} "${go_test_count_method}" "${go_test_timeout_flag}" "${package}" ${TEST_ARGS} >> "${testlog}"
++        go test -v ${go_test_race_flag} "${go_test_mod_method}" "${go_test_coverprofile_flag}" "${go_test_covermode_flag}" -coverpkg=${package} "${go_test_count_method}" "${go_test_timeout_flag}" "${package}" ${TEST_ARGS} >> "${testlog}"
+     done
+ 
+     if grep -E -- "--- FAIL:|^FAIL" "${testlog}"; then
+-- 
+1.8.3.1
+
