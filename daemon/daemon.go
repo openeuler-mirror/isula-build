@@ -28,6 +28,7 @@ import (
 	"github.com/sirupsen/logrus"
 	"golang.org/x/sys/unix"
 
+	constant "isula.org/isula-build"
 	pb "isula.org/isula-build/api/services"
 	"isula.org/isula-build/builder"
 	"isula.org/isula-build/pkg/gc"
@@ -36,8 +37,6 @@ import (
 	"isula.org/isula-build/store"
 	"isula.org/isula-build/util"
 )
-
-const dataRootTmpDirPrefix = "tmp"
 
 // Options carries the options configured to daemon
 type Options struct {
@@ -137,7 +136,7 @@ func (d *Daemon) NewBuilder(ctx context.Context, req *pb.BuildRequest) (b builde
 		runDir   string
 	)
 	// buildDir is used to set directory which is used to store tmp data
-	buildDir, err = securejoin.SecureJoin(d.opts.DataRoot, filepath.Join(dataRootTmpDirPrefix, req.BuildID))
+	buildDir, err = securejoin.SecureJoin(d.opts.DataRoot, filepath.Join(constant.DataRootTmpDirPrefix, req.BuildID))
 	if err != nil {
 		return nil, err
 	}

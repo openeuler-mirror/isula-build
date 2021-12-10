@@ -314,7 +314,7 @@ func TestLoadMultipleImages(t *testing.T) {
 	defer clean(dir)
 
 	path := dir.Join(loadedTarFile)
-	repoTags, err := tryToParseImageFormatFromTarball(daemon.opts.DataRoot, &loadOptions{path: path})
+	repoTags, err := tryToParseImageFormatFromTarball(daemon.opts.DataRoot, &LoadOptions{path: path})
 	assert.NilError(t, err)
 	assert.Equal(t, repoTags[0].nameTag[0], "registry.example.com/sayhello:first")
 	assert.Equal(t, repoTags[1].nameTag[0], "registry.example.com/sayhello:second")

@@ -15,24 +15,19 @@ package daemon
 
 import (
 	"context"
-	"encoding/json"
-	"fmt"
-	"io/ioutil"
 	"os"
 	"path/filepath"
-	"sort"
 	"strings"
 
 	"github.com/containers/image/v5/docker/reference"
 	"github.com/containers/image/v5/types"
-	"github.com/containers/storage/pkg/archive"
-	"github.com/docker/docker/pkg/ioutils"
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/sync/errgroup"
 
 	constant "isula.org/isula-build"
 	pb "isula.org/isula-build/api/services"
+	"isula.org/isula-build/daemon/separator"
 	"isula.org/isula-build/exporter"
 	savedocker "isula.org/isula-build/exporter/docker/archive"
 	"isula.org/isula-build/image"
@@ -41,28 +36,13 @@ import (
 	"isula.org/isula-build/util"
 )
 
-const (
-	manifestDataFile     = "manifest.json"
-	manifestFile         = "manifest"
-	repositoriesFile     = "repositories"
-	baseTarNameSuffix    = "_base_image.tar.gz"
-	appTarNameSuffix     = "_app_image.tar.gz"
-	libTarNameSuffix     = "_lib_image.tar.gz"
-	untarTempDirName     = "untar"
-	baseUntarTempDirName = "base_images"
-	appUntarTempDirName  = "app_images"
-	libUntarTempDirName  = "lib_images"
-	unionTarName         = "all.tar"
-	layerTarName         = "layer.tar"
-	tarSuffix            = ".tar"
-)
-
 type savedImage struct {
 	exist bool
 	tags  []reference.NamedTagged
 }
 
-type saveOptions struct {
+// SaveOptions stores the options for saving images
+type SaveOptions struct {
 	sysCtx            *types.SystemContext
 	localStore        *store.Store
 	logger            *logger.Logger
@@ -73,77 +53,11 @@ type saveOptions struct {
 	oriImgList        []string
 	finalImageOrdered []string
 	finalImageSet     map[string]*savedImage
-	sep               separatorSave
+	sep               separator.Saver
 }
 
-type separatorSave struct {
-	log        *logrus.Entry
-	renameData []renames
-	tmpDir     imageTmpDir
-	base       string
-	lib        string
-	dest       string
-	renameFile string
-	enabled    bool
-}
-
-type renames struct {
-	Name   string `json:"name"`
-	Rename string `json:"rename"`
-}
-
-type imageTmpDir struct {
-	app   string
-	base  string
-	lib   string
-	untar string
-	root  string
-}
-
-type layer struct {
-	all  []string
-	base []string
-	lib  []string
-	app  []string
-}
-
-type imageInfo struct {
-	layers   layer
-	repoTags []string
-	config   string
-	name     string
-	tag      string
-	nameTag  string
-	topLayer string
-}
-
-// imageManifest return image's manifest info
-type imageManifest struct {
-	Config   string   `json:"Config"`
-	RepoTags []string `json:"RepoTags"`
-	Layers   []string `json:"Layers"`
-	// Not shown in the json file
-	HashMap map[string]string `json:"-"`
-}
-
-type imageLayersMap map[string]string
-
-type tarballInfo struct {
-	AppTarName    string   `json:"app"`
-	AppHash       string   `json:"appHash"`
-	AppLayers     []string `json:"appLayers"`
-	LibTarName    string   `json:"lib"`
-	LibHash       string   `json:"libHash"`
-	LibImageName  string   `json:"libImageName"`
-	LibLayers     []string `json:"libLayers"`
-	BaseTarName   string   `json:"base"`
-	BaseHash      string   `json:"baseHash"`
-	BaseImageName string   `json:"baseImageName"`
-	BaseLayer     string   `json:"baseLayer"`
-}
-
-func (b *Backend) getSaveOptions(req *pb.SaveRequest) saveOptions {
-	var opt = saveOptions{
+func (b *Backend) getSaveOptions(req *pb.SaveRequest) SaveOptions {
+	var opt = SaveOptions{
 		sysCtx:            image.GetSystemContext(),
 		localStore:        b.daemon.localStore,
 		saveID:            req.GetSaveID(),
@@ -160,24 +74,7 @@ func (b *Backend) getSaveOptions(req *pb.SaveRequest) saveOptions {
 		return opt
 	}
 
-	opt.sep = separatorSave{
-		base:       req.GetSep().GetBase(),
-		lib:        req.GetSep().GetLib(),
-		dest:       req.GetSep().GetDest(),
-		log:        logrus.WithFields(logrus.Fields{"SaveID": req.GetSaveID()}),
-		enabled:    req.GetSep().GetEnabled(),
-		renameFile: req.GetSep().GetRename(),
-	}
-
-	// save separated image
-	tmpRoot := filepath.Join(b.daemon.opts.DataRoot, filepath.Join(dataRootTmpDirPrefix, req.GetSaveID()))
-	untar := filepath.Join(tmpRoot, untarTempDirName)
-	appDir := filepath.Join(tmpRoot, appUntarTempDirName)
-	baseDir := filepath.Join(tmpRoot, baseUntarTempDirName)
-	libDir := filepath.Join(tmpRoot, libUntarTempDirName)
-
-	opt.sep.tmpDir = imageTmpDir{app: appDir, base: baseDir, lib: libDir, untar: untar, root: tmpRoot}
-	opt.outputPath = filepath.Join(untar, unionTarName)
+	opt.sep, opt.outputPath = separator.GetSepSaveOptions(req, opt.logEntry, b.daemon.opts.DataRoot)
 
 	return opt
 }
@@ -213,15 +110,14 @@ func (b *Backend) Save(req *pb.SaveRequest, stream pb.Control_SaveServer) (err e
 		return err
 	}
 
-	// separatorSave found
-	if opts.sep.enabled {
-		return separateImage(opts)
+	if opts.sep.Enabled() {
+		return opts.sep.SeparateImage(opts.localStore, opts.oriImgList, opts.outputPath)
 	}
 
 	return nil
 }
 
-func exportHandler(ctx context.Context, opts *saveOptions) func() error {
+func exportHandler(ctx context.Context, opts *SaveOptions) func() error {
 	return func() error {
 		defer func() {
 			opts.logger.CloseContent()
@@ -278,7 +174,7 @@ func messageHandler(stream pb.Control_SaveServer, cliLogger *logger.Logger) func
 	}
 }
 
-func (opts *saveOptions) manage() error {
+func (opts *SaveOptions) manage() error {
 	if err := opts.checkImageNameIsID(); err != nil {
 		return err
 	}
@@ -288,29 +184,22 @@ func (opts *saveOptions) manage() error {
 	if err := opts.filterImageName(); err != nil {
 		return err
 	}
-	if err := opts.loadRenameFile(); err != nil {
+	if err := opts.sep.LoadRenameFile(); err != nil {
 		return err
 	}
 
 	return nil
 }
 
-func (opts *saveOptions) checkImageNameIsID() error {
+func (opts *SaveOptions) checkImageNameIsID() error {
 	imageNames := opts.oriImgList
-	if opts.sep.enabled {
-		if len(opts.sep.base) != 0 {
-			imageNames = append(imageNames, opts.sep.base)
-		}
-		if len(opts.sep.lib) != 0 {
-			imageNames = append(imageNames, opts.sep.lib)
-		}
-	}
+	imageNames = append(imageNames, opts.sep.ImageNames()...)
 	for _, name := range imageNames {
 		_, img, err := image.FindImage(opts.localStore, name)
 		if err != nil {
 			return errors.Wrapf(err, "check image name failed when finding image name %q", name)
 		}
-		if strings.HasPrefix(img.ID, name) && opts.sep.enabled {
+		if strings.HasPrefix(img.ID, name) && opts.sep.Enabled() {
 			return errors.Errorf("using image ID %q as image name to save separated image is not allowed", name)
 		}
 	}
@@ -318,7 +207,7 @@ func (opts *saveOptions) checkImageNameIsID() error {
 	return nil
 }
 
-func (opts *saveOptions) setFormat() error {
+func (opts *SaveOptions) setFormat() error {
 	switch opts.format {
 	case constant.DockerTransport:
 		opts.format = constant.DockerArchiveTransport
@@ -331,7 +220,7 @@ func (opts *saveOptions) setFormat() error {
 	return nil
 }
 
-func (opts *saveOptions) filterImageName() error {
+func (opts *SaveOptions) filterImageName() error {
 	if opts.format == constant.OCIArchiveTransport {
 		opts.finalImageOrdered = opts.oriImgList
 		return nil
@@ -366,508 +255,4 @@ func (opts *saveOptions) filterImageName() error {
 	}
 
 	return nil
-}
-
-func (opts *saveOptions) loadRenameFile() error {
-	if len(opts.sep.renameFile) != 0 {
-		var reName []renames
-		if err := util.LoadJSONFile(opts.sep.renameFile, &reName); err != nil {
-			return errors.Wrap(err, "check rename file failed")
-		}
-		opts.sep.renameData = reName
-	}
-
-	return nil
-}
-
-func (s *separatorSave) getLayerHashFromStorage(store *store.Store, name string) ([]string, error) {
-	if len(name) == 0 {
-		return nil, nil
-	}
-	_, img, err := image.FindImage(store, name)
-	if err != nil {
-		return nil, err
-	}
-
-	layer, err := store.Layer(img.TopLayer)
-	if err != nil {
-		return nil, errors.Wrapf(err, "failed to get top layer for image %s", name)
-	}
-
-	var layers []string
-	// add each layer in the layers until reach the root layer
-	for layer != nil {
-		fields := strings.Split(layer.UncompressedDigest.String(), ":")
-		if len(fields) != 2 {
-			return nil, errors.Errorf("error format of layer of image %s", name)
-		}
-		layers = append(layers, fields[1])
-		if layer.Parent == "" {
-			break
-		}
-		layer, err = store.Layer(layer.Parent)
-		if err != nil {
-			return nil, errors.Wrapf(err, "unable to read layer %q", layer.Parent)
-		}
-	}
-
-	return layers, nil
-}
-
-// process physic file
-func (s *separatorSave) constructLayerMap() (map[string]string, error) {
-	path := s.tmpDir.untar
-	files, rErr := ioutil.ReadDir(path)
-	if rErr != nil {
-		return nil, rErr
-	}
-
-	var layerMap = make(map[string]string, len(files))
-	// process layer's file
-	for _, file := range files {
-		if file.IsDir() {
-			layerFile := filepath.Join(path, file.Name(), layerTarName)
-			oriFile, err := os.Readlink(layerFile)
-			if err != nil {
-				return nil, err
-			}
-			physicFile := filepath.Join(path, file.Name(), oriFile)
-			layerMap[filepath.Base(physicFile)] = filepath.Join(file.Name(), layerTarName)
-			if err := os.Rename(physicFile, layerFile); err != nil {
-				return nil, err
-			}
-		}
-	}
-
-	return layerMap, nil
-}
-
-func getLayerHashFromTar(layerMap map[string]string, layer []string) map[string]string {
-	hashMap := make(map[string]string, len(layer))
-	// first reverse map since it's <k-v> is unique
-	revMap := make(map[string]string, len(layerMap))
-	for k, v := range layerMap {
-		revMap[v] = k
-	}
-	for _, l := range layer {
-		if v, ok := revMap[l]; ok {
-			// format is like xxx(hash): xxx/layer.tar
-			hashMap[strings.TrimSuffix(v, tarSuffix)] = l
-		}
-	}
-
-	return hashMap
-}
-
-func (s *separatorSave) adjustLayers() ([]imageManifest, error) {
-	s.log.Info("Adjusting layers for saving separated image")
-
-	layerMap, err := s.constructLayerMap()
-	if err != nil {
-		s.log.Errorf("Process layers failed: %v", err)
-		return nil, err
-	}
-
-	// process manifest file
-	var man []imageManifest
-	if lErr := util.LoadJSONFile(filepath.Join(s.tmpDir.untar, manifestDataFile), &man); lErr != nil {
-		return nil, lErr
-	}
-
-	for i, img := range man {
-		layers := make([]string, len(img.Layers))
-		for i, layer := range img.Layers {
-			layers[i] = layerMap[layer]
-		}
-		man[i].Layers = layers
-		man[i].HashMap = getLayerHashFromTar(layerMap, layers)
-	}
-	buf, err := json.Marshal(&man)
-	if err != nil {
-		return nil, err
-	}
-	if err := ioutils.AtomicWriteFile(manifestFile, buf, constant.DefaultSharedFileMode); err != nil {
-		return nil, err
-	}
-
-	return man, nil
-}
-
-func separateImage(opt saveOptions) (err error) {
-	s := &opt.sep
-	s.log.Infof("Start saving separated images %v", opt.oriImgList)
-
-	if err = os.MkdirAll(s.dest, constant.DefaultRootDirMode); err != nil {
-		return err
-	}
-
-	defer func() {
-		if tErr := os.RemoveAll(s.tmpDir.root); tErr != nil && !os.IsNotExist(tErr) {
-			s.log.Warnf("Removing save tmp directory %q failed: %v", s.tmpDir.root, tErr)
-		}
-		if err != nil {
-			if rErr := os.RemoveAll(s.dest); rErr != nil && !os.IsNotExist(rErr) {
-				s.log.Warnf("Removing save dest directory %q failed: %v", s.dest, rErr)
-			}
-		}
-	}()
-	if err = util.UnpackFile(opt.outputPath, s.tmpDir.untar, archive.Gzip, true); err != nil {
-		return errors.Wrapf(err, "unpack %q failed", opt.outputPath)
-	}
-	manifest, aErr := s.adjustLayers()
-	if aErr != nil {
-		return errors.Wrap(aErr, "adjust layers failed")
-	}
-
-	imgInfos, cErr := s.constructImageInfos(manifest, opt.localStore)
-	if cErr != nil {
-		return errors.Wrap(cErr, "process image infos failed")
-	}
-
-	if err = s.processImageLayers(imgInfos); err != nil {
-		return err
-	}
-
-	return nil
-}
-
-func (s *separatorSave) processImageLayers(imgInfos map[string]imageInfo) error {
-	s.log.Info("Processing image layers")
-	var (
-		tarballs      = make(map[string]tarballInfo)
-		baseImagesMap = make(imageLayersMap, 1)
-		libImagesMap  = make(imageLayersMap, 1)
-		appImagesMap  = make(imageLayersMap, 1)
-	)
-	var sortedKey []string
-	for k := range imgInfos {
-		sortedKey = append(sortedKey, k)
-	}
-	sort.Strings(sortedKey)
-	for _, k := range sortedKey {
-		info := imgInfos[k]
-		if err := s.clearTempDirs(); err != nil {
-			return errors.Wrap(err, "clear tmp dirs failed")
-		}
-		var t tarballInfo
-		// process base
-		if err := info.processBaseImg(s, baseImagesMap, &t); err != nil {
-			return errors.Wrapf(err, "process base images %s failed", info.nameTag)
-		}
-		// process lib
-		if err := info.processLibImg(s, libImagesMap, &t); err != nil {
-			return errors.Wrapf(err, "process lib images %s failed", info.nameTag)
-		}
-		// process app
-		if err := info.processAppImg(s, appImagesMap, &t); err != nil {
-			return errors.Wrapf(err, "process app images %s failed", info.nameTag)
-		}
-		tarballs[info.nameTag] = t
-	}
-	buf, err := json.Marshal(&tarballs)
-	if err != nil {
-		return err
-	}
-	// manifest file
-	manifestFile := filepath.Join(s.dest, manifestFile)
-	if err := ioutils.AtomicWriteFile(manifestFile, buf, constant.DefaultRootFileMode); err != nil {
-		return err
-	}
-
-	s.log.Info("Save separated image succeed")
-	return nil
-}
-
-func (s *separatorSave) clearTempDirs() error {
-	dirs := []string{s.tmpDir.base, s.tmpDir.app, s.tmpDir.lib}
-	for _, dir := range dirs {
-		if err := os.RemoveAll(dir); err != nil {
-			return err
-		}
-		if err := os.MkdirAll(dir, constant.DefaultRootDirMode); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-// processTarName will trim the prefix of image name like example.io/library/myapp:v1
-// after processed, the name will be myapp_v1_suffix
-// mind: suffix here should not contain path separator
-func (info imageInfo) processTarName(suffix string) string {
-	originNames := strings.Split(info.name, string(os.PathSeparator))
-	originTags := strings.Split(info.tag, string(os.PathSeparator))
-	// get the last element of the list, which mast be the right name without prefix
-	name := originNames[len(originNames)-1]
-	tag := originTags[len(originTags)-1]
-
-	return fmt.Sprintf("%s_%s%s", name, tag, suffix)
-}
-
-func (info *imageInfo) processBaseImg(sep *separatorSave, baseImagesMap map[string]string, tarball *tarballInfo) error {
-	// process base
-	tarball.BaseImageName = sep.base
-	if len(info.layers.base) != 0 {
-		sep.log.Infof("Base image %s has %d layers", sep.base, len(info.layers.base))
-		tarball.BaseLayer = info.layers.base[0]
-	}
-	for _, layerID := range info.layers.base {
-		if baseImg, ok := baseImagesMap[layerID]; !ok {
-			srcLayerPath := filepath.Join(sep.tmpDir.untar, layerID)
-			destLayerPath := filepath.Join(sep.tmpDir.base, layerID)
-			if err := os.Rename(srcLayerPath, destLayerPath); err != nil {
-				return err
-			}
-			baseTarName := info.processTarName(baseTarNameSuffix)
-			baseTarName = sep.rename(baseTarName)
-			baseTarPath := filepath.Join(sep.dest, baseTarName)
-			if err := util.PackFiles(sep.tmpDir.base, baseTarPath, archive.Gzip, true); err != nil {
-				return err
-			}
-			baseImagesMap[layerID] = baseTarPath
-			tarball.BaseTarName = baseTarName
-			digest, err := util.SHA256Sum(baseTarPath)
-			if err != nil {
-				return errors.Wrapf(err, "check sum for new base image %s failed", baseTarName)
-			}
-			tarball.BaseHash = digest
-		} else {
-			tarball.BaseTarName = filepath.Base(baseImg)
-			digest, err := util.SHA256Sum(baseImg)
-			if err != nil {
-				return errors.Wrapf(err, "check sum for reuse base image %s failed", baseImg)
-			}
-			tarball.BaseHash = digest
-		}
-	}
-
-	return nil
-}
-
-func (info *imageInfo) processLibImg(sep *separatorSave, libImagesMap map[string]string, tarball *tarballInfo) error {
-	// process lib
-	if info.layers.lib == nil {
-		return nil
-	}
-
-	tarball.LibImageName = sep.lib
-	sep.log.Infof("Lib image %s has %d layers", sep.lib, len(info.layers.lib))
-	for _, layerID := range info.layers.lib {
-		tarball.LibLayers = append(tarball.LibLayers, layerID)
-		if libImg, ok := libImagesMap[layerID]; !ok {
-			srcLayerPath := filepath.Join(sep.tmpDir.untar, layerID)
-			destLayerPath := filepath.Join(sep.tmpDir.lib, layerID)
-			if err := os.Rename(srcLayerPath, destLayerPath); err != nil {
-				return err
-			}
-			libTarName := info.processTarName(libTarNameSuffix)
-			libTarName = sep.rename(libTarName)
-			libTarPath := filepath.Join(sep.dest, libTarName)
-			if err := util.PackFiles(sep.tmpDir.lib, libTarPath, archive.Gzip, true); err != nil {
-				return err
-			}
-			libImagesMap[layerID] = libTarPath
-			tarball.LibTarName = libTarName
-			digest, err := util.SHA256Sum(libTarPath)
-			if err != nil {
-				return errors.Wrapf(err, "check sum for lib image %s failed", sep.lib)
-			}
-			tarball.LibHash = digest
-		} else {
-			tarball.LibTarName = filepath.Base(libImg)
-			digest, err := util.SHA256Sum(libImg)
-			if err != nil {
-				return errors.Wrapf(err, "check sum for lib image %s failed", sep.lib)
-			}
-			tarball.LibHash = digest
-		}
-	}
-
-	return nil
-}
-
-func (info *imageInfo) processAppImg(sep *separatorSave, appImagesMap map[string]string, tarball *tarballInfo) error {
-	// process app
-	sep.log.Infof("App image %s has %d layers", info.nameTag, len(info.layers.app))
-	appTarName := info.processTarName(appTarNameSuffix)
-	appTarName = sep.rename(appTarName)
-	appTarPath := filepath.Join(sep.dest, appTarName)
-	for _, layerID := range info.layers.app {
-		srcLayerPath := filepath.Join(sep.tmpDir.untar, layerID)
-		destLayerPath := filepath.Join(sep.tmpDir.app, layerID)
-		if err := os.Rename(srcLayerPath, destLayerPath); err != nil {
-			if appImg, ok := appImagesMap[layerID]; ok {
-				return errors.Errorf("lib layers %s already saved in %s for image %s",
-					layerID, appImg, info.nameTag)
-			}
-		}
-		appImagesMap[layerID] = appTarPath
-		tarball.AppLayers = append(tarball.AppLayers, layerID)
-	}
-	// create config file
-	if err := info.createManifestFile(sep); err != nil {
-		return err
-	}
-	if err := info.createRepositoriesFile(sep); err != nil {
-		return err
-	}
-
-	srcConfigPath := filepath.Join(sep.tmpDir.untar, info.config)
-	destConfigPath := filepath.Join(sep.tmpDir.app, info.config)
-	if err := os.Rename(srcConfigPath, destConfigPath); err != nil {
-		return err
-	}
-
-	if err := util.PackFiles(sep.tmpDir.app, appTarPath, archive.Gzip, true); err != nil {
-		return err
-	}
-	tarball.AppTarName = appTarName
-	digest, err := util.SHA256Sum(appTarPath)
-	if err != nil {
-		return errors.Wrapf(err, "check sum for app image %s failed", info.nameTag)
-	}
-	tarball.AppHash = digest
-
-	return nil
-}
-
-func (info imageInfo) createRepositoriesFile(sep *separatorSave) error {
-	// create repositories
-	type repoItem map[string]string
-	repo := make(map[string]repoItem, 1)
-	item := make(repoItem, 1)
-	if _, ok := item[info.tag]; !ok {
-		item[info.tag] = info.topLayer
-	}
-	repo[info.name] = item
-	buf, err := json.Marshal(repo)
-	if err != nil {
-		return err
-	}
-	repositoryFile := filepath.Join(sep.tmpDir.app, repositoriesFile)
-	if err := ioutils.AtomicWriteFile(repositoryFile, buf, constant.DefaultRootFileMode); err != nil {
-		return err
-	}
-	return nil
-}
-
-func (info imageInfo) createManifestFile(sep *separatorSave) error {
-	// create manifest.json
-	var s = imageManifest{
-		Config:   info.config,
-		Layers:   info.layers.all,
-		RepoTags: info.repoTags,
-	}
-	var m []imageManifest
-	m = append(m, s)
-	buf, err := json.Marshal(&m)
-	if err != nil {
-		return err
-	}
-	data := filepath.Join(sep.tmpDir.app, manifestDataFile)
-	if err := ioutils.AtomicWriteFile(data, buf, constant.DefaultRootFileMode); err != nil {
-		return err
-	}
-	return nil
-}
-
-func getLayersID(layer []string) []string {
-	var after = make([]string, len(layer))
-	for i, v := range layer {
-		after[i] = strings.Split(v, "/")[0]
-	}
-	return after
-}
-
-func (s *separatorSave) constructSingleImgInfo(mani imageManifest, store *store.Store) (imageInfo, error) {
-	var libLayers, appLayers []string
-	// image name should not be empty here
-	if len(mani.RepoTags) == 0 {
-		return imageInfo{}, errors.New("image name and tag is empty")
-	}
-	// if there is more than one repoTag, will use first one as image name
-	imageRepoFields := strings.Split(mani.RepoTags[0], ":")
-	imageLayers := getLayersID(mani.Layers)
-
-	libs, bases, err := s.checkLayersHash(mani.HashMap, store)
-	if err != nil {
-		return imageInfo{}, errors.Wrap(err, "compare layers failed")
-	}
-	baseLayers := imageLayers[0:len(bases)]
-	if len(libs) != 0 {
-		libLayers = imageLayers[len(bases):len(libs)]
-		appLayers = imageLayers[len(libs):]
-	} else {
-		libLayers = nil
-		appLayers = imageLayers[len(bases):]
-	}
-
-	return imageInfo{
-		config:   mani.Config,
-		repoTags: mani.RepoTags,
-		nameTag:  mani.RepoTags[0],
-		name:     strings.Join(imageRepoFields[0:len(imageRepoFields)-1], ":"),
-		tag:      imageRepoFields[len(imageRepoFields)-1],
-		layers:   layer{app: appLayers, lib: libLayers, base: baseLayers, all: mani.Layers},
-		topLayer: imageLayers[len(imageLayers)-1],
-	}, nil
-}
-
-func (s *separatorSave) checkLayersHash(layerHashMap map[string]string, store *store.Store) ([]string, []string, error) {
-	libHash, err := s.getLayerHashFromStorage(store, s.lib)
-	if err != nil {
-		return nil, nil, errors.Wrapf(err, "get lib image %s layers failed", s.lib)
-	}
-	baseHash, err := s.getLayerHashFromStorage(store, s.base)
-	if err != nil {
-		return nil, nil, errors.Wrapf(err, "get base image %s layers failed", s.base)
-	}
-	if len(baseHash) > 1 {
-		return nil, nil, errors.Errorf("number of base layers %d more than one", len(baseHash))
-	}
-	if len(libHash) >= len(layerHashMap) || len(baseHash) >= len(layerHashMap) {
-		return nil, nil, errors.Errorf("number of base or lib layers is equal or greater than saved app layers")
-	}
-
-	for _, l := range libHash {
-		if _, ok := layerHashMap[l]; !ok {
-			return nil, nil, errors.Errorf("dismatch checksum for lib image %s", s.lib)
-		}
-	}
-	for _, b := range baseHash {
-		if _, ok := layerHashMap[b]; !ok {
-			return nil, nil, errors.Errorf("dismatch checksum for base image %s", s.base)
-		}
-	}
-
-	return libHash, baseHash, nil
-}
-
-func (s *separatorSave) constructImageInfos(manifest []imageManifest, store *store.Store) (map[string]imageInfo, error) {
-	s.log.Info("Constructing image info")
-
-	var imgInfos = make(map[string]imageInfo, 1)
-	for _, mani := range manifest {
-		imgInfo, err := s.constructSingleImgInfo(mani, store)
-		if err != nil {
-			s.log.Errorf("Constructing image info failed: %v", err)
-			return nil, errors.Wrap(err, "construct image info failed")
-		}
-		if _, ok := imgInfos[imgInfo.nameTag]; !ok {
-			imgInfos[imgInfo.nameTag] = imgInfo
-		}
-	}
-	return imgInfos, nil
-}
-
-func (s *separatorSave) rename(name string) string {
-	if len(s.renameData) != 0 {
-		s.log.Info("Renaming image tarballs")
-		for _, item := range s.renameData {
-			if item.Name == name {
-				return item.Rename
-			}
-		}
-	}
-	return name
 }

@@ -31,14 +31,20 @@ const (
 	RegistryDirPath = ConfigRoot + "registries.d"
 	// AuthFilePath is authentication file used for registry connection
 	AuthFilePath = ConfigRoot + "auth.json"
-	// DefaultGRPCAddress is the local unix socket used by isula-builder
-	DefaultGRPCAddress = "unix:///var/run/isula_build.sock"
-	// UnixPrefix is the prefix used on defined an unix sock
-	UnixPrefix = "unix://"
+	// DefaultCertRoot is path of certification used for registry connection
+	DefaultCertRoot = ConfigRoot + "certs.d"
+
 	// DefaultDataRoot is the default persistent data root used by isula-builder
 	DefaultDataRoot = "/var/lib/isula-build"
 	// DefaultRunRoot is the default run root used by isula-builder
 	DefaultRunRoot = "/var/run/isula-build"
+	// UnixPrefix is the prefix used on defined an unix sock
+	UnixPrefix = "unix://"
+	// DefaultGRPCAddress is the local unix socket used by isula-builder
+	DefaultGRPCAddress = UnixPrefix + "/var/run/isula_build.sock"
+	// DataRootTmpDirPrefix is the dir for storing temporary items using during images building
+	DataRootTmpDirPrefix = "tmp"
+
 	// DefaultSharedDirMode is dir perm mode with higher permission
 	DefaultSharedDirMode = 0755
 	// DefaultSharedFileMode is file perm mode with higher permission
@@ -53,12 +59,14 @@ const (
 	DefaultReadOnlyFileMode = 0400
 	// DefaultUmask is the working umask of isula-builder as a process, not for users
 	DefaultUmask = 0022
-	// CliLogBufferLen is log channel buffer size
-	CliLogBufferLen = 8
+
 	// HostsFilePath is the path of file hosts
 	HostsFilePath = "/etc/hosts"
 	// ResolvFilePath is the path of file resolv.conf
 	ResolvFilePath = "/etc/resolv.conf"
+
+	// CliLogBufferLen is log channel buffer size
+	CliLogBufferLen = 8
 	// MaxFileSize is the maximum file size allowed, set 1M
 	MaxFileSize = 1024 * 1024
 	// DefaultHTTPTimeout includes the total time of dial, TLS handshake, request, resp headers and body
@@ -67,14 +75,12 @@ const (
 	DefaultFailedCode = 1
 	// DefaultIDLen is the ID length for image ID and build ID
 	DefaultIDLen = 12
-	// DefaultCertRoot is path of certification used for registry connection
-	DefaultCertRoot = ConfigRoot + "certs.d"
+
 	// LayoutTime is the time format used to parse time from a string
 	LayoutTime = "2006-01-02 15:04:05"
 	// BuildContainerImageType is the default build type
 	BuildContainerImageType = "ctr-img"
-	// BufferSize is default buffer size for file transportation
-	BufferSize = 32 * 1024
+
 	// DockerTransport used to export docker image format images to registry
 	DockerTransport = "docker"
 	// DockerArchiveTransport used to export docker image format images to local tarball

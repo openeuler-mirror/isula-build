@@ -144,8 +144,8 @@ func (opt *saveOptions) checkSaveOpts(args []string) error {
 		}
 		// separate image only support docker image spec
 		opt.format = constant.DockerTransport
-		if err := opt.sep.check(pwd); err != nil {
-			return err
+		if cerr := opt.sep.check(pwd); cerr != nil {
+			return cerr
 		}
 		opt.sep.enabled = true
 
