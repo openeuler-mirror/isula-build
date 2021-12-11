@@ -15,7 +15,6 @@ package util
 
 import (
 	"fmt"
-	"math/rand"
 	"os"
 	"testing"
 
@@ -32,7 +31,8 @@ func TestGetChownOptions(t *testing.T) {
 		GIDWanted int
 		isErr     bool
 	}
-	mountpoint := fmt.Sprintf("/tmp/mount-%d", rand.Int())
+
+	mountpoint := fmt.Sprintf("/tmp/mount-%d", GenRandInt64())
 	err := os.MkdirAll(mountpoint+"/etc", constant.DefaultSharedDirMode)
 	assert.NilError(t, err)
 	pFile, err := os.Create(mountpoint + "/etc/passwd")

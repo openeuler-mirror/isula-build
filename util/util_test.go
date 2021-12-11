@@ -17,7 +17,6 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	"math/rand"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -76,7 +75,7 @@ func TestCopyURLResource(t *testing.T) {
 }
 
 func TestCopyFile(t *testing.T) {
-	src := fmt.Sprintf("/tmp/test-%d", rand.Int())
+	src := fmt.Sprintf("/tmp/test-%d", GenRandInt64())
 	f, err := os.Create(src)
 	defer func() {
 		f.Close()
@@ -101,7 +100,7 @@ func TestCopyFile(t *testing.T) {
 	_, err = f.Write([]byte("This is a test file."))
 	assert.NilError(t, err)
 
-	dir := fmt.Sprintf("/tmp/test2-%d/", rand.Int())
+	dir := fmt.Sprintf("/tmp/test2-%d/", GenRandInt64())
 	dest := dir + "test"
 	err = CopyFile(src, dest, idtools.IDPair{})
 	defer func() {
