@@ -16,7 +16,6 @@ package dockerfile
 import (
 	"fmt"
 	"io/ioutil"
-	"math/rand"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -253,8 +252,8 @@ func TestResolveCopySource(t *testing.T) {
 }
 
 func TestAddFile(t *testing.T) {
-	realSrc := fmt.Sprintf("/tmp/test-%d", rand.Int())
-	dest := fmt.Sprintf("/tmp/test2-%d", rand.Int())
+	realSrc := fmt.Sprintf("/tmp/test-%d", util.GenRandInt64())
+	dest := fmt.Sprintf("/tmp/test2-%d", util.GenRandInt64())
 	err := exec.Command("/bin/sh", "-c", "touch "+realSrc).Run()
 	assert.NilError(t, err)
 
@@ -269,9 +268,9 @@ func TestAddFile(t *testing.T) {
 	err = os.Remove(dest)
 	assert.NilError(t, err)
 
-	tarFile := fmt.Sprintf("/tmp/a-%d.tar.gz", rand.Int())
-	srcFile1 := fmt.Sprintf("/tmp/test-%d", rand.Int())
-	srcFile2 := fmt.Sprintf("/tmp/test2-%d", rand.Int())
+	tarFile := fmt.Sprintf("/tmp/a-%d.tar.gz", util.GenRandInt64())
+	srcFile1 := fmt.Sprintf("/tmp/test-%d", util.GenRandInt64())
+	srcFile2 := fmt.Sprintf("/tmp/test2-%d", util.GenRandInt64())
 	err = exec.Command("/bin/sh", "-c", "touch "+srcFile1+" "+srcFile2+
 		" && tar -czf "+tarFile+" "+srcFile1+" "+srcFile2).Run()
 	assert.NilError(t, err)
@@ -298,8 +297,8 @@ func TestAddFile(t *testing.T) {
 
 func TestAdd(t *testing.T) {
 	ignores := []string{"a", "b"}
-	contextDir := fmt.Sprintf("/tmp/context-%d", rand.Int())
-	contextDir2 := fmt.Sprintf("/tmp/context-%d", rand.Int())
+	contextDir := fmt.Sprintf("/tmp/context-%d", util.GenRandInt64())
+	contextDir2 := fmt.Sprintf("/tmp/context-%d", util.GenRandInt64())
 	matcher, err := util.GetIgnorePatternMatcher(ignores, contextDir, "")
 	assert.NilError(t, err)
 

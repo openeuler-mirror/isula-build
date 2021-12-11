@@ -17,7 +17,6 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	"math/rand"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -76,8 +75,8 @@ func clean() {
 func cleanAndSetDefaultStoreOpt(t *testing.T) {
 	cleanDefaultStoreOpt(t)
 	store.SetDefaultStoreOptions(store.DaemonStoreOptions{
-		DataRoot: fmt.Sprintf("/tmp/isula-build/storage-data-%d/", rand.Int()),
-		RunRoot:  fmt.Sprintf("/tmp/isula-build/storage-run-%d/", rand.Int()),
+		DataRoot: fmt.Sprintf("/tmp/isula-build/storage-data-%d/", util.GenRandInt64()),
+		RunRoot:  fmt.Sprintf("/tmp/isula-build/storage-run-%d/", util.GenRandInt64()),
 	})
 	localStore, _ = store.GetStore()
 }

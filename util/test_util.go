@@ -15,8 +15,11 @@
 package util
 
 import (
+	"crypto/rand"
 	"flag"
 	"fmt"
+	"math"
+	"math/big"
 	"os/exec"
 	"strings"
 	"testing"
@@ -71,4 +74,10 @@ func Immutable(path string, set bool) error {
 		return errors.Wrapf(err, "chattr %s for %s failed", op, path)
 	}
 	return nil
+}
+
+// GenRandInt64 is to generate an nondeterministic int64 value
+func GenRandInt64() int64 {
+	val, _ := rand.Int(rand.Reader, big.NewInt(math.MaxInt64))
+	return val.Int64()
 }
