@@ -460,34 +460,50 @@ func readDockerfile() (string, string, error) {
 	return string(buf), parts[1], nil
 }
 
+func checkDockerfile(filePath string) error {
+	fileInfo, err := os.Stat(filePath)
+	if err != nil {
+		return err
+	}
+
+	if !fileInfo.Mode().IsRegular() {
+		return errors.Errorf("file %s should be a regular file", filePath)
+	}
+	if fileInfo.Size() == 0 {
+		return errors.New("file is empty, is it a normal dockerfile?")
+	}
+	if fileInfo.Size() > constant.MaxFileSize {
+		return errors.Errorf("file is too big with size %v, is it a normal dockerfile?", fileInfo.Size())
+	}
+	return nil
+}
+
 func resolveDockerfilePath() (string, error) {
 	var resolvedPath = buildOpts.file
-
+	var err error
 	if buildOpts.file == "" {
 		// filepath is empty, try to resolve with contextDir+Dockerfile
 		resolvedPath = path.Join(buildOpts.contextDir, "Dockerfile")
+		err = checkDockerfile(resolvedPath)
+		if err != nil {
+			logrus.Debugf("Stat dockerfile failed with path %s", resolvedPath)
+			return "", err
+		}
+		return resolvedPath, nil
 	}
-	// stat path with origin filepath or contextDir+Dockerfile
-	fileInfo, err := os.Stat(resolvedPath)
+
+	err = checkDockerfile(resolvedPath)
 	if err != nil {
 		logrus.Debugf("Stat dockerfile failed with path %s", resolvedPath)
 		// not found with filepath, try to resolve with contextDir+filepath
 		resolvedPath = path.Join(buildOpts.contextDir, buildOpts.file)
-		fileInfo, err = os.Stat(resolvedPath)
+		err = checkDockerfile(resolvedPath)
 		if err != nil {
 			logrus.Debugf("Stat dockerfile failed again with path %s", resolvedPath)
-			return "", errors.Wrapf(err, "stat dockerfile failed with filename %s", buildOpts.file)
+			return "", err
 		}
 	}
-	if !fileInfo.Mode().IsRegular() {
-		return "", errors.Errorf("file %s should be a regular file", resolvedPath)
-	}
-	if fileInfo.Size() == 0 {
-		return "", errors.New("file is empty, is it a normal dockerfile?")
-	}
-	if fileInfo.Size() > constant.MaxFileSize {
-		return "", errors.Errorf("file is too big with size %v, is it a normal dockerfile?", fileInfo.Size())
-	}
+
 	return resolvedPath, nil
 }
 

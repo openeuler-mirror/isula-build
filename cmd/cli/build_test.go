@@ -325,6 +325,22 @@ func TestReadDockerfileWithDirectory(t *testing.T) {
 	assert.ErrorContains(t, err, "should be a regular file")
 }
 
+// Test readDockerfile
+// case 6. buildOpts.file not appointed and contextDir has no file named Dockerfile
+// expect: return error with Dockerfile(default file name)
+func TestReadDockerfileWithNoNameAndNoFileNamedDockerfile(t *testing.T) {
+	tmpDir := fs.NewDir(t, t.Name())
+	defer tmpDir.Remove()
+
+	buildOpts.contextDir = tmpDir.Path()
+	buildOpts.file = ""
+
+	_, _, err := readDockerfile()
+	// if not found, os.Stat will tell us Dockerfile not found
+	// so it depends on os.Stat's return
+	assert.ErrorContains(t, err, "Dockerfile: no such file or directory")
+}
+
 func TestNewBuildOptions(t *testing.T) {
 	// no args case use current working directory as context directory
 	cwd, err := os.Getwd()
