@@ -1,0 +1,60 @@
+From 631764189a65f1a307947360637f4e5352a0c8e5 Mon Sep 17 00:00:00 2001
+From: hlwqds <545743488@qq.com>
+Date: Sun, 12 Dec 2021 14:49:22 +0800
+Subject: [PATCH 2/4] fix some little mistakes in manual_zh.md Fixes: #I4M4A3
+ Signed-off-by: hlwqds 545743488@qq.com
+
+---
+ doc/manual_zh.md | 12 +++++-------
+ 1 file changed, 5 insertions(+), 7 deletions(-)
+
+diff --git a/doc/manual_zh.md b/doc/manual_zh.md
+index e68c77ed..c5303f8d 100644
+--- a/doc/manual_zh.md
++++ b/doc/manual_zh.md
+@@ -140,7 +140,7 @@ isula-build采用服务端/客户端模式，其中，isula-build为客户端，
+ > - isula-build 支持最大 1MiB 的上述配置文件。
+ > - isula-build 不支持将持久化工作目录 dataroot 配置在内存盘上，比如 tmpfs。
+ > - isula-build 目前仅支持使用overlay2为底层 graphdriver。
+-> - 在设置--group参数前，需保证本地OS已经创建了对应的用户组，且非特权用户已经加入该组。重启isula-builder之后即可使该非特权用户使用isula-build功能。同时，为了保持权限一致性，isula-build的配置文件目录/etc/isula-build的数组也会被设置为--group指定的组。
++> - 在设置--group参数前，需保证本地OS已经创建了对应的用户组，且非特权用户已经加入该组。重启isula-builder之后即可使该非特权用户使用isula-build功能。同时，为了保持权限一致性，isula-build的配置文件目录/etc/isula-build的属组也会被设置为--group指定的组。
+ 
+ ### 管理服务
+ 
+@@ -535,21 +535,19 @@ isula-build ctr-img load可以将isula-build ctr-img save分层导出的镜像
+ ```
+ isula-build ctr-img load -d IMAGES_DIR [-b BASE_IMAGE] [-l LIB_IMAGE] -i APP_IMAGE
+ ```
+-
+-IMAGE：需要导入的应用镜像名:TAG（不能是镜像ID）。
+-
++   
+ 支持如下Flags：
+ 
+ - -d：必选，指定应用分层镜像所在的文件夹。文件夹中至少包含app镜像和完整的manifest文件。可以将base层和lib层文件分别存放，然后通过-b和-l参数指定。
+ - -b：可选，指定base层镜像的路径。如果不指定，默认在-d指定的路径中。
+ - -l：可选，指定lib层镜像的路径。如果不指定，默认在-d指定的路径中。
+-- -i：必选，指定需要导入的应用镜像名字。
++- -i：必选，指定需要导入的应用镜像名:TAG（不能是镜像ID）。
+ - –no-check：可选，跳过sha256校验。
+ 
+ > **说明：**
+ >
+ > - 需要输入镜像名的参数，要使用IMAGE_NAME:TAG的方式指明唯一的镜像，因为使用IMAGE_ID或不加TAG可能对应多个镜像，或者在导入导出过程中相同的镜像会有不同的ID，导致偏离用户预期的执行结果。
+-> - 使用–no-check时，会跳过对tarball的sha256校验和检查。放弃对tarball进行校验和检查可能引入不确定因素，用户需明确和接受此类行为可能带来的影响和结果。
++> - 使用–no-check时，会跳过对tar包的sha256校验和检查。放弃对tar包进行校验和检查可能引入不确定因素，用户需明确和接受此类行为可能带来的影响和结果。
+ > - 由于涉及中间状态转换、保存，isula-build运行目录/var/lib/isula-build/需保证容量至少为需要进行分层镜像总大小的两倍。假设需要对A（10MB）, B（20MB）, C（30MB） 三个镜像进行保存分层镜像，则需要保证/var/lib/isula-build所在磁盘大小为2*(10+20+30)=120M。
+ > - 在保存、加载分层镜像时，在计算文件的sha256值时需要将文件读取进入内存中，故并发操作时，会有线性内存消耗。
+ 
+@@ -615,7 +613,7 @@ Storing signatures
+ Save success with image: 21c3e96ac411
+ ```
+ 
+-以下示例导出多个镜像到同一个tarball：
++以下示例导出多个镜像到同一个tar包：
+ ```sh
+ $ sudo isula-build ctr-img save busybox:latest nginx:latest -o all.tar
+ Getting image source signatures
+-- 
+2.27.0
+
