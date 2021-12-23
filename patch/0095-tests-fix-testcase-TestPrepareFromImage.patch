@@ -1,0 +1,170 @@
+From b79ac03734ac9fdd36b6a8a738a43c617fd31b9a Mon Sep 17 00:00:00 2001
+From: Lu Jingxiao <lujingxiao@huawei.com>
+Date: Sat, 11 Dec 2021 11:18:56 +0800
+Subject: [PATCH 1/4] tests: fix testcase TestPrepareFromImage
+
+Test case TestPrepareFromImage fails randomly for rand.Int() does not
+reset Seeds before using.
+
+Fixes: #I4M25L
+
+Signed-off-by: Lu Jingxiao <lujingxiao@huawei.com>
+---
+ builder/dockerfile/add_copy_test.go      | 15 +++++++--------
+ builder/dockerfile/stage_builder_test.go |  5 ++---
+ util/test_util.go                        |  9 +++++++++
+ util/user_test.go                        |  4 ++--
+ util/util_test.go                        |  5 ++---
+ 5 files changed, 22 insertions(+), 16 deletions(-)
+
+diff --git a/builder/dockerfile/add_copy_test.go b/builder/dockerfile/add_copy_test.go
+index 8873872a..36dd66a6 100644
+--- a/builder/dockerfile/add_copy_test.go
++++ b/builder/dockerfile/add_copy_test.go
+@@ -16,7 +16,6 @@ package dockerfile
+ import (
+ 	"fmt"
+ 	"io/ioutil"
+-	"math/rand"
+ 	"os"
+ 	"os/exec"
+ 	"path/filepath"
+@@ -253,8 +252,8 @@ func TestResolveCopySource(t *testing.T) {
+ }
+ 
+ func TestAddFile(t *testing.T) {
+-	realSrc := fmt.Sprintf("/tmp/test-%d", rand.Int())
+-	dest := fmt.Sprintf("/tmp/test2-%d", rand.Int())
++	realSrc := fmt.Sprintf("/tmp/test-%d", util.GenRandInt64())
++	dest := fmt.Sprintf("/tmp/test2-%d", util.GenRandInt64())
+ 	err := exec.Command("/bin/sh", "-c", "touch "+realSrc).Run()
+ 	assert.NilError(t, err)
+ 
+@@ -269,9 +268,9 @@ func TestAddFile(t *testing.T) {
+ 	err = os.Remove(dest)
+ 	assert.NilError(t, err)
+ 
+-	tarFile := fmt.Sprintf("/tmp/a-%d.tar.gz", rand.Int())
+-	srcFile1 := fmt.Sprintf("/tmp/test-%d", rand.Int())
+-	srcFile2 := fmt.Sprintf("/tmp/test2-%d", rand.Int())
++	tarFile := fmt.Sprintf("/tmp/a-%d.tar.gz", util.GenRandInt64())
++	srcFile1 := fmt.Sprintf("/tmp/test-%d", util.GenRandInt64())
++	srcFile2 := fmt.Sprintf("/tmp/test2-%d", util.GenRandInt64())
+ 	err = exec.Command("/bin/sh", "-c", "touch "+srcFile1+" "+srcFile2+
+ 		" && tar -czf "+tarFile+" "+srcFile1+" "+srcFile2).Run()
+ 	assert.NilError(t, err)
+@@ -298,8 +297,8 @@ func TestAddFile(t *testing.T) {
+ 
+ func TestAdd(t *testing.T) {
+ 	ignores := []string{"a", "b"}
+-	contextDir := fmt.Sprintf("/tmp/context-%d", rand.Int())
+-	contextDir2 := fmt.Sprintf("/tmp/context-%d", rand.Int())
++	contextDir := fmt.Sprintf("/tmp/context-%d", util.GenRandInt64())
++	contextDir2 := fmt.Sprintf("/tmp/context-%d", util.GenRandInt64())
+ 	matcher, err := util.GetIgnorePatternMatcher(ignores, contextDir, "")
+ 	assert.NilError(t, err)
+ 
+diff --git a/builder/dockerfile/stage_builder_test.go b/builder/dockerfile/stage_builder_test.go
+index 9123bcd9..2c922663 100644
+--- a/builder/dockerfile/stage_builder_test.go
++++ b/builder/dockerfile/stage_builder_test.go
+@@ -17,7 +17,6 @@ import (
+ 	"bytes"
+ 	"context"
+ 	"fmt"
+-	"math/rand"
+ 	"os"
+ 	"path/filepath"
+ 	"runtime"
+@@ -76,8 +75,8 @@ func clean() {
+ func cleanAndSetDefaultStoreOpt(t *testing.T) {
+ 	cleanDefaultStoreOpt(t)
+ 	store.SetDefaultStoreOptions(store.DaemonStoreOptions{
+-		DataRoot: fmt.Sprintf("/tmp/isula-build/storage-data-%d/", rand.Int()),
+-		RunRoot:  fmt.Sprintf("/tmp/isula-build/storage-run-%d/", rand.Int()),
++		DataRoot: fmt.Sprintf("/tmp/isula-build/storage-data-%d/", util.GenRandInt64()),
++		RunRoot:  fmt.Sprintf("/tmp/isula-build/storage-run-%d/", util.GenRandInt64()),
+ 	})
+ 	localStore, _ = store.GetStore()
+ }
+diff --git a/util/test_util.go b/util/test_util.go
+index 653cfd24..bbe2b256 100644
+--- a/util/test_util.go
++++ b/util/test_util.go
+@@ -15,8 +15,11 @@
+ package util
+ 
+ import (
++	"crypto/rand"
+ 	"flag"
+ 	"fmt"
++	"math"
++	"math/big"
+ 	"os/exec"
+ 	"strings"
+ 	"testing"
+@@ -72,3 +75,9 @@ func Immutable(path string, set bool) error {
+ 	}
+ 	return nil
+ }
++
++// GenRandInt64 is to generate an nondeterministic int64 value
++func GenRandInt64() int64 {
++	val, _ := rand.Int(rand.Reader, big.NewInt(math.MaxInt64))
++	return val.Int64()
++}
+diff --git a/util/user_test.go b/util/user_test.go
+index d042f164..441dca41 100644
+--- a/util/user_test.go
++++ b/util/user_test.go
+@@ -15,7 +15,6 @@ package util
+ 
+ import (
+ 	"fmt"
+-	"math/rand"
+ 	"os"
+ 	"testing"
+ 
+@@ -32,7 +31,8 @@ func TestGetChownOptions(t *testing.T) {
+ 		GIDWanted int
+ 		isErr     bool
+ 	}
+-	mountpoint := fmt.Sprintf("/tmp/mount-%d", rand.Int())
++
++	mountpoint := fmt.Sprintf("/tmp/mount-%d", GenRandInt64())
+ 	err := os.MkdirAll(mountpoint+"/etc", constant.DefaultSharedDirMode)
+ 	assert.NilError(t, err)
+ 	pFile, err := os.Create(mountpoint + "/etc/passwd")
+diff --git a/util/util_test.go b/util/util_test.go
+index db57393b..374a69f9 100644
+--- a/util/util_test.go
++++ b/util/util_test.go
+@@ -17,7 +17,6 @@ import (
+ 	"bytes"
+ 	"context"
+ 	"fmt"
+-	"math/rand"
+ 	"net/http"
+ 	"os"
+ 	"path/filepath"
+@@ -76,7 +75,7 @@ func TestCopyURLResource(t *testing.T) {
+ }
+ 
+ func TestCopyFile(t *testing.T) {
+-	src := fmt.Sprintf("/tmp/test-%d", rand.Int())
++	src := fmt.Sprintf("/tmp/test-%d", GenRandInt64())
+ 	f, err := os.Create(src)
+ 	defer func() {
+ 		f.Close()
+@@ -101,7 +100,7 @@ func TestCopyFile(t *testing.T) {
+ 	_, err = f.Write([]byte("This is a test file."))
+ 	assert.NilError(t, err)
+ 
+-	dir := fmt.Sprintf("/tmp/test2-%d/", rand.Int())
++	dir := fmt.Sprintf("/tmp/test2-%d/", GenRandInt64())
+ 	dest := dir + "test"
+ 	err = CopyFile(src, dest, idtools.IDPair{})
+ 	defer func() {
+-- 
+2.27.0
+
