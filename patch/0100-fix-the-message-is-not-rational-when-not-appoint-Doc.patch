@@ -1,0 +1,110 @@
+From 82608cc6cccf55e3f45b147b282b23c1be7d6cc8 Mon Sep 17 00:00:00 2001
+From: hlwqds <545743488@qq.com>
+Date: Tue, 14 Dec 2021 23:29:41 +0800
+Subject: [PATCH 3/4] fix the message is not rational when not appoint
+ Dockerfile Fixes: #I4MB6N Signed-off-by: hlwqds 545743488@qq.com
+
+---
+ cmd/cli/build.go      | 44 +++++++++++++++++++++++++++++--------------
+ cmd/cli/build_test.go | 16 ++++++++++++++++
+ 2 files changed, 46 insertions(+), 14 deletions(-)
+
+diff --git a/cmd/cli/build.go b/cmd/cli/build.go
+index b0f77654..4b4e6f5e 100644
+--- a/cmd/cli/build.go
++++ b/cmd/cli/build.go
+@@ -460,34 +460,50 @@ func readDockerfile() (string, string, error) {
+ 	return string(buf), parts[1], nil
+ }
+ 
++func checkDockerfile(filePath string) error {
++	fileInfo, err := os.Stat(filePath)
++	if err != nil {
++		return err
++	}
++
++	if !fileInfo.Mode().IsRegular() {
++		return errors.Errorf("file %s should be a regular file", filePath)
++	}
++	if fileInfo.Size() == 0 {
++		return errors.New("file is empty, is it a normal dockerfile?")
++	}
++	if fileInfo.Size() > constant.MaxFileSize {
++		return errors.Errorf("file is too big with size %v, is it a normal dockerfile?", fileInfo.Size())
++	}
++	return nil
++}
++
+ func resolveDockerfilePath() (string, error) {
+ 	var resolvedPath = buildOpts.file
+-
++	var err error
+ 	if buildOpts.file == "" {
+ 		// filepath is empty, try to resolve with contextDir+Dockerfile
+ 		resolvedPath = path.Join(buildOpts.contextDir, "Dockerfile")
++		err = checkDockerfile(resolvedPath)
++		if err != nil {
++			logrus.Debugf("Stat dockerfile failed with path %s", resolvedPath)
++			return "", err
++		}
++		return resolvedPath, nil
+ 	}
+-	// stat path with origin filepath or contextDir+Dockerfile
+-	fileInfo, err := os.Stat(resolvedPath)
++
++	err = checkDockerfile(resolvedPath)
+ 	if err != nil {
+ 		logrus.Debugf("Stat dockerfile failed with path %s", resolvedPath)
+ 		// not found with filepath, try to resolve with contextDir+filepath
+ 		resolvedPath = path.Join(buildOpts.contextDir, buildOpts.file)
+-		fileInfo, err = os.Stat(resolvedPath)
++		err = checkDockerfile(resolvedPath)
+ 		if err != nil {
+ 			logrus.Debugf("Stat dockerfile failed again with path %s", resolvedPath)
+-			return "", errors.Wrapf(err, "stat dockerfile failed with filename %s", buildOpts.file)
++			return "", err
+ 		}
+ 	}
+-	if !fileInfo.Mode().IsRegular() {
+-		return "", errors.Errorf("file %s should be a regular file", resolvedPath)
+-	}
+-	if fileInfo.Size() == 0 {
+-		return "", errors.New("file is empty, is it a normal dockerfile?")
+-	}
+-	if fileInfo.Size() > constant.MaxFileSize {
+-		return "", errors.Errorf("file is too big with size %v, is it a normal dockerfile?", fileInfo.Size())
+-	}
++
+ 	return resolvedPath, nil
+ }
+ 
+diff --git a/cmd/cli/build_test.go b/cmd/cli/build_test.go
+index a7fe64e5..7faa1259 100644
+--- a/cmd/cli/build_test.go
++++ b/cmd/cli/build_test.go
+@@ -325,6 +325,22 @@ func TestReadDockerfileWithDirectory(t *testing.T) {
+ 	assert.ErrorContains(t, err, "should be a regular file")
+ }
+ 
++// Test readDockerfile
++// case 6. buildOpts.file not appointed and contextDir has no file named Dockerfile
++// expect: return error with Dockerfile(default file name)
++func TestReadDockerfileWithNoNameAndNoFileNamedDockerfile(t *testing.T) {
++	tmpDir := fs.NewDir(t, t.Name())
++	defer tmpDir.Remove()
++
++	buildOpts.contextDir = tmpDir.Path()
++	buildOpts.file = ""
++
++	_, _, err := readDockerfile()
++	// if not found, os.Stat will tell us Dockerfile not found
++	// so it depends on os.Stat's return
++	assert.ErrorContains(t, err, "Dockerfile: no such file or directory")
++}
++
+ func TestNewBuildOptions(t *testing.T) {
+ 	// no args case use current working directory as context directory
+ 	cwd, err := os.Getwd()
+-- 
+2.27.0
+
