@@ -15,9 +15,7 @@ package daemon
 
 import (
 	"context"
-	"io/ioutil"
 	"os"
-	"path/filepath"
 	"strings"
 
 	"github.com/containers/image/v5/docker/tarfile"
@@ -25,7 +23,6 @@ import (
 	"github.com/containers/image/v5/transports/alltransports"
 	"github.com/containers/image/v5/types"
 	"github.com/containers/storage"
-	"github.com/containers/storage/pkg/archive"
 	securejoin "github.com/cyphar/filepath-securejoin"
 	digest "github.com/opencontainers/go-digest"
 	imgspecv1 "github.com/opencontainers/image-spec/specs-go/v1"
@@ -35,45 +32,12 @@ import (
 
 	constant "isula.org/isula-build"
 	pb "isula.org/isula-build/api/services"
+	"isula.org/isula-build/daemon/separator"
 	"isula.org/isula-build/exporter"
 	"isula.org/isula-build/image"
 	"isula.org/isula-build/pkg/logger"
 	"isula.org/isula-build/util"
 )
-
-const (
-	tmpBaseDirName         = "base"
-	tmpAppDirName          = "app"
-	tmpLibDirName          = "lib"
-	unionCompressedTarName = "all.tar.gz"
-)
-
-type loadImageTmpDir struct {
-	app  string
-	base string
-	lib  string
-	root string
-}
-
-type separatorLoad struct {
-	log       *logrus.Entry
-	tmpDir    loadImageTmpDir
-	info      tarballInfo
-	appName   string
-	basePath  string
-	appPath   string
-	libPath   string
-	dir       string
-	skipCheck bool
-	enabled   bool
-}
-
-type loadOptions struct {
-	logEntry *logrus.Entry
-	path     string
-	format   string
-	sep      separatorLoad
-}
 
 type singleImage struct {
 	index   int
@@ -81,43 +45,34 @@ type singleImage struct {
 	nameTag []string
 }
 
-func (b *Backend) getLoadOptions(req *pb.LoadRequest) (loadOptions, error) {
-	var opt = loadOptions{
-		path: req.GetPath(),
-		sep: separatorLoad{
-			appName:   req.GetSep().GetApp(),
-			basePath:  req.GetSep().GetBase(),
-			libPath:   req.GetSep().GetLib(),
-			dir:       req.GetSep().GetDir(),
-			skipCheck: req.GetSep().GetSkipCheck(),
-			enabled:   req.GetSep().GetEnabled(),
-		},
-		logEntry: logrus.WithFields(logrus.Fields{"LoadID": req.GetLoadID()}),
+// LoadOptions stores the options for image loading
+type LoadOptions struct {
+	LogEntry *logrus.Entry
+	path     string
+	format   string
+	sep      separator.Loader
+}
+
+func (b *Backend) getLoadOptions(req *pb.LoadRequest) (LoadOptions, error) {
+	var err error
+	var opt = LoadOptions{
+		path:     req.GetPath(),
+		LogEntry: logrus.WithFields(logrus.Fields{"LoadID": req.GetLoadID()}),
 	}
 
-	// normal loadOptions
-	if !opt.sep.enabled {
-		if err := util.CheckLoadFile(opt.path); err != nil {
-			return loadOptions{}, err
+	// normal image loading
+	if !req.GetSep().GetEnabled() {
+		if err = util.CheckLoadFile(opt.path); err != nil {
+			return LoadOptions{}, err
 		}
 		return opt, nil
 	}
 
-	// load separated images
-	// log is used for sep methods
-	opt.sep.log = opt.logEntry
-	tmpRoot := filepath.Join(b.daemon.opts.DataRoot, filepath.Join(dataRootTmpDirPrefix, req.GetLoadID()))
-	opt.sep.tmpDir.root = tmpRoot
-	opt.sep.tmpDir.base = filepath.Join(tmpRoot, tmpBaseDirName)
-	opt.sep.tmpDir.app = filepath.Join(tmpRoot, tmpAppDirName)
-	opt.sep.tmpDir.lib = filepath.Join(tmpRoot, tmpLibDirName)
-
-	// check image name and add "latest" tag if not present
-	_, appImgName, err := image.GetNamedTaggedReference(opt.sep.appName)
+	// separated images loading
+	opt.sep, err = separator.GetSepLoadOptions(req, opt.LogEntry, b.daemon.opts.DataRoot)
 	if err != nil {
-		return loadOptions{}, err
+		return LoadOptions{}, err
 	}
-	opt.sep.appName = appImgName
 
 	return opt, nil
 }
@@ -136,15 +91,16 @@ func (b *Backend) Load(req *pb.LoadRequest, stream pb.Control_LoadServer) error 
 	}
 
 	defer func() {
-		if tErr := os.RemoveAll(opts.sep.tmpDir.root); tErr != nil {
-			opts.logEntry.Warnf("Removing load tmp directory %q failed: %v", opts.sep.tmpDir.root, tErr)
+		if tErr := os.RemoveAll(opts.sep.TmpDirRoot()); tErr != nil {
+			opts.LogEntry.Warnf("Removing load tmp directory %q failed: %v", opts.sep.TmpDirRoot(), tErr)
 		}
 	}()
 
 	// construct separated images
-	if opts.sep.enabled {
-		if lErr := loadSeparatedImage(&opts); lErr != nil {
-			opts.logEntry.Errorf("Load separated image for %s failed: %v", opts.sep.appName, lErr)
+	if opts.sep.Enabled() {
+		var lErr error
+		if opts.path, lErr = opts.sep.LoadSeparatedImage(); lErr != nil {
+			opts.LogEntry.Errorf("Load separated image for %s failed: %v", opts.sep.AppName(), lErr)
 			return lErr
 		}
 	}
@@ -206,9 +162,9 @@ func (b *Backend) Load(req *pb.LoadRequest, stream pb.Control_LoadServer) error 
 	return nil
 }
 
-func tryToParseImageFormatFromTarball(dataRoot string, opts *loadOptions) ([]singleImage, error) {
+func tryToParseImageFormatFromTarball(dataRoot string, opts *LoadOptions) ([]singleImage, error) {
 	// tmp dir will be removed after NewSourceFromFileWithContext
-	tmpDir, err := securejoin.SecureJoin(dataRoot, dataRootTmpDirPrefix)
+	tmpDir, err := securejoin.SecureJoin(dataRoot, constant.DataRootTmpDirPrefix)
 	if err != nil {
 		return nil, err
 	}
@@ -322,197 +278,4 @@ func getLoadedImageID(imageRef types.ImageReference, systemContext *types.System
 	}
 
 	return "@" + imageDigest.Encoded(), nil
-}
-
-func loadSeparatedImage(opt *loadOptions) error {
-	s := &opt.sep
-	s.log.Infof("Starting load separated image %s", s.appName)
-
-	// load manifest file to get tarball info
-	if err := s.getTarballInfo(); err != nil {
-		return errors.Wrap(err, "failed to get tarball info")
-	}
-	if err := s.constructTarballInfo(); err != nil {
-		return err
-	}
-	// checksum for image tarballs
-	if err := s.tarballCheckSum(); err != nil {
-		return err
-	}
-	// process image tarballs and get final constructed image tarball
-	tarPath, err := s.processTarballs()
-	if err != nil {
-		return err
-	}
-	opt.path = tarPath
-
-	return nil
-}
-
-func (s *separatorLoad) getTarballInfo() error {
-	manifest, err := securejoin.SecureJoin(s.dir, manifestFile)
-	if err != nil {
-		return errors.Wrap(err, "join manifest file path failed")
-	}
-
-	var t = make(map[string]tarballInfo, 1)
-	if err = util.LoadJSONFile(manifest, &t); err != nil {
-		return errors.Wrap(err, "load manifest file failed")
-	}
-
-	tarball, ok := t[s.appName]
-	if !ok {
-		return errors.Errorf("failed to find app image %s", s.appName)
-	}
-	s.info = tarball
-
-	return nil
-}
-
-func (s *separatorLoad) constructTarballInfo() (err error) {
-	s.log.Infof("Construct image tarball info for %s", s.appName)
-	// fill up path for separator
-	// this case should not happened since client side already check this flag
-	if len(s.appName) == 0 {
-		return errors.New("app image name should not be empty")
-	}
-	s.appPath, err = securejoin.SecureJoin(s.dir, s.info.AppTarName)
-	if err != nil {
-		return err
-	}
-
-	if len(s.basePath) == 0 {
-		if len(s.info.BaseTarName) == 0 {
-			return errors.Errorf("base image %s tarball can not be empty", s.info.BaseImageName)
-		}
-		s.log.Info("Base image path is empty, use path from manifest")
-		s.basePath, err = securejoin.SecureJoin(s.dir, s.info.BaseTarName)
-		if err != nil {
-			return err
-		}
-	}
-	if len(s.libPath) == 0 && len(s.info.LibTarName) != 0 {
-		s.log.Info("Lib image path is empty, use path from manifest")
-		s.libPath, err = securejoin.SecureJoin(s.dir, s.info.LibTarName)
-		if err != nil {
-			return err
-		}
-	}
-
-	return nil
-}
-
-func (s *separatorLoad) tarballCheckSum() error {
-	if s.skipCheck {
-		s.log.Info("Skip checksum for tarballs")
-		return nil
-	}
-
-	type checkInfo struct {
-		path       string
-		hash       string
-		str        string
-		canBeEmpty bool
-	}
-	checkLen := 3
-	var checkList = make([]checkInfo, 0, checkLen)
-	checkList = append(checkList, checkInfo{path: s.basePath, hash: s.info.BaseHash, canBeEmpty: false, str: "base image"})
-	checkList = append(checkList, checkInfo{path: s.libPath, hash: s.info.LibHash, canBeEmpty: true, str: "lib image"})
-	checkList = append(checkList, checkInfo{path: s.appPath, hash: s.info.AppHash, canBeEmpty: false, str: "app image"})
-	for _, p := range checkList {
-		if len(p.path) == 0 && !p.canBeEmpty {
-			return errors.Errorf("%s tarball path can not be empty", p.str)
-		}
-		if len(p.path) != 0 {
-			if err := util.CheckSum(p.path, p.hash); err != nil {
-				return errors.Wrapf(err, "check sum for file %q failed", p.path)
-			}
-		}
-	}
-
-	return nil
-}
-
-func (s *separatorLoad) processTarballs() (string, error) {
-	if err := s.unpackTarballs(); err != nil {
-		return "", err
-	}
-
-	if err := s.reconstructImage(); err != nil {
-		return "", err
-	}
-
-	// pack app image to tarball
-	tarPath := filepath.Join(s.tmpDir.root, unionCompressedTarName)
-	if err := util.PackFiles(s.tmpDir.base, tarPath, archive.Gzip, true); err != nil {
-		return "", err
-	}
-
-	return tarPath, nil
-}
-
-func (s *separatorLoad) unpackTarballs() error {
-	if err := s.makeTempDir(); err != nil {
-		return errors.Wrap(err, "failed to make temporary directories")
-	}
-
-	type unpackInfo struct{ path, dir, str string }
-	unpackLen := 3
-	var unpackList = make([]unpackInfo, 0, unpackLen)
-	unpackList = append(unpackList, unpackInfo{path: s.basePath, dir: s.tmpDir.base, str: "base image"})
-	unpackList = append(unpackList, unpackInfo{path: s.appPath, dir: s.tmpDir.app, str: "app image"})
-	unpackList = append(unpackList, unpackInfo{path: s.libPath, dir: s.tmpDir.lib, str: "lib image"})
-
-	for _, p := range unpackList {
-		if len(p.path) != 0 {
-			if err := util.UnpackFile(p.path, p.dir, archive.Gzip, false); err != nil {
-				return errors.Wrapf(err, "unpack %s tarball %q failed", p.str, p.path)
-			}
-		}
-	}
-
-	return nil
-}
-
-func (s *separatorLoad) reconstructImage() error {
-	files, err := ioutil.ReadDir(s.tmpDir.app)
-	if err != nil {
-		return err
-	}
-
-	for _, f := range files {
-		src := filepath.Join(s.tmpDir.app, f.Name())
-		dest := filepath.Join(s.tmpDir.base, f.Name())
-		if err := os.Rename(src, dest); err != nil {
-			return errors.Wrapf(err, "reconstruct app file %q failed", s.info.AppTarName)
-		}
-	}
-
-	if len(s.libPath) != 0 {
-		files, err := ioutil.ReadDir(s.tmpDir.lib)
-		if err != nil {
-			return err
-		}
-
-		for _, f := range files {
-			src := filepath.Join(s.tmpDir.lib, f.Name())
-			dest := filepath.Join(s.tmpDir.base, f.Name())
-			if err := os.Rename(src, dest); err != nil {
-				return errors.Wrapf(err, "reconstruct lib file %q failed", s.info.LibTarName)
-			}
-		}
-	}
-
-	return nil
-}
-
-func (s *separatorLoad) makeTempDir() error {
-	dirs := []string{s.tmpDir.root, s.tmpDir.app, s.tmpDir.base, s.tmpDir.lib}
-	for _, dir := range dirs {
-		if err := os.MkdirAll(dir, constant.DefaultRootDirMode); err != nil {
-			return err
-		}
-	}
-
-	return nil
 }

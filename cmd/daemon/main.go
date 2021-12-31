@@ -36,10 +36,7 @@ import (
 	"isula.org/isula-build/util"
 )
 
-const (
-	lockFileName         = "isula-builder.lock"
-	dataRootTmpDirPrefix = "tmp"
-)
+const lockFileName = "isula-builder.lock"
 
 var daemonOpts daemon.Options
 
@@ -331,7 +328,7 @@ func setupWorkingDirectories() error {
 		return errors.Errorf("runroot(%q) and dataroot(%q) must be different paths", daemonOpts.RunRoot, daemonOpts.DataRoot)
 	}
 
-	buildTmpDir, err := securejoin.SecureJoin(daemonOpts.DataRoot, dataRootTmpDirPrefix)
+	buildTmpDir, err := securejoin.SecureJoin(daemonOpts.DataRoot, constant.DataRootTmpDirPrefix)
 	if err != nil {
 		return err
 	}

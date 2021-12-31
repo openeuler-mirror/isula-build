@@ -87,7 +87,7 @@ func (b *Backend) Import(req *pb.ImportRequest, stream pb.Control_ImportServer) 
 
 	log := logger.NewCliLogger(constant.CliLogBufferLen)
 	imageCopyOptions := image.NewImageCopyOptions(log)
-	tmpDir, err = securejoin.SecureJoin(b.daemon.opts.DataRoot, filepath.Join(dataRootTmpDirPrefix, importID))
+	tmpDir, err = securejoin.SecureJoin(b.daemon.opts.DataRoot, filepath.Join(constant.DataRootTmpDirPrefix, importID))
 	if err != nil {
 		return err
 	}
@@ -97,7 +97,7 @@ func (b *Backend) Import(req *pb.ImportRequest, stream pb.Control_ImportServer) 
 	}
 	defer func() {
 		if rErr := os.RemoveAll(tmpDir); rErr != nil {
-			logEntry.Errorf("Failed to remove import temporary dir %q, err: %v", filepath.Join(dataRootTmpDirPrefix, importID), rErr)
+			logEntry.Errorf("Failed to remove import temporary dir %q, err: %v", filepath.Join(constant.DataRootTmpDirPrefix, importID), rErr)
 		}
 	}()
 
