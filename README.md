@@ -39,7 +39,7 @@ In addition, the following capabilities are also provided:
 For compiling from source on openEuler, these packages are required on your OS:
 
 - make
-- golang (version 1.13 or later)
+- golang (version 1.15 or later)
 - btrfs-progs-devel
 - device-mapper-devel
 - glib2-devel

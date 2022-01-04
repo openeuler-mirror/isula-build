@@ -41,7 +41,7 @@ isula-build提供的命令行工具提供了很多功能，例如：
 为了顺利从源码编译，以下包需要被安装在你的操作系统中：
 
 - make
-- golang（大于等于1.13版本）
+- golang（大于等于1.15版本）
 - btrfs-progs-devel
 - device-mapper-devel
 - glib2-devel
