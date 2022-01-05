@@ -29,16 +29,33 @@ import (
 )
 
 func TestNewLoginCmd(t *testing.T) {
-	loginCmd := NewLoginCmd()
-	loginCmd.SetArgs(strings.Split("test.org --username testuser --password-stdin", " "))
-	err := loginCmd.Execute()
-	args := []string{"test.org"}
-	err = loginCommand(loginCmd, args)
-	if err != nil {
-		assert.ErrorContains(t, err, "isula_build.sock")
+	tests := []struct {
+		name      string
+		args      string
+		errString string
+	}{
+		{
+			name:      "TC1 - normal case",
+			args:      "test.org --username testuser --password-stdin",
+			errString: "isula_build.sock",
+		},
+		{
+			name:      "TC2 - abnormal case provides --password-stdin without --username ",
+			args:      "test.org --password-stdin",
+			errString: "must provides --password-stdin with --username",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cmd := NewLoginCmd()
+			cmd.SetArgs(strings.Split(tt.args, " "))
+			err := cmd.Execute()
+			if err != nil {
+				assert.ErrorContains(t, err, tt.errString)
+			}
+		})
 	}
 }
-
 func TestGetPassFromInput(t *testing.T) {
 	type args struct {
 		f passReader
