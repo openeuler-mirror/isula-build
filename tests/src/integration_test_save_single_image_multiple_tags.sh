@@ -12,69 +12,49 @@
 # Author: Weizheng Xing
 # Create: 2021-08-24
 # Description: check if saving single image with multiple tags has been corrected
+# History: 2022-01-10 Weizheng Xing <xingweizheng@huawei.com> Refactor: use systemd_run_command common function
 
 top_dir=$(git rev-parse --show-toplevel)
-# shellcheck disable=SC1091
 source "$top_dir"/tests/lib/common.sh
 
-image_name=add-chown-basic
-context_dir="$top_dir"/tests/data/add-chown-basic
+image_name=build-from-scratch
+context_dir="$top_dir"/tests/data/build-from-scratch
 
-function clean()
-{
-    isula-build ctr-img rm -p > /dev/null 2>&1
-    systemctl stop isula-build
-    rm -rf "$temp_tar"
-}
-
-function pre_test()
-{
+function pre_test() {
     temp_tar=$(mktemp -u --suffix=.tar)
-    systemctl restart isula-build
 }
 
-function do_test()
-{
+function do_test() {
     # get image id
-    if ! image_id1=$(isula-build ctr-img build -t $image_name:latest "$context_dir"|grep "Build success with image id: "|cut -d ":" -f 2); then
-        echo "FAIL"
-    fi
-    if ! image_id2=$(isula-build ctr-img build -t $image_name:latest2 "$context_dir"|grep "Build success with image id: "|cut -d ":" -f 2); then
-        echo "FAIL"
-    fi
+    systemd_run_command "isula-build ctr-img build -t $image_name:latest $context_dir"
+    image_id1=$(grep </tmp/buildlog-client "Build success with image id: " | cut -d ":" -f 2)
 
-    ! run_with_debug "isula-build ctr-img tag $image_name:latest $image_name:latest-child"
+    systemd_run_command "isula-build ctr-img build -t $image_name:latest2 $context_dir"
+    image_id2=$(grep </tmp/buildlog-client "Build success with image id: " | cut -d ":" -f 2)
 
-    # save with id + name
-    ! run_with_debug "isula-build ctr-img save -f docker $image_id1 $image_name:latest-child -o $temp_tar"
-    rm -rf "$temp_tar"
-
-    # save with name + id
-    ! run_with_debug "isula-build ctr-img save -f docker $image_name:latest-child $image_id1 -o $temp_tar"
-    rm -rf "$temp_tar"
-
-    # save with name + name
-    ! run_with_debug "isula-build ctr-img save -f docker $image_name:latest $image_name:latest-child -o $temp_tar"
-    rm -rf "$temp_tar"
-
-    # save with different images id1 + id2
-    ! run_with_debug "isula-build ctr-img save -f docker $image_id1 $image_id2 -o $temp_tar"
-    rm -rf "$temp_tar"
-
-    # save with different images "without latest tag" + id2
-    ! run_with_debug "isula-build ctr-img save -f docker $image_name $image_id2 -o $temp_tar"
-    rm -rf "$temp_tar"
-
-    # save with id1 + id2 + name
-    ! run_with_debug "isula-build ctr-img save -f docker $image_id1 $image_id2 $image_name:latest2 -o $temp_tar"
-    rm -rf "$temp_tar"
-
-    ! run_with_debug "isula-build ctr-img rm $image_name:latest $image_name:latest-child"
-    ! run_with_debug "isula-build ctr-img rm $image_name:latest2"
-
-    echo "PASS" 
+    declare -a commands=(
+        "isula-build ctr-img tag $image_name:latest $image_name:latest-child"
+        # save with id + name
+        "isula-build ctr-img save -f docker $image_id1 $image_name:latest-child -o $temp_tar"
+        # save with name + id
+        "isula-build ctr-img save -f docker $image_name:latest-child $image_id1 -o $temp_tar"
+        # save with name + name
+        "isula-build ctr-img save -f docker $image_name:latest $image_name:latest-child -o $temp_tar"
+        # save with different images id1 + id2
+        "isula-build ctr-img save -f docker $image_id1 $image_id2 -o $temp_tar"
+        # save with different images "without latest tag" + id2
+        "isula-build ctr-img save -f docker $image_name $image_id2 -o $temp_tar"
+        # save with id1 + id2 + name
+        "isula-build ctr-img save -f docker $image_id1 $image_id2 $image_name:latest2 -o $temp_tar"
+        "isula-build ctr-img rm $image_name:latest $image_name:latest-child"
+        "isula-build ctr-img rm $image_name:latest2"
+    )
+    for command in "${commands[@]}"; do
+        systemd_run_command "$command"
+        rm -rf "$temp_tar"
+    done
 }
 
 pre_test
 do_test
-clean
+exit "$exit_flag"

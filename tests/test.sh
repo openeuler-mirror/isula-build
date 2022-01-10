@@ -36,36 +36,38 @@ function fuzz() {
 # integration test
 function integration() {
     source "$top_dir"/tests/lib/common.sh
-    systemctl restart isula-build
+    pre_integration
 
     while IFS= read -r testfile; do
         printf "%-65s" "test $(basename "$testfile"): "
         if ! bash "$testfile"; then
-            exit 1
+            echo "FAIL"
+            continue
         fi
+        echo "PASS"
     done < <(find "$top_dir"/tests/src -maxdepth 1 -name "integration_test*" -type f -print)
+    after_integration
 }
 
 # main function to chose which kind of test
 function main() {
     case "$1" in
-        fuzz)
-            fuzz "$2"
-            ;;
-        base)
-            base
+    fuzz)
+        fuzz "$2"
         ;;
-        integration)
-            integration
+    base)
+        base
         ;;
-        *)
-            echo "Unknow test type."
-            exit 1
+    integration)
+        integration
+        ;;
+    *)
+        echo "Unknow test type."
+        exit 1
         ;;
     esac
 }
 
-export "ISULABUILD_CLI_EXPERIMENTAL"="enabled"
-export DEBUG=0
+export ISULABUILD_CLI_EXPERIMENTAL="enabled"
 
 main "$@"
