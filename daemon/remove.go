@@ -20,6 +20,7 @@ import (
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
 
+	constant "isula.org/isula-build"
 	pb "isula.org/isula-build/api/services"
 	"isula.org/isula-build/image"
 	"isula.org/isula-build/store"
@@ -121,7 +122,7 @@ func untagImage(imageID string, store storage.Store, image *storage.Image) (bool
 	newNames := make([]string, 0)
 	removed := false
 	for _, imgName := range image.Names {
-		if imgName == imageID {
+		if imgName == imageID || imgName == fmt.Sprintf("%s:%s", imageID, constant.DefaultTag) {
 			removed = true
 			continue
 		}
