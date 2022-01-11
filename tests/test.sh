@@ -40,15 +40,26 @@ function integration() {
     create_tmp_dir
     pre_integration
 
+    all=0
+    failed=0
     while IFS= read -r testfile; do
+        ((all++))
         printf "%-65s" "test $(basename "$testfile"): "
+        if [ "$TEST_DEBUG" == true ]; then
+            echo ""
+        fi
+
         if ! bash "$testfile"; then
+            ((failed++))
             echo "FAIL"
             continue
         fi
-        echo "PASS"
+        echo -e "\033[32mPASS\033[0m"
     done < <(find "$top_dir"/tests/src -maxdepth 1 -name "test_*" -type f -print)
-    after_integration
+    after_integration "$failed"
+
+    rate=$(echo "scale=2; $((all - failed)) * 100 / $all" | bc)
+    echo -e "\033[32m| $(date "+%Y-%m-%d-%H-%M-%S") | Total Testcases: $all | FAIL: $failed | PASS: $((all - failed)) | PASS RATE: $rate %|\033[0m"
 }
 
 # main function to chose which kind of test

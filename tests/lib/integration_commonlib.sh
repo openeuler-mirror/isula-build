@@ -22,8 +22,6 @@ data_root="/var/lib/integration-isula-build"
 config_file="/etc/isula-build/configuration.toml"
 
 function pre_integration() {
-    rm -f "$TMPDIR"/buildlog-failed
-
     cp $config_file "$config_file".integration
     sed -i "/run_root/d;/data_root/d" $config_file
     echo "run_root = \"${run_root}\"" >>$config_file
@@ -32,11 +30,21 @@ function pre_integration() {
     systemctl restart isula-build
 }
 
+# clean test dir
+# $1 (failed testcases)
 function after_integration() {
+    local -r failed="$1"
+
     systemd_run_command "isula-build ctr-img rm -a"
 
     rm -f $config_file
     mv "$config_file".integration $config_file
     systemctl stop isula-build
     rm -rf $run_root $data_root
+
+    if [ $((failed)) -eq 0 ]; then
+        rm -rf "$TMPDIR"
+    else
+        echo "Please check $TMPDIR/buildlog-failed for more information."
+    fi
 }

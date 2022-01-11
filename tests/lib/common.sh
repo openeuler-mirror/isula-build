@@ -78,7 +78,7 @@ function run_check_result() {
 
     eval "$command" >/dev/null 2>&1
     result=$?
-    debug "expected $expected, get $result"
+    debug "run command: $command, expected $expected, get $result"
     if [ "$result" != "$expected" ]; then
         testcase_path="${BASH_SOURCE[1]}"
         testcase="${testcase_path##/*/}"
@@ -96,7 +96,7 @@ function run_check_result() {
 function check_value() {
     local -r result="$1"
     local -r expected="$2"
-    debug "expected $expected, get $result"
+    debug "check value: expected $expected, get $result"
 
     if [ "$result" != "$expected" ]; then
         testcase_path="${BASH_SOURCE[1]}"
@@ -115,7 +115,7 @@ function debug() {
     local -r message="$1"
 
     if [ "$TEST_DEBUG" == "true" ]; then
-        printf "(%s %s)  " "DEBUG:" "$message"
+        echo -e " \tDEBUG:" "$message"
     fi
 }
 
