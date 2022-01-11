@@ -4,7 +4,7 @@ top_dir=$(git rev-parse --show-toplevel)
 
 # base test
 function base() {
-    source "$top_dir"/tests/lib/common.sh
+    source "$top_dir"/tests/lib/base_commonlib.sh
     pre_check
     start_isula_builder
 
@@ -13,7 +13,7 @@ function base() {
         if ! bash "$testfile"; then
             exit 1
         fi
-    done < <(find "$top_dir"/tests/src -maxdepth 1 -name "test_*" -type f -print)
+    done < <(find "$top_dir"/tests/src -maxdepth 1 -name "isula_build_base_command.sh" -type f -print)
 
     cleanup
 }
@@ -35,7 +35,7 @@ function fuzz() {
 
 # integration test
 function integration() {
-    source "$top_dir"/tests/lib/common.sh
+    source "$top_dir"/tests/lib/integration_commonlib.sh
     pre_integration
 
     while IFS= read -r testfile; do
@@ -45,7 +45,7 @@ function integration() {
             continue
         fi
         echo "PASS"
-    done < <(find "$top_dir"/tests/src -maxdepth 1 -name "integration_test*" -type f -print)
+    done < <(find "$top_dir"/tests/src -maxdepth 1 -name "test_*" -type f -print)
     after_integration
 }
 

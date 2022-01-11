@@ -12,13 +12,12 @@
 # Author: Jingxiao Lu
 # Create: 2020-09-07
 # Description: dockerfile test multi-stage-builds
+# History:  2022-01-10 Weizheng Xing <xingweizheng@huawei.com> change to integration test and use run_check_result
+
+top_dir=$(git rev-parse --show-toplevel)
+# shellcheck disable=SC1091
+source "$top_dir"/tests/lib/common.sh
 
 nonexistent_image="foo:bar"
 # rm an nonexistent image
-isula-build ctr-img rm ${nonexistent_image}  > /dev/null 2>&1
-if [ $? -eq 0 ]; then
-  echo "FAIL"
-  exit 1
-fi
-
-echo "PASS"
+run_check_result "isula-build ctr-img rm ${nonexistent_image}" "1"
