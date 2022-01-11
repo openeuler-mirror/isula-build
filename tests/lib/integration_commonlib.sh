@@ -22,7 +22,7 @@ data_root="/var/lib/integration-isula-build"
 config_file="/etc/isula-build/configuration.toml"
 
 function pre_integration() {
-    rm -f /tmp/buildlog-failed
+    rm -f "$TMPDIR"/buildlog-failed
 
     cp $config_file "$config_file".integration
     sed -i "/run_root/d;/data_root/d" $config_file

@@ -30,13 +30,13 @@ function pre_check() {
 
 # start isula-builder
 function start_isula_builder() {
-    nohup isula-builder >/tmp/buildlog-daemon 2>&1 &
+    nohup isula-builder >"$TMPDIR"/buildlog-daemon 2>&1 &
     pidofbuilder=$!
 
     # check if isula-builder is started
     builder_started=0
     for _ in $(seq 1 30); do
-        if ! grep -i "is listening on" /tmp/buildlog-daemon >/dev/null 2>&1; then
+        if ! grep -i "is listening on" "$TMPDIR"/buildlog-daemon >/dev/null 2>&1; then
             sleep 0.1
             continue
         else
@@ -45,7 +45,8 @@ function start_isula_builder() {
         fi
     done
     if [ "${builder_started}" -eq 0 ]; then
-        echo "isula-builder start failed, log dir /tmp/buildlog-daemon"
+        echo "isula-builder start failed, log dir $TMPDIR/buildlog-daemon"
+        cat "$TMPDIR"/buildlog-daemon
         exit 1
     fi
 }
@@ -53,7 +54,7 @@ function start_isula_builder() {
 function cleanup() {
     isula-build ctr-img rm -p >/dev/null 2>&1
     kill -15 "${pidofbuilder}" >/dev/null 2>&1
-    rm -f /tmp/buildlog-*
+    rm -rf "$TMPDIR"
 }
 
 # isula-build builds with different output
@@ -97,21 +98,21 @@ function test_build_without_output_with_oci_format() {
 # test build image with docker-archive output
 function test_build_with_docker_archive_output() {
     declare -a commands=(
-        "isula-build ctr-img build --output=docker-archive:/tmp/$1.tar:$1:latest $2"
+        "isula-build ctr-img build --output=docker-archive:$TMPDIR/$1.tar:$1:latest $2"
         "isula-build ctr-img rm $1:latest"
     )
     for command in "${commands[@]}"; do show_and_run_command "$command"; done
-    rm -f /tmp/"$1".tar
+    rm -f "$TMPDIR"/"$1".tar
 }
 
 # test build image with oci-archive output
 function test_build_with_oci_archive_output() {
     declare -a commands=(
-        "isula-build ctr-img build --output=oci-archive:/tmp/$1.tar:$1:latest $2"
+        "isula-build ctr-img build --output=oci-archive:$TMPDIR/$1.tar:$1:latest $2"
         "isula-build ctr-img rm $1:latest"
     )
     for command in "${commands[@]}"; do show_and_run_command "$command"; done
-    rm -f /tmp/"$1".tar
+    rm -f "$TMPDIR"/"$1".tar
 }
 
 # test build image with docker-daemon output
@@ -145,16 +146,16 @@ function test_build_with_isulad_output() {
 # test isula build base command
 function test_isula_build_base_command() {
     declare -A commands=(
-        ["Build docker format image"]="isula-build ctr-img build --tag $1-docker:latest --output=docker-archive:/tmp/$1-docker.tar:$1-docker:latest $2"
-        ["Build oci format image"]="isula-build ctr-img build --tag $1-oci:latest --output=oci-archive:/tmp/$1-oci.tar:$1-oci:latest $2"
+        ["Build docker format image"]="isula-build ctr-img build --tag $1-docker:latest --output=docker-archive:$TMPDIR/$1-docker.tar:$1-docker:latest $2"
+        ["Build oci format image"]="isula-build ctr-img build --tag $1-oci:latest --output=oci-archive:$TMPDIR/$1-oci.tar:$1-oci:latest $2"
         ["List all images"]="isula-build ctr-img images"
         ["List docker format image"]="isula-build ctr-img images $1-docker:latest"
         ["List oci format image"]="isula-build ctr-img images $1-oci:latest"
-        ["Save image with docker format"]="isula-build ctr-img save -f docker $1-docker:latest -o /tmp/$1-save-docker.tar"
-        ["Save image with oci format"]="isula-build ctr-img save -f oci $1-oci:latest -o /tmp/$1-save-oci.tar"
-        ["Load docker format images"]="isula-build ctr-img load -i /tmp/$1-docker.tar"
-        ["Load oci format images"]="isula-build ctr-img load -i /tmp/$1-oci.tar"
-        ["Save multipile images with docker format"]="isula-build ctr-img save -f docker $1-docker:latest $1-oci:latest -o /tmp/$1-all.tar"
+        ["Save image with docker format"]="isula-build ctr-img save -f docker $1-docker:latest -o $TMPDIR/$1-save-docker.tar"
+        ["Save image with oci format"]="isula-build ctr-img save -f oci $1-oci:latest -o $TMPDIR/$1-save-oci.tar"
+        ["Load docker format images"]="isula-build ctr-img load -i $TMPDIR/$1-docker.tar"
+        ["Load oci format images"]="isula-build ctr-img load -i $TMPDIR/$1-oci.tar"
+        ["Save multipile images with docker format"]="isula-build ctr-img save -f docker $1-docker:latest $1-oci:latest -o $TMPDIR/$1-all.tar"
         ["Remove images"]="isula-build ctr-img rm $1-docker:latest $1-oci:latest"
     )
     declare -a orders
@@ -173,5 +174,5 @@ function test_isula_build_base_command() {
         show_and_run_command "${orders[$i]}" "${commands[${orders[$i]}]}"
     done
 
-    rm -f /tmp/*.tar
+    rm -f "$TMPDIR"/*.tar
 }

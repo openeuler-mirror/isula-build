@@ -15,6 +15,7 @@
 # History: 2022-01-10 Weizheng Xing <xingweizheng@huawei.com> Refactor: use systemd_run_command common function
 
 top_dir=$(git rev-parse --show-toplevel)
+# shellcheck disable=SC1091
 source "$top_dir"/tests/lib/common.sh
 
 image_name=build-from-scratch
@@ -27,10 +28,10 @@ function pre_test() {
 function do_test() {
     # get image id
     systemd_run_command "isula-build ctr-img build -t $image_name:latest $context_dir"
-    image_id1=$(grep </tmp/buildlog-client "Build success with image id: " | cut -d ":" -f 2)
+    image_id1=$(grep <"$TMPDIR"/buildlog-client "Build success with image id: " | cut -d ":" -f 2)
 
     systemd_run_command "isula-build ctr-img build -t $image_name:latest2 $context_dir"
-    image_id2=$(grep </tmp/buildlog-client "Build success with image id: " | cut -d ":" -f 2)
+    image_id2=$(grep <"$TMPDIR"/buildlog-client "Build success with image id: " | cut -d ":" -f 2)
 
     declare -a commands=(
         "isula-build ctr-img tag $image_name:latest $image_name:latest-child"

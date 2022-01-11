@@ -16,16 +16,23 @@
 
 # exit_flag for a testcase, which will be added one when check or command goes something wrong
 exit_flag=0
+# TMPDIR use in all base or integration test process
+declare -x TMPDIR
+
+# only run once for create a temp dir
+function create_tmp_dir() {
+    TMPDIR=$(mktemp -d)
+}
 
 # show command brief and run
 # $1 (command brief)
 # $2 (concrete command)
 function show_and_run_command() {
     function run_command() {
-        if ! $command >/tmp/buildlog-client 2>&1; then
+        if ! $command >"$TMPDIR"/buildlog-client 2>&1; then
             echo "FAIL"
             echo "Failed when running command: $command"
-            echo "LOG DIR:/tmp/buildlog-client and /tmp/buildlog-daemon"
+            echo "LOG DIR:$TMPDIR/buildlog-client and $TMPDIR/buildlog-daemon"
             kill -15 "${pidofbuilder}"
             shell_print_callstack
             exit 1
@@ -49,14 +56,14 @@ function systemd_run_command() {
     local -r command="$1"
 
     start_time=$(date '+%Y-%m-%d %H:%M:%S')
-    if ! $command >/tmp/buildlog-client 2>&1; then
+    if ! $command >"$TMPDIR"/buildlog-client 2>&1; then
         {
             echo "Error from client:"
-            cat /tmp/buildlog-client
+            cat "$TMPDIR"/buildlog-client
             echo "Error from daemon:"
             journalctl -u isula-build --since "$start_time" --no-pager
             shell_print_callstack
-        } >>/tmp/buildlog-failed
+        } >>"$TMPDIR"/buildlog-failed
 
         ((exit_flag++))
     fi
@@ -78,7 +85,7 @@ function run_check_result() {
         {
             echo "$testcase:${BASH_LINENO[0]}" "$command"
             echo expected "$expected", get "$result"
-        } >>/tmp/buildlog-failed
+        } >>"$TMPDIR"/buildlog-failed
         ((exit_flag++))
     fi
 }
@@ -97,7 +104,7 @@ function check_value() {
         {
             echo "TESTCASE: $testcase:${BASH_LINENO[0]}" "${FUNCNAME[0]}"
             echo expected "$expected", get "$result"
-        } >>/tmp/buildlog-failed
+        } >>"$TMPDIR"/buildlog-failed
         ((exit_flag++))
     fi
 }

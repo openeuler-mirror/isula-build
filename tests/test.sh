@@ -1,11 +1,12 @@
 #!/bin/bash
-
+# shellcheck disable=SC1091
 top_dir=$(git rev-parse --show-toplevel)
 
 # base test
 function base() {
     source "$top_dir"/tests/lib/base_commonlib.sh
     pre_check
+    create_tmp_dir
     start_isula_builder
 
     while IFS= read -r testfile; do
@@ -22,8 +23,8 @@ function base() {
 function fuzz() {
     failed=0
     while IFS= read -r testfile; do
-        printf "%-45s" "test $(basename "$testfile"): " | tee -a ${top_dir}/tests/fuzz.log
-        bash "$testfile" "$1" | tee -a ${top_dir}/tests/fuzz.log
+        printf "%-45s" "test $(basename "$testfile"): " | tee -a "$top_dir"/tests/fuzz.log
+        bash "$testfile" "$1" | tee -a "$top_dir"/tests/fuzz.log
         if [ $PIPESTATUS -ne 0 ]; then
             failed=1
         fi
@@ -36,6 +37,7 @@ function fuzz() {
 # integration test
 function integration() {
     source "$top_dir"/tests/lib/integration_commonlib.sh
+    create_tmp_dir
     pre_integration
 
     while IFS= read -r testfile; do

@@ -35,7 +35,7 @@ function clean() {
 function do_test() {
     systemd_run_command "isula-build ctr-img build -t $image_name:latest1 $context_dir"
     systemd_run_command "isula-build ctr-img build -t $image_name:latest2 $context_dir"
-    image_id2=$(grep </tmp/buildlog-client "Build success with image id: " | cut -d ":" -f 2)
+    image_id2=$(grep <"$TMPDIR"/buildlog-client "Build success with image id: " | cut -d ":" -f 2)
     short_id2=${image_id2:0:12}
     double_short_id2=${short_id2:0:6}
 
@@ -51,11 +51,11 @@ function do_test() {
 
     # analyse it
     declare -a commands=(
-        "cat /tmp/buildlog-client |grep $short_id2"
-        "tar -xvf $temp_tar_short -C /tmp manifest.json"
-        "cat /tmp/manifest.json | grep $short_id2:latest"
-        "tar -xvf $temp_tar_double_short -C /tmp manifest.json"
-        "cat /tmp/manifest.json | grep $image_id2"
+        "cat $TMPDIR/buildlog-client |grep $short_id2"
+        "tar -xvf $temp_tar_short -C $TMPDIR manifest.json"
+        "cat $TMPDIR/manifest.json | grep $short_id2:latest"
+        "tar -xvf $temp_tar_double_short -C $TMPDIR manifest.json"
+        "cat $TMPDIR/manifest.json | grep $image_id2"
     )
     for command in "${commands[@]}"; do run_check_result "$command" 0; done
 }
