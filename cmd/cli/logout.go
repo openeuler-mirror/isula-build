@@ -88,7 +88,7 @@ func newLogoutOptions(c *cobra.Command, args []string) error {
 	}
 
 	// no need args check when all flag is set
-	if c.Flag("all").Changed {
+	if logoutOpts.all {
 		logoutOpts.all = true
 		logoutOpts.server = ""
 		return nil

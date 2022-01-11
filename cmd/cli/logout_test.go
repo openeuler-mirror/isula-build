@@ -125,11 +125,12 @@ func TestNewLogoutOptions(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			if tt.flag != "" {
-				tt.args.c.Flag("all").Changed = true
+				logoutOpts.all = true
 			}
 			if err := newLogoutOptions(tt.args.c, tt.args.args); (err != nil) != tt.wantErr {
 				t.Errorf("newLogoutOptions() error = %v, wantErr %v", err, tt.wantErr)
 			}
+			logoutOpts.all = false
 		})
 	}
 }

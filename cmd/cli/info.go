@@ -78,12 +78,6 @@ func infoCommand(c *cobra.Command, args []string) error {
 	if len(args) > 1 {
 		return errors.New("invalid args for info command")
 	}
-	if c.Flag("verbose").Changed {
-		infoOpts.verbose = true
-	}
-	if c.Flag("human-readable").Changed {
-		infoOpts.humanReadable = true
-	}
 
 	ctx := context.Background()
 	cli, err := NewClient(ctx)

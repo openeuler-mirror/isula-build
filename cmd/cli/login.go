@@ -87,6 +87,10 @@ func loginCommand(c *cobra.Command, args []string) error {
 	}
 	loginOpts.keyPath = util.DefaultRSAKeyPath
 
+	if err := checkAuthOpt(); err != nil {
+		return err
+	}
+
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
@@ -129,6 +133,13 @@ func runLogin(ctx context.Context, cli Cli, c *cobra.Command) (string, error) {
 	}
 
 	return resp.Content, err
+}
+
+func checkAuthOpt() error {
+	if loginOpts.stdinPass && loginOpts.username == "" {
+		return errLackOfFlags
+	}
+	return nil
 }
 
 func getAuthInfo(c *cobra.Command) error {
@@ -192,7 +203,7 @@ func getUsername(c *cobra.Command) error {
 		return err
 	}
 
-	if !c.Flag("username").Changed {
+	if loginOpts.username == "" {
 		fmt.Print("Username: ")
 		if _, err := fmt.Scanln(&username); err != nil {
 			return errReadUsernameFromTerm
@@ -214,9 +225,6 @@ func getPassword(c *cobra.Command) error {
 	// if already got it, there is no need to get pass again
 	if loginOpts.password != "" {
 		return nil
-	}
-	if c.Flag("password-stdin").Changed && !c.Flag("username").Changed {
-		return errLackOfFlags
 	}
 
 	if loginOpts.stdinPass {
