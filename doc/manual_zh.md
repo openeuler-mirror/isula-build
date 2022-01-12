@@ -48,7 +48,7 @@ isula-build是iSula容器团队推出的容器镜像构建工具，支持通过D
 
 isula-build采用服务端/客户端模式，其中，isula-build为客户端，提供了一组命令行工具，用于镜像构建及管理等；isula-builder为服务端，用于处理客户端管理请求，作为守护进程常驻后台。
 
-![isula-build architecure](./figures/isula-build_arch.png)
+![isula-build architecture](./figures/isula-build_arch.png)
 
 > **说明**：
 >
@@ -80,7 +80,7 @@ isula-build采用服务端/客户端模式，其中，isula-build为客户端，
 
 **方法二：使用rpm包安装**
 
-1. 从openEuler yum源中获取isula-build对应安装包isula-build-\*.rpm。例如isula-build-0.9.3-4.oe1.x86_64.rpm。
+1. 从openEuler yum源中获取isula-build对应安装包isula-build-*.rpm。例如isula-build-0.9.6-4.oe1.x86_64.rpm。
 
 2. 将获取的rpm软件包上传至目标服务器的任一目录，例如 /home/。
 
@@ -104,14 +104,14 @@ isula-build采用服务端/客户端模式，其中，isula-build为客户端，
 
 - /etc/isula-build/configuration.toml：isula-builder 总体配置文件，用于设置 isula-builder 日志级别、持久化目录和运行时目录、OCI runtime等。其中各参数含义如下：
 
-| 配置项       | 是否可选 | 配置项含义                                                   | 配置项取值                                      |
-| ------------ | -------- | ------------------------------------------------------------ | ----------------------------------------------- |
-| debug        | 可选     | 设置是否打开debug日志                                        | true：打开debug日志；false：关闭debug日志       |
-| loglevel     | 可选     | 设置日志级别                                                 | debug， info，warn，error                       |
-| run_root     | 必选     | 设置运行时数据根目录                                         | 运行时数据根目录路径，例如/var/run/isula-build/ |
-| data_root    | 必选     | 设置本地持久化目录                                           | 本地持久化目录路径，例如/var/lib/isula-build/   |
-| runtime      | 可选     | 设置runtime种类，目前仅支持runc                              | runc                                            |
-| group        | 可选     | 设置本地套接字isula_build.sock文件属组使得加入该组的非特权用户可以操作isula-build | isula                                           |
+| 配置项    | 是否可选 | 配置项含义                        | 配置项取值                                      |
+| --------- | -------- | --------------------------------- | ----------------------------------------------- |
+| debug     | 可选     | 设置是否打开debug日志             | true：打开debug日志<br/>false：关闭debug日志    |
+| loglevel  | 可选     | 设置日志级别                      | debug<br/>info<br/>warn<br/>error               |
+| run_root  | 必选     | 设置运行时数据根目录              | 运行时数据根目录路径，例如/var/run/isula-build/ |
+| data_root | 必选     | 设置本地持久化目录                | 本地持久化目录路径，例如/var/lib/isula-build/   |
+| runtime   | 可选     | 设置runtime种类，目前仅支持runc   | runc                                            |
+| group     | 可选     | 设置本地套接字isula_build.sock文件属组使得加入该组的非特权用户可以操作isula-build | isula |
 | experimental | 可选     | 设置是否开启实验特性                                         | true：开启实验特性；false：关闭实验特性         |
 
 
@@ -198,7 +198,7 @@ sudo systemctl daemon-reload
 启动 isula-build 服务。例如指定本地持久化路径/var/lib/isula-build，且不开启调试的参考命令如下：
 
 ```sh
-sudo isula-builder --dataroot "/var/lib/isula-build"
+sudo isula-builder --dataroot "/var/lib/isula-build" --debug=false
 ```
 
 ## 使用指南
@@ -370,7 +370,7 @@ $ cat testfile
 
 **\-o, --output**
 
-目前 -o, –output 支持如下形式：
+目前 -o, --output 支持如下形式：
 
 - `isulad:image:tag`：将构建成功的镜像直接推送到 iSulad。比如：`-o isulad:busybox:latest`。同时需要注意如下约束：
 
@@ -457,7 +457,7 @@ localhost:5000/library/alpine                   latest       a24bb4013296       
 
 #### import: 导入容器基础镜像
 
-openEuler会随版本发布一个容器基础镜像，比如openEuler-docker.x86_64.tar.xz。可以通过`ctr-img import`指令将它导入到 isula-build。
+可以通过`ctr-img import`指令将rootfs形式的tar文件导入到isula-build中。
 
 命令原型如下：
 
@@ -468,13 +468,18 @@ isula-build ctr-img import [flags]
 使用举例：
 
 ```sh
-$ sudo isula-build ctr-img import ./openEuler-docker.x86_64.tar.xz openeuler:20.09
-Import success with image id: 7317851cd2ab33263eb293f68efee9d724780251e4e92c0fb76bf5d3c5585e37
+$ sudo isula-build ctr-img import busybox.tar mybusybox:latest
+Getting image source signatures
+Copying blob sha256:7b8667757578df68ec57bfc9fb7754801ec87df7de389a24a26a7bf2ebc04d8d
+Copying config sha256:173b3cf612f8e1dc34e78772fcf190559533a3b04743287a32d549e3c7d1c1d1
+Writing manifest to image destination
+Storing signatures
+Import success with image id: "173b3cf612f8e1dc34e78772fcf190559533a3b04743287a32d549e3c7d1c1d1"
 $ sudo isula-build ctr-img images
 ----------------------------------------------  --------------------  -----------------  ------------------------  ------------
 REPOSITORY                                      TAG                   IMAGE ID           CREATED                   SIZE
 ----------------------------------------------  --------------------  -----------------  ------------------------  ------------
-openeuler                                       20.09                 7317851cd2ab       2020-08-01 06:25:34       500 MB
+mybusybox                                       latest                173b3cf612f8       2022-01-12 16:02:31       1.47 MB
 ----------------------------------------------  --------------------  -----------------  ------------------------  ------------
 ```
 
@@ -561,8 +566,8 @@ isula-build ctr-img rm IMAGE [IMAGE...] [FLAGS]
 
 目前支持的 flags 为：
 
-- -a, –all：删除所有本地持久化存储的镜像。
-- -p, –prune：删除所有没有tag的本地持久化存储的镜像。
+- -a, --all：删除所有本地持久化存储的镜像。
+- -p, --prune：删除所有没有tag的本地持久化存储的镜像。
 
 使用示例如下：
 
@@ -863,20 +868,20 @@ $ sudo isula-build info -HV
 可通过version命令查看当前版本信息：
 
 ```sh
- $ sudo isula-build version
- Client:
-   Version:       0.9.4
-   Go Version:    go1.13.3
-   Git Commit:    0038365c
-   Built:         Tue Nov 24 16:32:05 2020
-   OS/Arch:       linux/amd64
+$ sudo isula-build version
+Client:
+  Version:       0.9.6-4
+  Go Version:    go1.15.7
+  Git Commit:    83274e0
+  Built:         Wed Jan 12 15:32:55 2022
+  OS/Arch:       linux/amd64
 
- Server:
-   Version:       0.9.4
-   Go Version:    go1.13.3
-   Git Commit:    0038365c
-   Built:         Tue Nov 24 16:32:05 2020
-   OS/Arch:       linux/amd64
+Server:
+  Version:       0.9.6-4
+  Go Version:    go1.15.7
+  Git Commit:    83274e0
+  Built:         Wed Jan 12 15:32:55 2022
+  OS/Arch:       linux/amd64
 ```
 
 ### manifest: manifest列表管理
@@ -1098,6 +1103,7 @@ busybox                                             2.0                 2d414a5c
 | ------------ | ------------ | ---------------------------------- |
 | ctr-img save | -o, --output | string，镜像导出后在本地的存储路径 |
 |              | -f, --format | string，导出层叠镜像的镜像格式：oci｜docker（需开启实验特性选项）|
+
 **表6** login 命令参数列表
 
 | **命令** | **参数**             | **说明**                                                |

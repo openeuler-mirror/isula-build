@@ -26,11 +26,11 @@
     * [login: Logging In to the Remote Image Repository](#login-logging-in-to-the-remote-image-repository)
     * [logout: Logging Out of the Remote Image Repository](#logout-logging-out-of-the-remote-image-repository)
     * [version: Querying the isula-build Version](#version-querying-the-isula-build-version)
-    * [manifest: Manage manifest list(experimental feature)](#manifest-Manage-manifest-list)
-        * [create: Create a manifest list](#create-Create-a-manifest-list)
-        * [annotate: Update a manifest list](#annotate-Update-a-manifest-list)
-        * [inspect: Inspect a manifest list](#inspect-Inspect-a-manifest-list)
-        * [push: Push manifest list to repository](#push-Push-manifest-list-to-repository)
+    * [manifest: Manage manifest list(experimental feature)](#manifest-Manifest-List-Management)
+        * [create: Create a manifest list](#create-Manifest-List-Creation)
+        * [annotate: Update a manifest list](#annotate-Manifest-List-Update)
+        * [inspect: Inspect a manifest list](#inspect-Manifest-List-Inspect)
+        * [push: Push manifest list to repository](#push-Manifest-List-Push-to-the-Remote-Repository)
 * [Directly Integrating a Container Engine](#directly-integrating-a-container-engine)
     * [Integration with iSulad](#integration-with-isulad)
     * [Integration with Docker](#integration-with-docker)
@@ -48,7 +48,7 @@ isula-build is a container image build tool developed by the iSula container tea
 
 The isula-build uses the server/client mode. The isula-build functions as a client and provides a group of command line tools for image build and management. The isula-builder functions as the server, processes client management requests, and functions as the daemon process in the background.
 
-![isula-build architecure](./figures/isula-build_arch.png)
+![isula-build architecture](./figures/isula-build_arch.png)
 
 > **Note:**
 >
@@ -80,7 +80,7 @@ Before using isula-build to build a container image, you need to install the fol
 
 **Method 2: Using the RPM Package**
 
-1. Obtain the isula-build-\*.rpm installation package from the openEuler yum source, for example, isula-build-0.9.3-1.oe1.x86_64.rpm.
+1. Obtain the isula-build-*.rpm installation package from the openEuler yum source, for example, isula-build-0.9.6-4.oe1.x86_64.rpm.
 
 2. Upload the obtained RPM software package to any directory on the target server, for example, /home/.
 
@@ -107,7 +107,7 @@ Currently, the isula-build server contains the following configuration file:
 | Configuration Item    | Mandatory or Optional | Description                         | Value                         |
 | --------- | -------- | --------------------------------- | ----------------------------------------------- |
 | debug | Optional | Indicates whether to enable the debug log function. | true: Enable the debug log function. false: Disable the debug log function. |
-| loglevel | Optional | Sets the log level.          | debug, info, warn, error                |
+| loglevel | Optional | Sets the log level.          | debug<br/>info<br/>warn<br/>error                |
 | run_root | Mandatory | Sets the root directory of runtime data. | For example, /var/run/isula-build/ |
 | data_root | Mandatory | Sets the local persistency directory. | For example, /var/lib/isula-build/ |
 | runtime | Optional | Sets the runtime type. Currently, only runc is supported. | runc                                            |
@@ -197,7 +197,7 @@ You can also run the isula-builder command on the server to start the service. T
 Start the isula-build service. For example, to specify the local persistency directory /var/lib/isula-build and disable debugging, run the following command:
 
 ```sh
-sudo isula-builder --dataroot "/var/lib/isula-build"
+sudo isula-builder --dataroot "/var/lib/isula-build" --debug=false
 ```
 
 ## Usage Guidelines
@@ -369,7 +369,7 @@ $ cat testfile
 
 **\-o, --output**
 
-Currently, -o and –output support the following formats:
+Currently, -o and --output support the following formats:
 
 - `isulad:image:tag`: directly pushes the image that is successfully built to iSulad, for example, `-o isulad:busybox:latest`. Pay attention to the following restrictions:
 
@@ -460,7 +460,7 @@ localhost:5000/library/alpine                   latest       a24bb4013296       
 
 #### import: Importing a Basic Container Image
 
-openEuler releases a basic container image, for example, openEuler-docker.x86_64.tar.xz, with the version. You can run the `ctr-img import` command to import the image to isula-build.
+A tar file in rootfs form can be imported into isula-build via the `ctr-img import` command.
 
 The command is as follows:
 
@@ -471,13 +471,18 @@ isula-build ctr-img import [flags]
 Example:
 
 ```sh
-$ sudo isula-build ctr-img import ./openEuler-docker.x86_64.tar.xz openeuler:20.09
-Import success with image id: 7317851cd2ab33263eb293f68efee9d724780251e4e92c0fb76bf5d3c5585e37
+$ sudo isula-build ctr-img import busybox.tar mybusybox:latest
+Getting image source signatures
+Copying blob sha256:7b8667757578df68ec57bfc9fb7754801ec87df7de389a24a26a7bf2ebc04d8d
+Copying config sha256:173b3cf612f8e1dc34e78772fcf190559533a3b04743287a32d549e3c7d1c1d1
+Writing manifest to image destination
+Storing signatures
+Import success with image id: "173b3cf612f8e1dc34e78772fcf190559533a3b04743287a32d549e3c7d1c1d1"
 $ sudo isula-build ctr-img images
 ----------------------------------------------  --------------------  -----------------  ------------------------  ------------
 REPOSITORY                                      TAG                   IMAGE ID           CREATED                   SIZE
 ----------------------------------------------  --------------------  -----------------  ------------------------  ------------
-openeuler                                       20.09                 7317851cd2ab       2020-08-01 06:25:34       500 MB
+mybusybox                                       latest                173b3cf612f8       2022-01-12 16:02:31       1.47 MB
 ----------------------------------------------  --------------------  -----------------  ------------------------  ------------
 ```
 
@@ -566,8 +571,8 @@ isula-build ctr-img rm IMAGE [IMAGE...] [FLAGS]
 
 Currently, the following flags are supported:
 
-- -a, –all: deletes all images stored locally.
-- -p, –prune: deletes all images that are stored locally and do not have tags.
+- -a, --all: deletes all images stored locally.
+- -p, --prune: deletes all images that are stored locally and do not have tags.
 
 Example:
 
@@ -774,7 +779,7 @@ You can run the isula-build info command to view the running environment and sys
 
 The following flags are supported:
 
-- -H, –human-readable: Boolean. The memory information is printed in the common memory format. The value is 1000 power.
+- -H, --human-readable: Boolean. The memory information is printed in the common memory format. The value is 1000 power.
 - -V, --verbose: Boolean. The memory usage is displayed during system running.
 
 Example:
@@ -867,39 +872,39 @@ Example:
 You can run the version command to view the current version information.
 
 ```sh
- $ sudo isula-build version
- Client:
-   Version:       0.9.4
-   Go Version:    go1.13.3
-   Git Commit:    0038365c
-   Built:         Tue Nov 24 16:32:05 2020
-   OS/Arch:       linux/amd64
+$ sudo isula-build version
+Client:
+  Version:       0.9.6-4
+  Go Version:    go1.15.7
+  Git Commit:    83274e0
+  Built:         Wed Jan 12 15:32:55 2022
+  OS/Arch:       linux/amd64
 
- Server:
-   Version:       0.9.4
-   Go Version:    go1.13.3
-   Git Commit:    0038365c
-   Built:         Tue Nov 24 16:32:05 2020
-   OS/Arch:       linux/amd64
+Server:
+  Version:       0.9.6-4
+  Go Version:    go1.15.7
+  Git Commit:    83274e0
+  Built:         Wed Jan 12 15:32:55 2022
+  OS/Arch:       linux/amd64
 ```
 
-### manifest: Manage manifest list
+### manifest: Manifest List Management
 
-manifest list includes images refer to different architectures. By using manifest list, users could use the same manifest name(for example: openeuler:latest) in different architectures to get the corresponding image. Manifest includes subcommands create/annotate/inspcet/push.
+The manifest list contains the image information corresponding to different system architectures. You can use the same manifest (for example, openeuler:latest) in different architectures to obtain the image of the corresponding architecture. The manifest contains the create, annotate, inspect, and push subcommands.
 
 > **NOTE:**
 >
-> - manifest is experimental feature, users need to enable experimental features both on client and server, see client overview and configuring the isula-build service sections for details.
+> - manifest is an experiment feature. When using this feature, you need to enable the experiment options on the client and server. For details, see Client Overview and Configuring Services.
 
-####   create: Create a manifest list
+#### create: Manifest List Creation
 
-manifest create subcommand is used to create manifest list. The command is as follows:
+The create subcommand of the manifest command is used to create a manifest list. The command prototype is as follows:
 
 ```
 isula-build manifest create MANIFEST_LIST MANIFEST [MANIFEST...]
 ```
 
-Users could specify manifest list name and images added to list, if no image is specified, an empty list will be created.
+You can specify the name of the manifest list and the remote images to be added to the list. If no remote image is specified, an empty manifest list is created.
 
 Example:
 
@@ -907,25 +912,22 @@ Example:
 $ sudo isula-build manifest create openeuler localhost:5000/openeuler_x86:latest localhost:5000/openeuler_aarch64:latest
 ```
 
-#### annotate: Update a manifest list
+#### annotate: Manifest List Update
 
-manifest annotate subcommand is used to update manifest list. The command is as follows:
+The annotate subcommand of the manifest command is used to update the manifest list. The command prototype is as follows:
 
 ```
 isula-build manifest annotate MANIFEST_LIST MANIFEST [flags]
 ```
 
-Users could specify the manifest list and the image needed to update, with options by flags. This command could also be used to add new image to the list.
+You can specify the manifest list to be updated and the images in the manifest list, and use flags to specify the options to be updated. This command can also be used to add new images to the manifest list.
 
 Currently, the following flags are supported:
 
-```
-Flags:
-  --arch string           Set architecture
-  --os string             Set operating system
-  --os-features strings   Set operating system feature
-  --variant string        Set architecture variant
-```
+- --arch: Applicable architecture of the rewritten image. The value is a string.
+- --os: Indicates the applicable system of the image. The value is a string.
+- --os-features: Specifies the OS features required by the image. This parameter is a string and rarely used.
+- --variant: Variable of the image recorded in the list. The value is a string.
 
 Example:
 
@@ -933,9 +935,9 @@ Example:
 $ sudo isula-build manifest annotate --os linux --arch arm64 openeuler:latest localhost:5000/openeuler_aarch64:latest
 ```
 
-####  inspect: Inspect a manifest list
+#### inspect: Manifest List Inspect
 
-manifest inspect subcommand is used to inspect manifest list. The command is as follows:
+The inspect subcommand of the manifest command is used to query the manifest list. The command prototype is as follows:
 
 ```
 isula-build manifest inspect MANIFEST_LIST
@@ -971,9 +973,9 @@ $ sudo isula-build manifest inspect openeuler:latest
 }
 ```
 
-#### push: Push manifest list to repository
+#### push: Manifest List Push to the Remote Repository.
 
-manifest push subcommand is used to push manifest list to remote repository. The command is as follows:
+The manifest subcommand push is used to push the manifest list to the remote repository. The command prototype is as follows:
 
 ```
 isula-build manifest push MANIFEST_LIST DESTINATION
