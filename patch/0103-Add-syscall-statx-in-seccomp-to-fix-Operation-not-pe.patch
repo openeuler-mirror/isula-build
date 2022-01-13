@@ -1,0 +1,25 @@
+From f4d69303103c5b043a104d8eb7361ce6f5848a02 Mon Sep 17 00:00:00 2001
+From: DCCooper <1866858@gmail.com>
+Date: Thu, 13 Jan 2022 16:54:24 +0800
+Subject: [PATCH] Add syscall "statx" in seccomp to fix Operation not permitted
+
+Signed-off-by: DCCooper <1866858@gmail.com>
+---
+ .../opencontainers/runtime-tools/generate/seccomp/seccomp_default.go     | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/vendor/github.com/opencontainers/runtime-tools/generate/seccomp/seccomp_default.go b/vendor/github.com/opencontainers/runtime-tools/generate/seccomp/seccomp_default.go
+index 5fee5a3..fd16b6c 100644
+--- a/vendor/github.com/opencontainers/runtime-tools/generate/seccomp/seccomp_default.go
++++ b/vendor/github.com/opencontainers/runtime-tools/generate/seccomp/seccomp_default.go
+@@ -303,6 +303,7 @@ func DefaultProfile(rs *specs.Spec) *rspec.LinuxSeccomp {
+ 				"stat64",
+ 				"statfs",
+ 				"statfs64",
++				"statx",
+ 				"symlink",
+ 				"symlinkat",
+ 				"sync",
+-- 
+1.8.3.1
+
