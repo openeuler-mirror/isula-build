@@ -14,10 +14,10 @@ index 41690ab..b6d675b 100644
 --- a/daemon/load.go
 +++ b/daemon/load.go
 @@ -17,6 +17,8 @@ import (
++	"context"
  	"io/ioutil"
  	"os"
  	"path/filepath"
-+	"context"
 +	"strings"
  
  	"github.com/containers/image/v5/docker/tarfile"
