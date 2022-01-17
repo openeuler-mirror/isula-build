@@ -26,11 +26,11 @@
     * [login: Logging In to the Remote Image Repository](#login-logging-in-to-the-remote-image-repository)
     * [logout: Logging Out of the Remote Image Repository](#logout-logging-out-of-the-remote-image-repository)
     * [version: Querying the isula-build Version](#version-querying-the-isula-build-version)
-    * [manifest: Manage manifest list(experimental feature)](#manifest-Manifest-List-Management)
-        * [create: Create a manifest list](#create-Manifest-List-Creation)
-        * [annotate: Update a manifest list](#annotate-Manifest-List-Update)
-        * [inspect: Inspect a manifest list](#inspect-Manifest-List-Inspect)
-        * [push: Push manifest list to repository](#push-Manifest-List-Push-to-the-Remote-Repository)
+    * [manifest: Manage manifest list(experimental feature)](#manifest-manifest-list-management)
+        * [create: Create a manifest list](#create-manifest-list-creation)
+        * [annotate: Update a manifest list](#annotate-manifest-list-update)
+        * [inspect: Inspect a manifest list](#inspect-manifest-list-inspect)
+        * [push: Push manifest list to repository](#push-manifest-list-push-to-the-remote-repository)
 * [Directly Integrating a Container Engine](#directly-integrating-a-container-engine)
     * [Integration with iSulad](#integration-with-isulad)
     * [Integration with Docker](#integration-with-docker)
@@ -446,12 +446,12 @@ You can run the images command to view the images in the local persistent storag
 
 ```sh
 $ sudo isula-build ctr-img images
-----------------------------------------------  -----------  -----------------  --------------------------  ------------
-REPOSITORY                                      TAG          IMAGE ID           CREATED                     SIZE
-----------------------------------------------  -----------  -----------------  --------------------------  ------------
-localhost:5000/library/alpine                   latest       a24bb4013296       2020-20-19 19:59:197        5.85 MB
-<none>                                          <none>       39b62a3342ee       2020-20-38 38:66:387        1.45 MB
-----------------------------------------------  -----------  -----------------  --------------------------  ------------
+---------------------------------------  -----------  -----------------  ------------------------  ------------
+REPOSITORY                               TAG          IMAGE ID           CREATED                   SIZE
+---------------------------------------  -----------  -----------------  ------------------------  ------------
+localhost:5000/library/alpine            latest       a24bb4013296       2022-01-17 10:02:19       5.85 MB
+<none>                                   <none>       39b62a3342ee       2022-01-17 10:01:12       1.45 MB
+---------------------------------------  -----------  -----------------  ------------------------  ------------
 ```
 
 > **Note:**
@@ -479,11 +479,11 @@ Writing manifest to image destination
 Storing signatures
 Import success with image id: "173b3cf612f8e1dc34e78772fcf190559533a3b04743287a32d549e3c7d1c1d1"
 $ sudo isula-build ctr-img images
-----------------------------------------------  --------------------  -----------------  ------------------------  ------------
-REPOSITORY                                      TAG                   IMAGE ID           CREATED                   SIZE
-----------------------------------------------  --------------------  -----------------  ------------------------  ------------
-mybusybox                                       latest                173b3cf612f8       2022-01-12 16:02:31       1.47 MB
-----------------------------------------------  --------------------  -----------------  ------------------------  ------------
+---------------------------------------  -----------  -----------------  ------------------------  ------------
+REPOSITORY                               TAG          IMAGE ID           CREATED                   SIZE
+---------------------------------------  -----------  -----------------  ------------------------  ------------
+mybusybox                                latest       173b3cf612f8       2022-01-12 16:02:31       1.47 MB
+---------------------------------------  -----------  -----------------  ------------------------  ------------
 ```
 
 > **Note:**
@@ -705,19 +705,19 @@ Example:
 
 ```sh
 $ sudo isula-build ctr-img images
-----------------------------------------------  -----------  -----------------  --------------------------  ------------
-REPOSITORY                                      TAG          IMAGE ID           CREATED                     SIZE
-----------------------------------------------  -----------  -----------------  --------------------------  ------------
-alpine                                         latest       a24bb4013296       2020-05-29 21:19:46         5.85 MB
-----------------------------------------------  -----------  -----------------  --------------------------  ------------
+---------------------------------------  -----------  -----------------  --------------------------  ------------
+REPOSITORY                               TAG          IMAGE ID           CREATED                     SIZE
+---------------------------------------  -----------  -----------------  --------------------------  ------------
+alpine                                   latest       a24bb4013296       2020-05-29 21:19:46         5.85 MB
+---------------------------------------  -----------  -----------------  --------------------------  ------------
 $ sudo isula-build ctr-img tag a24bb4013296 alpine:v1
 $ sudo isula-build ctr-img images
-----------------------------------------------  -----------  -----------------  --------------------------  ------------
-REPOSITORY                                      TAG          IMAGE ID           CREATED                     SIZE
-----------------------------------------------  -----------  -----------------  --------------------------  ------------
-alpine                                           latest       a24bb4013296       2020-05-29 21:19:46         5.85 MB
-alpine                                           v1           a24bb4013296       2020-05-29 21:19:46         5.85 MB
-----------------------------------------------  -----------  -----------------  --------------------------  ------------
+---------------------------------------  -----------  -----------------  ------------------------  ------------
+REPOSITORY                               TAG          IMAGE ID           CREATED                   SIZE
+---------------------------------------  -----------  -----------------  ------------------------  ------------
+alpine                                   latest       a24bb4013296       2020-05-29 21:19:46       5.85 MB
+alpine                                   v1           a24bb4013296       2020-05-29 21:19:46       5.85 MB
+---------------------------------------  -----------  -----------------  ------------------------  ------------
 ```
 
 #### pull: Pulling an Image To a Local Host
