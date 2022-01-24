@@ -29,10 +29,7 @@ import (
 	constant "isula.org/isula-build"
 )
 
-const (
-	maxServerNameLength = 255
-	maxLoadFileSize     = 50 * 1024 * 1024 * 1024
-)
+const maxServerNameLength = 255
 
 // CopyMapStringString copies all KVs in a map[string]string to a new map
 func CopyMapStringString(m map[string]string) map[string]string {
@@ -94,44 +91,21 @@ func SetUmask() bool {
 	return unix.Umask(wanted) == wanted
 }
 
-// CheckFileSize check whether the file size exceeds limit
-func CheckFileSize(path string, sizeLimit int64) error {
-	filename := filepath.Base(path)
+// CheckFileInfoAndSize check whether the file exists, is regular file, and if its size exceeds limit
+func CheckFileInfoAndSize(path string, sizeLimit int64) error {
 	f, err := os.Stat(filepath.Clean(path))
-	// file not exist, file size check ok
-	if os.IsNotExist(err) {
-		return nil
-	}
 	if err != nil {
-		return errors.Errorf("stat file %v err: %v", filename, err)
+		return err
 	}
-	if f.IsDir() {
-		return errors.Errorf("file %s is a directory", filename)
+	if !f.Mode().IsRegular() {
+		return errors.Errorf("file %s should be a regular file", f.Name())
+	}
+
+	if f.Size() == 0 {
+		return errors.Errorf("file %s is empty", f.Name())
 	}
 	if f.Size() > sizeLimit {
-		return errors.Errorf("file %v size is: %v, exceeds limit %v", filename, f.Size(), sizeLimit)
-	}
-
-	return nil
-}
-
-// CheckLoadFile checks the file which will be loaded
-func CheckLoadFile(path string) error {
-	fi, err := os.Stat(path)
-	if err != nil {
-		return errors.Wrapf(err, "stat %q failed", path)
-	}
-
-	if !fi.Mode().IsRegular() {
-		return errors.Errorf("loading file %s should be a regular file", fi.Name())
-	}
-
-	if fi.Size() == 0 {
-		return errors.New("loading file is empty")
-	}
-
-	if fi.Size() > maxLoadFileSize {
-		return errors.Errorf("file %s size is: %v, exceeds limit %v", fi.Name(), fi.Size(), maxLoadFileSize)
+		return errors.Errorf("file %s size is: %d, exceeds limit %d", f.Name(), f.Size(), sizeLimit)
 	}
 
 	return nil

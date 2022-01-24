@@ -62,7 +62,7 @@ func (b *Backend) getLoadOptions(req *pb.LoadRequest) (LoadOptions, error) {
 
 	// normal image loading
 	if !req.GetSep().GetEnabled() {
-		if err = util.CheckLoadFile(opt.path); err != nil {
+		if err = util.CheckFileInfoAndSize(opt.path, constant.MaxLoadFileSize); err != nil {
 			return LoadOptions{}, err
 		}
 		return opt, nil

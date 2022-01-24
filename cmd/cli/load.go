@@ -128,7 +128,7 @@ func resolveLoadPath(path, pwd string) (string, error) {
 	}
 
 	path = util.MakeAbsolute(path, pwd)
-	if err := util.CheckLoadFile(path); err != nil {
+	if err := util.CheckFileInfoAndSize(path, constant.MaxLoadFileSize); err != nil {
 		return "", err
 	}
 

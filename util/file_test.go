@@ -18,7 +18,6 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
-	"reflect"
 	"testing"
 	"time"
 
@@ -27,73 +26,6 @@ import (
 	"gotest.tools/v3/fs"
 	constant "isula.org/isula-build"
 )
-
-func TestReadSmallFile(t *testing.T) {
-	smallFile := fs.NewFile(t, t.Name())
-	defer smallFile.Remove()
-	err := ioutil.WriteFile(smallFile.Path(), []byte("small file"), constant.DefaultRootFileMode)
-	assert.NilError(t, err)
-
-	root := fs.NewDir(t, t.Name())
-	defer root.Remove()
-
-	bigFile := filepath.Join(root.Path(), "bigFile")
-	f, err := os.Create(bigFile)
-	assert.NilError(t, err)
-	defer os.Remove(f.Name())
-	err = f.Truncate(fileMaxSize + 1)
-	assert.NilError(t, err)
-
-	emptyFile := fs.NewFile(t, t.Name())
-	defer emptyFile.Remove()
-
-	type args struct {
-		path string
-	}
-	tests := []struct {
-		name    string
-		args    args
-		want    []byte
-		wantErr bool
-	}{
-		{
-			name: "TC-normal read",
-			args: args{path: smallFile.Path()},
-			want: []byte("small file"),
-		},
-		{
-			name:    "TC-not exist path",
-			wantErr: true,
-		},
-		{
-			name:    "TC-file too big",
-			args:    args{path: bigFile},
-			wantErr: true,
-		},
-		{
-			name:    "TC-empty file",
-			args:    args{path: emptyFile.Path()},
-			wantErr: true,
-		},
-		{
-			name:    "TC-invalid file",
-			args:    args{path: "/dev/cdrom"},
-			wantErr: true,
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			got, err := ReadSmallFile(tt.args.path)
-			if (err != nil) != tt.wantErr {
-				t.Errorf("ReadSmallFile() error = %v, wantErr %v", err, tt.wantErr)
-				return
-			}
-			if !reflect.DeepEqual(got, tt.want) {
-				t.Errorf("ReadSmallFile() = %v, want %v", got, tt.want)
-			}
-		})
-	}
-}
 
 func TestLoadJSONFile(t *testing.T) {
 	type rename struct {

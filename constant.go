@@ -67,8 +67,14 @@ const (
 
 	// CliLogBufferLen is log channel buffer size
 	CliLogBufferLen = 8
-	// MaxFileSize is the maximum file size allowed, set 1M
+	// MaxFileSize is the max size of normal config file at most 1M
 	MaxFileSize = 1024 * 1024
+	// JSONMaxFileSize is the max size of json file at most 10M
+	JSONMaxFileSize = 10 * 1024 * 1024
+	// MaxImportFileSize is the max size of import image file at most 1G
+	MaxImportFileSize = 1024 * 1024 * 1024
+	// MaxLoadFileSize is the max size of load image file at most 50G
+	MaxLoadFileSize = 50 * 1024 * 1024 * 1024
 	// DefaultHTTPTimeout includes the total time of dial, TLS handshake, request, resp headers and body
 	DefaultHTTPTimeout = 3600 * time.Second
 	// DefaultFailedCode is the exit code for most scenes

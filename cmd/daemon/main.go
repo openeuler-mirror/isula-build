@@ -189,18 +189,10 @@ func before(cmd *cobra.Command) error {
 
 func loadConfig(path string) (config.TomlConfig, error) {
 	var conf config.TomlConfig
-	fi, err := os.Stat(path)
-	if err != nil {
+	if err := util.CheckFileInfoAndSize(path, constant.MaxFileSize); err != nil {
 		return conf, err
 	}
 
-	if !fi.Mode().IsRegular() {
-		return conf, errors.New("config file must be a regular file")
-	}
-
-	if err = util.CheckFileSize(path, constant.MaxFileSize); err != nil {
-		return conf, err
-	}
 	configData, err := ioutil.ReadFile(filepath.Clean(path))
 	if err != nil {
 		return conf, err
@@ -211,17 +203,7 @@ func loadConfig(path string) (config.TomlConfig, error) {
 }
 
 func checkRootSetInConfig(path string) (setRunRoot, setGraphRoot bool, err error) {
-	fi, err := os.Stat(path)
-	if err != nil {
-		return false, false, err
-	}
-
-	if !fi.Mode().IsRegular() {
-		err = errors.New("config file must be a regular file")
-		return false, false, err
-	}
-
-	if err = util.CheckFileSize(path, constant.MaxFileSize); err != nil {
+	if err = util.CheckFileInfoAndSize(path, constant.MaxFileSize); err != nil {
 		return false, false, err
 	}
 
@@ -391,16 +373,7 @@ func checkAndValidateConfig(cmd *cobra.Command) error {
 		if exist, err := util.IsExist(file); err != nil {
 			return err
 		} else if exist {
-			fi, err := os.Stat(file)
-			if err != nil {
-				return errors.Wrapf(err, "stat file %q failed", file)
-			}
-
-			if !fi.Mode().IsRegular() {
-				return errors.Errorf("file %s should be a regular file", fi.Name())
-			}
-
-			if err := util.CheckFileSize(file, constant.MaxFileSize); err != nil {
+			if err := util.CheckFileInfoAndSize(file, constant.MaxFileSize); err != nil {
 				return err
 			}
 		}
