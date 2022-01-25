@@ -30,9 +30,10 @@ require (
 	github.com/spf13/cobra v1.2.1
 	github.com/syndtr/gocapability v0.0.0-20200815063812-42c35b437635
 	github.com/xeipuuv/gojsonpointer v0.0.0-20190905194746-02993c407bfb // indirect
-	golang.org/x/crypto v0.0.0-20211117183948-ae814b36b871
+	golang.org/x/crypto v0.0.0-20211117183948-ae814b36b871 // indirect
 	golang.org/x/sync v0.0.0-20210220032951-036812b2e83c
 	golang.org/x/sys v0.0.0-20211124211545-fe61309f8881
+	golang.org/x/term v0.0.0-20201126162022-7de9c90e9dd1
 	google.golang.org/grpc v1.42.0
 	gotest.tools/v3 v3.0.3
 )
