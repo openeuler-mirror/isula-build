@@ -24,7 +24,7 @@ import (
 
 	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
-	"golang.org/x/crypto/ssh/terminal"
+	"golang.org/x/term"
 
 	pb "isula.org/isula-build/api/services"
 	"isula.org/isula-build/util"
@@ -233,7 +233,7 @@ func getPassword(c *cobra.Command) error {
 		}
 	} else {
 		r := func() ([]byte, error) {
-			return terminal.ReadPassword(0)
+			return term.ReadPassword(0)
 		}
 		if err := getPassFromInput(r); err != nil {
 			return err
