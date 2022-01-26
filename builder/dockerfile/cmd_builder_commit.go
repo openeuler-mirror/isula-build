@@ -66,7 +66,7 @@ func (c *cmdBuilder) newContainerReference(exporting bool) (transc.Reference, er
 		return transc.Reference{}, errors.Wrapf(err, "error encoding docker-format image configuration %#v", c.stage.docker)
 	}
 
-	createdBy := strings.Join(util.CopyStrings(c.stage.docker.Config.Shell), " ")
+	createdBy := strings.Join(c.stage.docker.Config.Shell, " ")
 	if createdBy == "" {
 		createdBy = defaultShell
 	}
