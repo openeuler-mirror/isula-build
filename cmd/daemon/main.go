@@ -155,22 +155,10 @@ func before(cmd *cobra.Command) error {
 	logrus.SetOutput(os.Stdout)
 	logrus.SetFormatter(&logrus.TextFormatter{FullTimestamp: true})
 
-	runRoot, err := securejoin.SecureJoin(daemonOpts.RunRoot, "storage")
-	if err != nil {
+	if err := validateConfigFileAndMerge(cmd); err != nil {
 		return err
 	}
-	dataRoot, err := securejoin.SecureJoin(daemonOpts.DataRoot, "storage")
-	if err != nil {
-		return err
-	}
-	store.SetDefaultStoreOptions(store.DaemonStoreOptions{
-		RunRoot:      runRoot,
-		DataRoot:     dataRoot,
-		Driver:       daemonOpts.StorageDriver,
-		DriverOption: util.CopyStrings(daemonOpts.StorageOpts),
-	})
-
-	if err := checkAndValidateConfig(cmd); err != nil {
+	if err := setStoreAccordingToDaemonOpts(); err != nil {
 		return err
 	}
 
@@ -183,6 +171,26 @@ func before(cmd *cobra.Command) error {
 	}
 
 	image.SetSystemContext(daemonOpts.DataRoot)
+
+	return nil
+}
+
+func setStoreAccordingToDaemonOpts() error {
+	runRoot, err := securejoin.SecureJoin(daemonOpts.RunRoot, "storage")
+	if err != nil {
+		return err
+	}
+	dataRoot, err := securejoin.SecureJoin(daemonOpts.DataRoot, "storage")
+	if err != nil {
+		return err
+	}
+
+	store.SetDefaultStoreOptions(store.DaemonStoreOptions{
+		RunRoot:      runRoot,
+		DataRoot:     dataRoot,
+		Driver:       daemonOpts.StorageDriver,
+		DriverOption: util.CopyStrings(daemonOpts.StorageOpts),
+	})
 
 	return nil
 }
@@ -202,65 +210,25 @@ func loadConfig(path string) (config.TomlConfig, error) {
 	return conf, err
 }
 
-func checkRootSetInConfig(path string) (setRunRoot, setGraphRoot bool, err error) {
-	if err = util.CheckFileInfoAndSize(path, constant.MaxFileSize); err != nil {
-		return false, false, err
-	}
-
-	configData, err := ioutil.ReadFile(filepath.Clean(path))
-	if err != nil {
-		return false, false, err
-	}
-	conf := struct {
-		Storage struct {
-			RunRoot  string `toml:"runroot"`
-			DataRoot string `toml:"graphroot"`
-		} `toml:"storage"`
-	}{}
-	_, err = toml.Decode(string(configData), &conf)
-	return conf.Storage.RunRoot != "", conf.Storage.DataRoot != "", err
-}
-
 func mergeStorageConfig(cmd *cobra.Command) error {
 	store.SetDefaultConfigFilePath(constant.StorageConfigPath)
 	option, err := store.GetDefaultStoreOptions(true)
-	if err == nil {
-		if option.GraphDriverName != "" && !cmd.Flag("storage-driver").Changed {
-			daemonOpts.StorageDriver = option.GraphDriverName
-		}
-		if len(option.GraphDriverOptions) > 0 && !cmd.Flag("storage-opt").Changed {
-			daemonOpts.StorageOpts = option.GraphDriverOptions
-		}
-	}
-
-	var storeOpt store.DaemonStoreOptions
-	storeOpt.RunRoot = option.RunRoot
-	storeOpt.DataRoot = option.GraphRoot
-
-	setRunRoot, setDataRoot, err := checkRootSetInConfig(constant.StorageConfigPath)
 	if err != nil {
 		return err
 	}
 
-	if !setRunRoot {
-		storeOpt.RunRoot, err = securejoin.SecureJoin(daemonOpts.RunRoot, "storage")
-		if err != nil {
-			return err
-		}
+	if !cmd.Flag("runroot").Changed && option.RunRoot != "" {
+		daemonOpts.RunRoot = option.RunRoot
 	}
-	if !setDataRoot {
-		storeOpt.DataRoot, err = securejoin.SecureJoin(daemonOpts.DataRoot, "storage")
-		if err != nil {
-			return err
-		}
+	if !cmd.Flag("dataroot").Changed && option.GraphRoot != "" {
+		daemonOpts.DataRoot = option.GraphRoot
 	}
-	if daemonOpts.StorageDriver != "" {
-		storeOpt.Driver = daemonOpts.StorageDriver
+	if !cmd.Flag("storage-driver").Changed && option.GraphDriverName != "" {
+		daemonOpts.StorageDriver = option.GraphDriverName
 	}
-	if len(daemonOpts.StorageOpts) > 0 {
-		storeOpt.DriverOption = util.CopyStrings(daemonOpts.StorageOpts)
+	if !cmd.Flag("storage-opt").Changed && len(option.GraphDriverOptions) > 0 {
+		daemonOpts.StorageOpts = option.GraphDriverOptions
 	}
-	store.SetDefaultStoreOptions(storeOpt)
 
 	return nil
 }
@@ -287,20 +255,6 @@ func mergeConfig(conf config.TomlConfig, cmd *cobra.Command) error {
 	if conf.DataRoot != "" && !cmd.Flag("dataroot").Changed {
 		daemonOpts.DataRoot = conf.DataRoot
 	}
-
-	runRoot, err := securejoin.SecureJoin(daemonOpts.RunRoot, "storage")
-	if err != nil {
-		return err
-	}
-
-	dataRoot, err := securejoin.SecureJoin(daemonOpts.DataRoot, "storage")
-	if err != nil {
-		return err
-	}
-	store.SetDefaultStoreOptions(store.DaemonStoreOptions{
-		DataRoot: dataRoot,
-		RunRoot:  runRoot,
-	})
 
 	return nil
 }
@@ -342,48 +296,56 @@ func setupWorkingDirectories() error {
 	return nil
 }
 
-func checkAndValidateConfig(cmd *cobra.Command) error {
-	// check if configuration.toml file exists, merge config if exists
-	if exist, err := util.IsExist(constant.ConfigurationPath); err != nil {
-		return err
-	} else if !exist {
-		logrus.Warnf("Main config file missing, the default configuration is used")
-	} else {
-		conf, err := loadConfig(constant.ConfigurationPath)
-		if err != nil {
-			logrus.Errorf("Load and parse main config file failed: %v", err)
-			os.Exit(constant.DefaultFailedCode)
-		}
-
-		if err = mergeConfig(conf, cmd); err != nil {
-			return err
-		}
+func validateConfigFileAndMerge(cmd *cobra.Command) error {
+	confFiles := []struct {
+		path        string
+		needed      bool
+		mergeConfig func(cmd *cobra.Command) error
+	}{
+		{path: constant.StorageConfigPath, needed: false, mergeConfig: mergeStorageConfig},
+		{path: constant.RegistryConfigPath, needed: false, mergeConfig: nil},
+		// policy.json file must exists
+		{path: constant.SignaturePolicyPath, needed: true, mergeConfig: nil},
+		// main configuration comes last for the final merge operation
+		{path: constant.ConfigurationPath, needed: false, mergeConfig: loadMainConfiguration},
 	}
 
-	// file policy.json must be exist
-	if exist, err := util.IsExist(constant.SignaturePolicyPath); err != nil {
-		return err
-	} else if !exist {
-		return errors.Errorf("policy config file %v is not exist", constant.SignaturePolicyPath)
-	}
-
-	// check all config files
-	confFiles := []string{constant.RegistryConfigPath, constant.SignaturePolicyPath, constant.StorageConfigPath}
 	for _, file := range confFiles {
-		if exist, err := util.IsExist(file); err != nil {
-			return err
-		} else if exist {
-			if err := util.CheckFileInfoAndSize(file, constant.MaxFileSize); err != nil {
-				return err
+		if exist, err := util.IsExist(file.path); !exist {
+			if !file.needed {
+				logrus.Warnf("Config file %q missing, the default configuration is used", file.path)
+				continue
 			}
+
+			if err != nil {
+				return errors.Wrapf(err, "check config file %q failed", file.path)
+			}
+			return errors.Errorf("config file %q is not exist", file.path)
+		}
+
+		if err := util.CheckFileInfoAndSize(file.path, constant.MaxFileSize); err != nil {
+			return err
+		}
+		if file.mergeConfig == nil {
+			continue
+		}
+		if err := file.mergeConfig(cmd); err != nil {
+			return err
 		}
 	}
 
-	// if storage config file exists, merge storage config
-	if exist, err := util.IsExist(constant.StorageConfigPath); err != nil {
+	return nil
+}
+
+func loadMainConfiguration(cmd *cobra.Command) error {
+	conf, err := loadConfig(constant.ConfigurationPath)
+	if err != nil {
+		logrus.Errorf("Load and parse main config file failed: %v", err)
+		os.Exit(constant.DefaultFailedCode)
+	}
+
+	if err = mergeConfig(conf, cmd); err != nil {
 		return err
-	} else if exist {
-		return mergeStorageConfig(cmd)
 	}
 
 	return nil

@@ -19,10 +19,8 @@ import (
 
 	cp "github.com/containers/image/v5/copy"
 	"github.com/containers/image/v5/types"
-	"github.com/sirupsen/logrus"
 
 	constant "isula.org/isula-build"
-	"isula.org/isula-build/util"
 )
 
 var (
@@ -40,13 +38,6 @@ func init() {
 
 // SetSystemContext set the values of globalSystemContext
 func SetSystemContext(dataRoot string) {
-	configFiles := []string{constant.SignaturePolicyPath, constant.RegistryConfigPath}
-	for _, cfg := range configFiles {
-		if err := util.CheckFileInfoAndSize(cfg, constant.MaxFileSize); err != nil {
-			logrus.Fatalf("check config file %q failed: %v", cfg, err)
-		}
-	}
-
 	once.Do(func() {
 		globalSystemContext.SignaturePolicyPath = constant.SignaturePolicyPath
 		globalSystemContext.SystemRegistriesConfPath = constant.RegistryConfigPath

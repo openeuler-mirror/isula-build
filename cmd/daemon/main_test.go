@@ -112,6 +112,10 @@ func TestSetupWorkingDirectories(t *testing.T) {
 func TestRunAndDataRootSet(t *testing.T) {
 	dataRoot := fs.NewDir(t, t.Name())
 	runRoot := fs.NewDir(t, t.Name())
+	result := store.DaemonStoreOptions{
+		DataRoot: dataRoot.Join("storage"),
+		RunRoot:  runRoot.Join("storage"),
+	}
 
 	conf := config.TomlConfig{
 		Debug:    true,
@@ -123,34 +127,41 @@ func TestRunAndDataRootSet(t *testing.T) {
 	}
 	cmd := newDaemonCommand()
 
-	result := store.DaemonStoreOptions{
-		DataRoot: dataRoot.Join("storage"),
-		RunRoot:  runRoot.Join("storage"),
-	}
-
-	setStorage := func(content string) func() {
-		return func() {
-			if err := mergeConfig(conf, cmd); err != nil {
-				t.Fatalf("mrege config failed with error: %v", err)
-			}
-
-			fileName := "storage.toml"
-			tmpDir := fs.NewDir(t, t.Name(), fs.WithFile(fileName, content))
-			defer tmpDir.Remove()
-
-			filePath := tmpDir.Join(fileName)
-			store.SetDefaultConfigFilePath(filePath)
-			option, err := store.GetDefaultStoreOptions(true)
-			if err != nil {
-				t.Fatalf("get default store options failed with error: %v", err)
-			}
-
-			var storeOpt store.DaemonStoreOptions
-			storeOpt.RunRoot = option.RunRoot
-			storeOpt.DataRoot = option.GraphRoot
-			store.SetDefaultStoreOptions(storeOpt)
+	setStorage := func(content string) {
+		// merge main config
+		if err := mergeConfig(conf, cmd); err != nil {
+			t.Fatalf("merge config failed with error: %v", err)
 		}
 
+		// simulate storage.toml and merge
+		fileName := "storage.toml"
+		tmpDir := fs.NewDir(t, t.Name(), fs.WithFile(fileName, content))
+		defer tmpDir.Remove()
+		filePath := tmpDir.Join(fileName)
+
+		store.SetDefaultConfigFilePath(filePath)
+		option, err := store.GetDefaultStoreOptions(true)
+		if err != nil {
+			t.Fatalf("get default store options failed with error: %v", err)
+		}
+
+		if !cmd.Flag("runroot").Changed && option.RunRoot != "" {
+			daemonOpts.RunRoot = option.RunRoot
+		}
+		if !cmd.Flag("dataroot").Changed && option.GraphRoot != "" {
+			daemonOpts.DataRoot = option.GraphRoot
+		}
+		if !cmd.Flag("storage-driver").Changed && option.GraphDriverName != "" {
+			daemonOpts.StorageDriver = option.GraphDriverName
+		}
+		if !cmd.Flag("storage-opt").Changed && len(option.GraphDriverOptions) > 0 {
+			daemonOpts.StorageOpts = option.GraphDriverOptions
+		}
+
+		// final set
+		if err := setStoreAccordingToDaemonOpts(); err != nil {
+			t.Fatalf("set store options failed with error: %v", err)
+		}
 	}
 
 	testcases := []struct {
@@ -160,28 +171,28 @@ func TestRunAndDataRootSet(t *testing.T) {
 	}{
 		{
 			// first run so can not be affected by other testcase
-			name: "TC3 - all not set",
-			setF: setStorage("[storage]\ndriver = \"overlay\""),
+			name: "TC1 - all not set",
+			setF: func() { setStorage("[storage]\ndriver = \"overlay\"") },
 			expectation: store.DaemonStoreOptions{
 				DataRoot: "/var/lib/isula-build/storage",
 				RunRoot:  "/var/run/isula-build/storage",
 			},
 		},
 		{
-			name: "TC1 - cmd set, configuration and storage not set",
+			name: "TC2 - cmd set, configuration and storage not set",
 			setF: func() {
 				cmd.PersistentFlags().Set("runroot", runRoot.Path())
 				cmd.PersistentFlags().Set("dataroot", dataRoot.Path())
-				checkAndValidateConfig(cmd)
+				setStorage("[storage]\ndriver = \"overlay\"")
 			},
 			expectation: result,
 		},
 		{
-			name: "TC2 - cmd and storage not set, configuration set",
+			name: "TC3 - cmd and storage not set, configuration set",
 			setF: func() {
 				conf.DataRoot = dataRoot.Path()
 				conf.RunRoot = runRoot.Path()
-				checkAndValidateConfig(cmd)
+				setStorage("[storage]\ndriver = \"overlay\"")
 			},
 			expectation: result,
 		},
@@ -190,8 +201,22 @@ func TestRunAndDataRootSet(t *testing.T) {
 			setF: func() {
 				config := fmt.Sprintf("[storage]\ndriver = \"%s\"\nrunroot = \"%s\"\ngraphroot = \"%s\"\n",
 					"overlay", runRoot.Join("storage"), dataRoot.Join("storage"))
-				sT := setStorage(config)
-				sT()
+				setStorage(config)
+			},
+			expectation: result,
+		},
+		{
+			name: "TC5 - cmd not set, configuration and storage set, configuration first",
+			setF: func() {
+				conf.DataRoot = dataRoot.Path()
+				conf.RunRoot = runRoot.Path()
+
+				dataRootStorage := fs.NewDir(t, t.Name())
+				runRootStorage := fs.NewDir(t, t.Name())
+				config := fmt.Sprintf("[storage]\ndriver = \"%s\"\nrunroot = \"%s\"\ngraphroot = \"%s\"\n",
+					"overlay", runRootStorage.Join("storage"), dataRootStorage.Join("storage"))
+
+				setStorage(config)
 			},
 			expectation: result,
 		},
@@ -209,4 +234,30 @@ func TestRunAndDataRootSet(t *testing.T) {
 		})
 
 	}
+}
+
+func TestValidateConfigFileAndMerge(t *testing.T) {
+	// cmd line args keep default.
+	cmd := newDaemonCommand()
+	err := validateConfigFileAndMerge(cmd)
+	assert.NilError(t, err)
+
+	// cmd line runroot and dataroot args are set.
+	dataRoot := fs.NewDir(t, t.Name())
+	runRoot := fs.NewDir(t, t.Name())
+	cmd.PersistentFlags().Set("runroot", runRoot.Path())
+	cmd.PersistentFlags().Set("dataroot", dataRoot.Path())
+	err = validateConfigFileAndMerge(cmd)
+	assert.NilError(t, err)
+
+	if err := setStoreAccordingToDaemonOpts(); err != nil {
+		t.Fatalf("set store options failed with error: %v", err)
+	}
+	storeOptions, err := store.GetDefaultStoreOptions(false)
+	if err != nil {
+		t.Fatalf("get default store options failed with error: %v", err)
+	}
+
+	assert.Equal(t, storeOptions.GraphRoot, dataRoot.Join("storage"))
+	assert.Equal(t, storeOptions.RunRoot, runRoot.Join("storage"))
 }
