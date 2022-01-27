@@ -84,9 +84,7 @@ func GetSepSaveOptions(req *pb.SaveRequest, logEntry *logrus.Entry, dataRoot str
 }
 
 // SeparateImage the main method of Saver, tries to separated the listed images to pieces
-func (s *Saver) SeparateImage(localStore *store.Store, oriImgList []string, outputPath string) (err error) {
-	s.log.Infof("Start saving separated images %v", oriImgList)
-
+func (s *Saver) SeparateImage(localStore *store.Store, outputPath string) (err error) {
 	if err = os.MkdirAll(s.dest, constant.DefaultRootDirMode); err != nil {
 		return err
 	}
