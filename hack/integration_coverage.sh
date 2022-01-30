@@ -24,7 +24,7 @@ go_test_mod_method="-mod=vendor"
 go_test_count_method="-count=1"
 go_test_cover_method="-covermode=set"
 main_pkg="${vendor_name}/${project_name}/${main_relative_path}"
-main_test_file=${project_root}/${main_relative_path}/main_test.go
+main_test_file=${project_root}/${main_relative_path}/before_test.go
 main_file=${project_root}/${main_relative_path}/main.go
 coverage_file=${project_root}/cover_integration_test_all.out
 coverage_html=${project_root}/cover_integration_test_all.html
@@ -33,7 +33,7 @@ coverage_client_log=${project_root}/cover_integration_test_all_client.log
 main_test_binary_file=${project_root}/main.test
 
 function precheck() {
-    if pgrep isula-builder > /dev/null 2>&1; then
+    if pgrep isula-builder >/dev/null 2>&1; then
         echo "isula-builder is already running, please stop it first"
         exit 1
     fi
@@ -48,7 +48,7 @@ function modify_main_test() {
     sed -i "/${comment_pattern}/s/^#*/\/\/ /" "${main_file}"
     # add new line for main_test.go
     code_snippet="func TestMain(t *testing.T) { main() }"
-    echo "${code_snippet}" >> "${main_test_file}"
+    echo "${code_snippet}" >>"${main_test_file}"
 }
 
 function recover_main_test() {
@@ -58,14 +58,14 @@ function recover_main_test() {
 
 function build_main_test_binary() {
     pkgs=$(go list "${go_test_mod_method}" "${project_root}"/... | grep -Ev "${exclude_pattern}" | tr "\r\n" ",")
-    go test -coverpkg="${pkgs}" "${main_pkg}" "${go_test_mod_method}" "${go_test_cover_method}" "${go_test_count_method}" -c -o="${main_test_binary_file}" > /dev/null 2>&1
+    go test -coverpkg="${pkgs}" "${main_pkg}" "${go_test_mod_method}" "${go_test_cover_method}" "${go_test_count_method}" -c -o="${main_test_binary_file}" >/dev/null 2>&1
 }
 
 function run_main_test_binary() {
-    ${main_test_binary_file} -test.coverprofile="${coverage_file}" > "${coverage_daemon_log}" 2>&1 &
+    ${main_test_binary_file} -test.coverprofile="${coverage_file}" >"${coverage_daemon_log}" 2>&1 &
     main_test_pid=$!
     for _ in $(seq 1 10); do
-        if isula-build info > /dev/null 2>&1; then
+        if isula-build info >/dev/null 2>&1; then
             break
         else
             sleep 1
@@ -77,8 +77,8 @@ function run_coverage_test() {
     # do cover tests
     while IFS= read -r testfile; do
         printf "%-60s" "test $(basename "${testfile}"): "
-        echo -e "\n$(basename "${testfile}"):" >> "${coverage_client_log}"
-        if ! bash "${testfile}" >> "${coverage_client_log}" 2>&1; then
+        echo -e "\n$(basename "${testfile}"):" >>"${coverage_client_log}"
+        if ! bash "${testfile}" >>"${coverage_client_log}" 2>&1; then
             echo "FAIL"
             return_code=1
         else
