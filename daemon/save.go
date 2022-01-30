@@ -111,7 +111,8 @@ func (b *Backend) Save(req *pb.SaveRequest, stream pb.Control_SaveServer) (err e
 	}
 
 	if opts.sep.Enabled() {
-		return opts.sep.SeparateImage(opts.localStore, opts.oriImgList, opts.outputPath)
+		opts.logEntry.Infof("Start saving separated images %v", opts.oriImgList)
+		return opts.sep.SeparateImage(opts.localStore, opts.outputPath)
 	}
 
 	return nil
