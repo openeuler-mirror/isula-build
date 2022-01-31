@@ -82,17 +82,17 @@ func cleanAndSetDefaultStoreOpt(t *testing.T) {
 }
 
 func cleanDefaultStoreOpt(t *testing.T) {
-	opt, err := store.GetDefaultStoreOptions(false)
+	store, err := store.GetStore()
 	assert.NilError(t, err)
 
-	driverRoot := opt.GraphRoot + "/overlay"
+	driverRoot := store.GraphRoot() + "/overlay"
 	os.RemoveAll(driverRoot)
 	assert.NilError(t, err)
-	err = os.RemoveAll(opt.RunRoot)
+	err = os.RemoveAll(store.RunRoot())
 	assert.NilError(t, err)
 	err = unix.Unmount(driverRoot, 0)
 	assert.NilError(t, err)
-	err = os.RemoveAll(opt.GraphRoot)
+	err = os.RemoveAll(store.GraphRoot())
 	assert.NilError(t, err)
 	err = os.RemoveAll("/tmp/isula-build")
 	assert.NilError(t, err)

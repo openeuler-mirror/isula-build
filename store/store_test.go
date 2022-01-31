@@ -31,8 +31,8 @@ func init() {
 	reexec.Init()
 }
 
-func TestWithGetDefaultStoreOptions(t *testing.T) {
-	_, err := GetDefaultStoreOptions(false)
+func TestGetDefaultStoreOptions(t *testing.T) {
+	_, err := GetDefaultStoreOptions()
 	assert.NilError(t, err)
 }
 

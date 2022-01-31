@@ -41,27 +41,16 @@ type Store struct {
 	sync.RWMutex
 }
 
-// GetDefaultStoreOptions returns default store options.
-func GetDefaultStoreOptions(configOnly bool) (storage.StoreOptions, error) {
+// SetStorageConfigFilePath sets the default file path of storage configuration
+func SetStorageConfigFilePath(path string) {
+	storage.SetDefaultConfigFilePath(path)
+}
+
+// GetStorageConfigFileOptions returns the default storage config options.
+func GetStorageConfigFileOptions() (storage.StoreOptions, error) {
 	options, err := storage.DefaultStoreOptions(false, 0)
 	if err != nil {
 		return storage.StoreOptions{}, err
-	}
-
-	if !configOnly {
-		// StoreOpts override specific parameters of options
-		if storeOpts.DataRoot != "" {
-			options.GraphRoot = storeOpts.DataRoot
-		}
-		if storeOpts.RunRoot != "" {
-			options.RunRoot = storeOpts.RunRoot
-		}
-		if storeOpts.Driver != "" {
-			options.GraphDriverName = storeOpts.Driver
-		}
-		if len(storeOpts.DriverOption) > 0 {
-			options.GraphDriverOptions = storeOpts.DriverOption
-		}
 	}
 
 	return options, nil
@@ -69,32 +58,28 @@ func GetDefaultStoreOptions(configOnly bool) (storage.StoreOptions, error) {
 
 // SetDefaultStoreOptions sets the default store options
 func SetDefaultStoreOptions(opt DaemonStoreOptions) {
-	if opt.DataRoot != "" {
-		storeOpts.DataRoot = opt.DataRoot
-	}
-
-	if opt.RunRoot != "" {
-		storeOpts.RunRoot = opt.RunRoot
-	}
-
-	if opt.Driver != "" {
-		storeOpts.Driver = opt.Driver
-	}
-
-	if len(opt.DriverOption) > 0 {
-		storeOpts.DriverOption = opt.DriverOption
-	}
+	storeOpts = opt
 }
 
-// SetDefaultConfigFilePath sets the default configuration to the specified path
-func SetDefaultConfigFilePath(path string) {
-	storage.SetDefaultConfigFilePath(path)
+// GetDefaultStoreOptions returns default store options.
+func GetDefaultStoreOptions() (storage.StoreOptions, error) {
+	options, err := storage.DefaultStoreOptions(false, 0)
+	if err != nil {
+		return storage.StoreOptions{}, err
+	}
+
+	options.GraphRoot = storeOpts.DataRoot
+	options.RunRoot = storeOpts.RunRoot
+	options.GraphDriverName = storeOpts.Driver
+	options.GraphDriverOptions = storeOpts.DriverOption
+
+	return options, nil
 }
 
-// GetStore returns a Store object.If it is called the first time,
+// GetStore returns a Store object. If it is called the first time,
 // a store object will be created by the default store options.
 func GetStore() (Store, error) {
-	options, err := GetDefaultStoreOptions(false)
+	options, err := GetDefaultStoreOptions()
 	if err != nil {
 		return Store{}, err
 	}
