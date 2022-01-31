@@ -328,7 +328,7 @@ func TestParseIgnoreWithDir(t *testing.T) {
 
 	df := dockerfile{}
 	_, err := df.ParseIgnore(ctxDir.Path())
-	assert.ErrorContains(t, err, "a directory")
+	assert.ErrorContains(t, err, "should be a regular file")
 }
 
 func TestParseWithHeadingArgs(t *testing.T) {

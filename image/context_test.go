@@ -29,65 +29,6 @@ func doCmd(cmd string) {
 	}
 }
 
-func TestValidateConfigFiles(t *testing.T) {
-	type args struct {
-		configs []string
-	}
-	tests := []struct {
-		name       string
-		args       args
-		wantErr    bool
-		prepareCmd string
-		cleanCmd   string
-	}{
-		{
-			name:       "none file",
-			args:       args{configs: []string{"/tmp/validate-config/policy.json"}},
-			prepareCmd: "mkdir -p /tmp/validate-config/ && touch /tmp/validate-config/policy.json",
-			cleanCmd:   "rm -rf /tmp/validate-config",
-			wantErr:    true,
-		},
-		{
-			name:       "size zero",
-			args:       args{configs: []string{"/tmp/validate-config/policy.json"}},
-			prepareCmd: "mkdir -p /tmp/validate-config/ && touch /tmp/validate-config/policy.json",
-			cleanCmd:   "rm -rf /tmp/validate-config",
-			wantErr:    true,
-		},
-		{
-			name:       "big file",
-			args:       args{configs: []string{"/tmp/validate-config/policy.json"}},
-			prepareCmd: "mkdir -p /tmp/validate-config/ && dd if=/dev/zero of=/tmp/validate-config/policy.json bs=16k count=1024",
-			cleanCmd:   "rm -rf /tmp/validate-config",
-			wantErr:    true,
-		},
-		{
-			name:       "normal",
-			args:       args{configs: []string{"/tmp/validate-config/policy.json"}},
-			prepareCmd: "mkdir -p /tmp/validate-config/ && echo hello > /tmp/validate-config/policy.json",
-			cleanCmd:   "rm -rf /tmp/validate-config",
-			wantErr:    false,
-		},
-		{
-			name: "normal",
-			args: args{configs: []string{"/tmp/validate-config/policy.json"}},
-			prepareCmd: "mkdir -p /tmp/validate-config/ && echo hello > /tmp/validate-config/policy.json.bak &&" +
-				"ln -sf /tmp/validate-config/policy.json.bak /tmp/validate-config/policy.json",
-			cleanCmd: "rm -rf /tmp/validate-config",
-			wantErr:  false,
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			doCmd(tt.prepareCmd)
-			if err := validateConfigFiles(tt.args.configs); (err != nil) != tt.wantErr {
-				t.Errorf("validateConfigFiles() error = %v, wantErr %v", err, tt.wantErr)
-			}
-			doCmd(tt.cleanCmd)
-		})
-	}
-}
-
 func TestSetSystemContext(t *testing.T) {
 	prepareFunc := func(path string) {
 		if _, err := os.Stat(path); err != nil {

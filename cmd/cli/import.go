@@ -29,9 +29,8 @@ import (
 )
 
 const (
-	maxTarballSize = 1024 * 1024 * 1024 // support tarball max size at most 1G
-	importExample  = `isula-build ctr-img import busybox.tar busybox:isula`
-	importArgsLen  = 1
+	importExample = `isula-build ctr-img import busybox.tar busybox:isula`
+	importArgsLen = 1
 )
 
 type importOptions struct {
@@ -57,7 +56,7 @@ func importCommand(c *cobra.Command, args []string) error {
 	if len(args) < importArgsLen {
 		return errors.New("requires at least one argument")
 	}
-	if err := util.CheckFileSize(args[0], maxTarballSize); err != nil {
+	if err := util.CheckFileInfoAndSize(args[0], constant.MaxImportFileSize); err != nil {
 		return err
 	}
 	importOpts.source = args[0]

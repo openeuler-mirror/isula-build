@@ -171,7 +171,7 @@ func setupBindFiles(bundlePath string) (map[string]string, error) {
 }
 
 func generateHosts(bundlePath string) (string, error) {
-	if err := util.CheckFileSize(constant.HostsFilePath, constant.MaxFileSize); err != nil {
+	if err := util.CheckFileInfoAndSize(constant.HostsFilePath, constant.MaxFileSize); err != nil {
 		return "", err
 	}
 
@@ -194,7 +194,7 @@ func generateHosts(bundlePath string) (string, error) {
 }
 
 func generateResolv(bundlePath string) (string, error) {
-	if err := util.CheckFileSize(constant.ResolvFilePath, constant.MaxFileSize); err != nil {
+	if err := util.CheckFileInfoAndSize(constant.ResolvFilePath, constant.MaxFileSize); err != nil {
 		return "", err
 	}
 

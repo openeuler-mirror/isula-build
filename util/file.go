@@ -23,10 +23,8 @@ import (
 
 	"github.com/containers/storage/pkg/archive"
 	"github.com/pkg/errors"
-)
 
-const (
-	fileMaxSize = 10 * 1024 * 1024 // 10MB
+	constant "isula.org/isula-build"
 )
 
 var (
@@ -34,33 +32,18 @@ var (
 	accessTime = time.Date(2017, time.January, 0, 0, 0, 0, 0, time.UTC)
 )
 
-// ReadSmallFile read small file less than 10MB
-func ReadSmallFile(path string) ([]byte, error) {
-	st, err := os.Lstat(path)
-	if err != nil {
-		return nil, err
-	}
-
-	if !st.Mode().IsRegular() {
-		return nil, errors.Errorf("loading file %s should be a regular file", st.Name())
-	}
-
-	if st.Size() == 0 {
-		return nil, errors.New("loading file is empty")
-	}
-
-	if st.Size() > fileMaxSize {
-		return nil, errors.Errorf("file %q too big", path)
-	}
-	return ioutil.ReadFile(path) // nolint: gosec
-}
-
 // LoadJSONFile load json files and store it into v
 func LoadJSONFile(file string, v interface{}) error {
-	f, err := ReadSmallFile(file)
+	err := CheckFileInfoAndSize(file, constant.JSONMaxFileSize)
 	if err != nil {
 		return err
 	}
+
+	f, err := ioutil.ReadFile(file) // nolint: gosec
+	if err != nil {
+		return err
+	}
+
 	return json.Unmarshal(f, v)
 }
 

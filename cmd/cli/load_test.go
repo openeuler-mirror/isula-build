@@ -189,14 +189,19 @@ func TestCheckLoadOpts(t *testing.T) {
 	assert.NilError(t, err)
 	root := fs.NewDir(t, t.Name())
 	defer root.Remove()
+
+	emptyTar := "empty.tar"
 	emptyFile, err := os.Create(filepath.Join(root.Path(), "empty.tar"))
 	assert.NilError(t, err)
+
 	fileWithContent, err := os.Create(filepath.Join(root.Path(), "test.tar"))
 	assert.NilError(t, err)
 	ioutil.WriteFile(fileWithContent.Name(), []byte("This is test file"), constant.DefaultRootFileMode)
+
 	baseFile, err := os.Create(filepath.Join(root.Path(), "base.tar"))
 	assert.NilError(t, err)
 	ioutil.WriteFile(baseFile.Name(), []byte("This is base file"), constant.DefaultRootFileMode)
+
 	libFile, err := os.Create(filepath.Join(root.Path(), "lib.tar"))
 	ioutil.WriteFile(libFile.Name(), []byte("This is lib file"), constant.DefaultRootFileMode)
 
@@ -228,7 +233,7 @@ func TestCheckLoadOpts(t *testing.T) {
 				path: emptyFile.Name(),
 			},
 			wantErr:    true,
-			errMessage: "loading file is empty",
+			errMessage: "file " + emptyTar + " is empty",
 		},
 		{
 			name: "TC-separated load",
@@ -290,7 +295,7 @@ func TestCheckLoadOpts(t *testing.T) {
 				},
 			},
 			wantErr:    true,
-			errMessage: "resolve base tarball path failed: loading file is empty",
+			errMessage: "resolve base tarball path failed: file " + emptyTar + " is empty",
 		},
 		{
 			name: "TC-separated load with empty lib tarball",
@@ -303,7 +308,7 @@ func TestCheckLoadOpts(t *testing.T) {
 				},
 			},
 			wantErr:    true,
-			errMessage: "resolve lib tarball path failed: loading file is empty",
+			errMessage: "resolve lib tarball path failed: file " + emptyTar + " is empty",
 		},
 		{
 			name: "TC-separated load with same base and lib tarball",

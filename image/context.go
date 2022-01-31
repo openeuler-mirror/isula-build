@@ -15,16 +15,12 @@ package image
 
 import (
 	"io"
-	"os"
 	"sync"
 
 	cp "github.com/containers/image/v5/copy"
 	"github.com/containers/image/v5/types"
-	"github.com/pkg/errors"
-	"github.com/sirupsen/logrus"
 
 	constant "isula.org/isula-build"
-	"isula.org/isula-build/util"
 )
 
 var (
@@ -40,33 +36,8 @@ func init() {
 	}
 }
 
-func validateConfigFiles(configs []string) error {
-	var (
-		cfgInfo os.FileInfo
-		err     error
-	)
-	for _, cfg := range configs {
-		if err = util.CheckFileSize(cfg, constant.MaxFileSize); err != nil {
-			return err
-		}
-		if cfgInfo, err = os.Stat(cfg); err != nil {
-			return err
-		}
-		if cfgInfo.Size() == 0 {
-			return errors.Errorf("config %q cannot be an empty file", cfg)
-		}
-	}
-
-	return nil
-}
-
 // SetSystemContext set the values of globalSystemContext
 func SetSystemContext(dataRoot string) {
-	err := validateConfigFiles([]string{constant.SignaturePolicyPath, constant.RegistryConfigPath})
-	if err != nil {
-		logrus.Fatal(err)
-	}
-
 	once.Do(func() {
 		globalSystemContext.SignaturePolicyPath = constant.SignaturePolicyPath
 		globalSystemContext.SystemRegistriesConfPath = constant.RegistryConfigPath

@@ -215,7 +215,7 @@ func (r *OCIRunner) runContainer() (unix.WaitStatus, error) { // nolint:gocyclo
 }
 
 func readPid(pidFilePath string) (int, error) {
-	if err := util.CheckFileSize(pidFilePath, constant.MaxFileSize); err != nil {
+	if err := util.CheckFileInfoAndSize(pidFilePath, constant.MaxFileSize); err != nil {
 		return 0, err
 	}
 	pidValue, err := ioutil.ReadFile(filepath.Clean(pidFilePath))

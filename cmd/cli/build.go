@@ -460,51 +460,34 @@ func readDockerfile() (string, string, error) {
 	return string(buf), parts[1], nil
 }
 
-func checkDockerfile(filePath string) error {
-	fileInfo, err := os.Stat(filePath)
-	if err != nil {
-		return err
-	}
-
-	if !fileInfo.Mode().IsRegular() {
-		return errors.Errorf("file %s should be a regular file", filePath)
-	}
-	if fileInfo.Size() == 0 {
-		return errors.New("file is empty, is it a normal dockerfile?")
-	}
-	if fileInfo.Size() > constant.MaxFileSize {
-		return errors.Errorf("file is too big with size %v, is it a normal dockerfile?", fileInfo.Size())
-	}
-	return nil
-}
-
 func resolveDockerfilePath() (string, error) {
 	var resolvedPath = buildOpts.file
 	var err error
 	if buildOpts.file == "" {
 		// filepath is empty, try to resolve with contextDir+Dockerfile
 		resolvedPath = path.Join(buildOpts.contextDir, "Dockerfile")
-		err = checkDockerfile(resolvedPath)
-		if err != nil {
+		if err = util.CheckFileInfoAndSize(resolvedPath, constant.MaxFileSize); err != nil {
 			logrus.Debugf("Stat dockerfile failed with path %s", resolvedPath)
-			return "", err
+			return "", errors.Wrap(err, "check dockerfile failed")
 		}
+
 		return resolvedPath, nil
 	}
 
-	err = checkDockerfile(resolvedPath)
-	if err != nil {
-		logrus.Debugf("Stat dockerfile failed with path %s", resolvedPath)
-		// not found with filepath, try to resolve with contextDir+filepath
-		resolvedPath = path.Join(buildOpts.contextDir, buildOpts.file)
-		err = checkDockerfile(resolvedPath)
-		if err != nil {
-			logrus.Debugf("Stat dockerfile failed again with path %s", resolvedPath)
-			return "", err
-		}
+	if err = util.CheckFileInfoAndSize(resolvedPath, constant.MaxFileSize); err == nil {
+		return resolvedPath, nil
 	}
+	logrus.Debugf("Stat dockerfile failed with path %s", resolvedPath)
 
-	return resolvedPath, nil
+	// not found with filepath, try to resolve with contextDir+filepath
+	resolvedPath = path.Join(buildOpts.contextDir, buildOpts.file)
+	if err = util.CheckFileInfoAndSize(resolvedPath, constant.MaxFileSize); err == nil {
+		return resolvedPath, nil
+
+	}
+	logrus.Debugf("Stat dockerfile failed again with path %s", resolvedPath)
+
+	return "", errors.Wrap(err, "check dockerfile failed")
 }
 
 func getAbsPath(path string) (string, error) {

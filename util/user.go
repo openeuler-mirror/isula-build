@@ -76,7 +76,7 @@ func GetChownOptions(chown, mountpoint string) (idtools.IDPair, error) {
 // searchUserGroup searches user in etc/passwd and group in etc/group
 // function caller should make sure the path is clean
 func searchUserGroup(name, path string, userFlag bool) (int, error) {
-	if err := CheckFileSize(path, constant.MaxFileSize); err != nil {
+	if err := CheckFileInfoAndSize(path, constant.MaxFileSize); err != nil {
 		return 0, err
 	}
 	f, err := os.Open(path) // nolint:gosec
