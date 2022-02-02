@@ -166,6 +166,20 @@ func TestResolveParam(t *testing.T) {
 		strict     bool
 		resolveArg func(string) string
 	}
+	equalFoundElseFail := func(given string) func(input string) string {
+		return func(input string) string {
+			if input == given {
+				return "found"
+			}
+			return "fail"
+		}
+	}
+	name1EmptyElseBusybox := func(s string) string {
+		if s == "name1" {
+			return ""
+		}
+		return "busybox"
+	}
 	tests := []struct {
 		name    string
 		args    args
@@ -268,15 +282,9 @@ func TestResolveParam(t *testing.T) {
 		{
 			name: "case 101",
 			args: args{
-				s:      "${testArg}",
-				strict: false,
-				resolveArg: func(s string) string {
-					if s == "testArg" {
-						return "found"
-					} else {
-						return "fail"
-					}
-				},
+				s:          "${testArg}",
+				strict:     false,
+				resolveArg: equalFoundElseFail("testArg"),
 			},
 			want:    "found",
 			wantErr: false,
@@ -284,15 +292,9 @@ func TestResolveParam(t *testing.T) {
 		{
 			name: "case 102",
 			args: args{
-				s:      "${testArg}foo",
-				strict: false,
-				resolveArg: func(s string) string {
-					if s == "testArg" {
-						return "found"
-					} else {
-						return "fail"
-					}
-				},
+				s:          "${testArg}foo",
+				strict:     false,
+				resolveArg: equalFoundElseFail("testArg"),
 			},
 			want:    "foundfoo",
 			wantErr: false,
@@ -300,15 +302,9 @@ func TestResolveParam(t *testing.T) {
 		{
 			name: "case 103",
 			args: args{
-				s:      "$testArg:tag",
-				strict: false,
-				resolveArg: func(s string) string {
-					if s == "testArg" {
-						return "found"
-					} else {
-						return "fail"
-					}
-				},
+				s:          "$testArg:tag",
+				strict:     false,
+				resolveArg: equalFoundElseFail("testArg"),
 			},
 			want:    "found:tag",
 			wantErr: false,
@@ -316,15 +312,9 @@ func TestResolveParam(t *testing.T) {
 		{
 			name: "case 104",
 			args: args{
-				s:      `\$testArg:tag`,
-				strict: false,
-				resolveArg: func(s string) string {
-					if s == "testArg" {
-						return "found"
-					} else {
-						return "fail"
-					}
-				},
+				s:          `\$testArg:tag`,
+				strict:     false,
+				resolveArg: equalFoundElseFail("testArg"),
 			},
 			want:    `\$testArg:tag`,
 			wantErr: false,
@@ -332,15 +322,9 @@ func TestResolveParam(t *testing.T) {
 		{
 			name: "case 105",
 			args: args{
-				s:      `$testArg:\$tag`,
-				strict: false,
-				resolveArg: func(s string) string {
-					if s == "testArg" {
-						return "found"
-					} else {
-						return "fail"
-					}
-				},
+				s:          `$testArg:\$tag`,
+				strict:     false,
+				resolveArg: equalFoundElseFail("testArg"),
 			},
 			want:    `found:\$tag`,
 			wantErr: false,
@@ -348,15 +332,9 @@ func TestResolveParam(t *testing.T) {
 		{
 			name: "case 106",
 			args: args{
-				s:      `\$`,
-				strict: false,
-				resolveArg: func(s string) string {
-					if s == "testArg" {
-						return "found"
-					} else {
-						return "fail"
-					}
-				},
+				s:          `\$`,
+				strict:     false,
+				resolveArg: equalFoundElseFail("testArg"),
 			},
 			want:    `\$`,
 			wantErr: false,
@@ -364,15 +342,9 @@ func TestResolveParam(t *testing.T) {
 		{
 			name: "case 107",
 			args: args{
-				s:      `${A}`,
-				strict: false,
-				resolveArg: func(s string) string {
-					if s == "A" {
-						return "found"
-					} else {
-						return "fail"
-					}
-				},
+				s:          `${A}`,
+				strict:     false,
+				resolveArg: equalFoundElseFail("A"),
 			},
 			want:    `found`,
 			wantErr: false,
@@ -381,15 +353,9 @@ func TestResolveParam(t *testing.T) {
 			// ${variable:-name}, match variable, return $variable
 			name: "case 201",
 			args: args{
-				s:      "${testArg:-word}",
-				strict: false,
-				resolveArg: func(s string) string {
-					if s == "testArg:-word" {
-						return "found"
-					} else {
-						return "fail"
-					}
-				},
+				s:          "${testArg:-word}",
+				strict:     false,
+				resolveArg: equalFoundElseFail("testArg:-word"),
 			},
 			want:    "found",
 			wantErr: false,
@@ -398,15 +364,9 @@ func TestResolveParam(t *testing.T) {
 			// ${variable:+name}, match variable, return name
 			name: "case 202",
 			args: args{
-				s:      "${testArg:+word}",
-				strict: false,
-				resolveArg: func(s string) string {
-					if s == "testArg:+word" {
-						return "found"
-					} else {
-						return "fail"
-					}
-				},
+				s:          "${testArg:+word}",
+				strict:     false,
+				resolveArg: equalFoundElseFail("testArg:+word"),
 			},
 			want:    "found",
 			wantErr: false,
@@ -415,15 +375,9 @@ func TestResolveParam(t *testing.T) {
 			// strict mode test for FROM command. No matching for name1, return "", then got err
 			name: "case 301",
 			args: args{
-				s:      "${name1}",
-				strict: true,
-				resolveArg: func(s string) string {
-					if s == "name1" {
-						return ""
-					} else {
-						return "busybox"
-					}
-				},
+				s:          "${name1}",
+				strict:     true,
+				resolveArg: name1EmptyElseBusybox,
 			},
 			want:    "",
 			wantErr: true,
@@ -432,15 +386,9 @@ func TestResolveParam(t *testing.T) {
 			// easy mode (v.s. strict) test for other commands. No matching for name1, return "", no err just ignore "name1"
 			name: "case 302",
 			args: args{
-				s:      "${name1}*Arg",
-				strict: false,
-				resolveArg: func(s string) string {
-					if s == "name1" {
-						return ""
-					} else {
-						return "busybox"
-					}
-				},
+				s:          "${name1}*Arg",
+				strict:     false,
+				resolveArg: name1EmptyElseBusybox,
 			},
 			want:    "*Arg",
 			wantErr: false,
@@ -449,15 +397,9 @@ func TestResolveParam(t *testing.T) {
 			// strict mode test for FROM command. No matching for name1, return "", then got err
 			name: "case 303",
 			args: args{
-				s:      "$name1*Arg",
-				strict: true,
-				resolveArg: func(s string) string {
-					if s == "name1" {
-						return ""
-					} else {
-						return "busybox"
-					}
-				},
+				s:          "$name1*Arg",
+				strict:     true,
+				resolveArg: name1EmptyElseBusybox,
 			},
 			want:    "",
 			wantErr: true,
@@ -466,15 +408,9 @@ func TestResolveParam(t *testing.T) {
 			// easy mode (v.s. strict) test for other commands. No matching for name1, return "", no err just ignore "name1"
 			name: "case 304",
 			args: args{
-				s:      "$name1*Arg",
-				strict: false,
-				resolveArg: func(s string) string {
-					if s == "name1" {
-						return ""
-					} else {
-						return "busybox"
-					}
-				},
+				s:          "$name1*Arg",
+				strict:     false,
+				resolveArg: name1EmptyElseBusybox,
 			},
 			want:    "*Arg",
 			wantErr: false,
@@ -505,15 +441,9 @@ func TestResolveParam(t *testing.T) {
 			// single quotes
 			name: "case 401 - quotes",
 			args: args{
-				s:      "'testArg'foo",
-				strict: false,
-				resolveArg: func(s string) string {
-					if s == "testArg" {
-						return "found"
-					} else {
-						return "fail"
-					}
-				},
+				s:          "'testArg'foo",
+				strict:     false,
+				resolveArg: equalFoundElseFail("testArg"),
 			},
 			want:    "testArgfoo",
 			wantErr: false,
@@ -522,15 +452,9 @@ func TestResolveParam(t *testing.T) {
 			// single quotes
 			name: "case 402 - quotes",
 			args: args{
-				s:      "'testArgfoo",
-				strict: false,
-				resolveArg: func(s string) string {
-					if s == "testArg" {
-						return "found"
-					} else {
-						return "fail"
-					}
-				},
+				s:          "'testArgfoo",
+				strict:     false,
+				resolveArg: equalFoundElseFail("testArg"),
 			},
 			want:    "",
 			wantErr: true,
@@ -539,15 +463,9 @@ func TestResolveParam(t *testing.T) {
 			// double quotes
 			name: "case 403 - quotes",
 			args: args{
-				s:      `"testArg"foo`,
-				strict: false,
-				resolveArg: func(s string) string {
-					if s == "testArg" {
-						return "found"
-					} else {
-						return "fail"
-					}
-				},
+				s:          `"testArg"foo`,
+				strict:     false,
+				resolveArg: equalFoundElseFail("testArg"),
 			},
 			want:    "testArgfoo",
 			wantErr: false,
@@ -556,15 +474,9 @@ func TestResolveParam(t *testing.T) {
 			// double quotes
 			name: "case 404 - quotes",
 			args: args{
-				s:      `"testArgfoo`,
-				strict: false,
-				resolveArg: func(s string) string {
-					if s == "testArg" {
-						return "found"
-					} else {
-						return "fail"
-					}
-				},
+				s:          `"testArgfoo`,
+				strict:     false,
+				resolveArg: equalFoundElseFail("testArg"),
 			},
 			want:    "",
 			wantErr: true,
@@ -573,20 +485,15 @@ func TestResolveParam(t *testing.T) {
 			// fixed quotes
 			name: "case 405 - quotes",
 			args: args{
-				s:      `"testArg'foo`,
-				strict: false,
-				resolveArg: func(s string) string {
-					if s == "testArg" {
-						return "found"
-					} else {
-						return "fail"
-					}
-				},
+				s:          `"testArg'foo`,
+				strict:     false,
+				resolveArg: equalFoundElseFail("testArg"),
 			},
 			want:    "",
 			wantErr: true,
 		},
 	}
+
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			got, err := ResolveParam(tt.args.s, tt.args.strict, tt.args.resolveArg)

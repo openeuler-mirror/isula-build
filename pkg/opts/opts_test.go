@@ -47,6 +47,7 @@ func TestOptValidator(t *testing.T) {
 		if err != nil {
 			assert.Equal(t, tc.expect[0], k)
 			assert.Equal(t, tc.expect[1], v)
+			assert.ErrorContains(t, err, tc.errStr)
 		}
 	}
 

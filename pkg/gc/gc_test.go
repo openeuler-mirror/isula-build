@@ -15,6 +15,8 @@ package gc
 
 import (
 	"context"
+	"fmt"
+	"os"
 	"sync"
 	"testing"
 	"time"
@@ -38,12 +40,22 @@ var (
 	gc                    *GarbageCollector
 )
 
-func init() {
+func TestMain(m *testing.M) {
+	fmt.Println("gc package test begin")
+
 	backend = &mockBackend{status: map[string]string{"init": "init"}}
 	emptyBackend = &mockBackend{}
-	ctx, _ := context.WithCancel(context.Background())
+
+	ctx, cancelFunc := context.WithCancel(context.Background())
+
 	gc = NewGC()
 	gc.StartGC(ctx)
+
+	exitVal := m.Run()
+
+	fmt.Println("gc package test end")
+	cancelFunc()
+	os.Exit(exitVal)
 }
 
 func TestRegisterGCWithEmptyOption(t *testing.T) {

@@ -57,9 +57,10 @@ func init() {
 
 func TestMain(m *testing.M) {
 	fmt.Println("dockerfile package test begin")
-	m.Run()
+	exitVal := m.Run()
 	fmt.Println("dockerfile package test end")
 	clean()
+	os.Exit(exitVal)
 }
 
 func clean() {
@@ -165,10 +166,9 @@ func TestPrepareFromImage(t *testing.T) {
 	contentJustForFillLog := `FROM busybox
 CMD ["sh"]`
 	type fields struct {
-		buildOpt   *stageBuilderOption
-		builder    *Builder
-		localStore *store.Store
-		rawStage   *parser.Page
+		buildOpt *stageBuilderOption
+		builder  *Builder
+		rawStage *parser.Page
 
 		name       string
 		imageID    string
@@ -182,12 +182,10 @@ CMD ["sh"]`
 		fromImageID string
 		container   string
 		containerID string
-		docker      docker.Image
 		env         map[string]string
 	}
 	type args struct {
-		ctx  context.Context
-		base string
+		ctx context.Context
 	}
 	tests := []struct {
 		depLast   bool
@@ -359,7 +357,7 @@ CMD ["sh"]`
 			s.env = make(map[string]string)
 			err := s.prepare(tt.args.ctx)
 			if s.mountpoint != "" {
-				_, err := s.localStore.Unmount(s.containerID, false)
+				_, err = s.localStore.Unmount(s.containerID, false)
 				assert.NilError(t, err)
 			}
 			logrus.Infof("get mount point %q", s.mountpoint)

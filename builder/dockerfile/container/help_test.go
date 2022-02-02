@@ -51,9 +51,10 @@ func init() {
 
 func TestMain(m *testing.M) {
 	fmt.Println("container package test begin")
-	m.Run()
+	exitVal := m.Run()
 	fmt.Println("container package test end")
 	clean()
+	os.Exit(exitVal)
 }
 
 func clean() {
@@ -79,7 +80,7 @@ func TestCreateConfigsAndManifests(t *testing.T) {
 			ID:        "",
 			Parent:    "",
 			Comment:   "",
-			Created:   containerRef.created, //"2020-04-15 07:41:47.96447546 +0000 UTC",
+			Created:   containerRef.created, // "2020-04-15 07:41:47.96447546 +0000 UTC",
 			Container: "e6587b2dbfd56b5ce2e64dd7933ba04886bff86836dec5f09ce59d599df012fe",
 			ContainerConfig: docker.Config{
 				Hostname:     "ab281de98ba0",
@@ -122,11 +123,11 @@ func TestCreateConfigsAndManifests(t *testing.T) {
 		RootFS: &docker.RootFS{Type: "layers", DiffIDs: []digest.Digest{}},
 		History: []docker.History{
 			{
-				Created:   time.Date(2017, 5, 12, 21, 36, 57, 81970000, time.UTC), //created, //"2017-05-12 21:36:57.08197 +0000 UTC",
+				Created:   time.Date(2017, 5, 12, 21, 36, 57, 81970000, time.UTC), // created, //"2017-05-12 21:36:57.08197 +0000 UTC",
 				CreatedBy: "/bin/sh -c #(nop) ADD file:e9e6f86057e43a27b678a139b906091c3ecb1600b08ad17e80ff5ad56920c96e in / ",
 			},
 			{
-				Created:    time.Date(2017, 5, 12, 21, 36, 57, 851043000, time.UTC), //"2017-05-12 21:36:57.851043 +0000 UTC",
+				Created:    time.Date(2017, 5, 12, 21, 36, 57, 851043000, time.UTC), // "2017-05-12 21:36:57.851043 +0000 UTC",
 				CreatedBy:  `/bin/sh -c #(nop)  CMD ["sh"]`,
 				EmptyLayer: true,
 			},

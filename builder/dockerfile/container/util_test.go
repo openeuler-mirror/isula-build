@@ -119,7 +119,6 @@ func TestEncodeConfigsAndManifests(t *testing.T) {
 		dimage         docker.Image
 		dmanifest      docker.Manifest
 		manifestType   string
-		expectConfig   string
 		expectManifest string
 	}
 
@@ -217,7 +216,7 @@ func TestEncodeConfigsAndManifests(t *testing.T) {
 	}
 
 	for _, tc := range testcases {
-		_, manifest, err := encodeConfigsAndManifests(tc.dimage, tc.dmanifest, mimetypes.DockerV2Schema2MediaType)
+		_, manifest, err := encodeConfigsAndManifests(tc.dimage, tc.dmanifest, tc.manifestType)
 		assert.NilError(t, err)
 		assert.Equal(t, string(manifest), tc.expectManifest, tc.name)
 	}
@@ -240,11 +239,9 @@ func checkDirTimeFunc(t *testing.T, dir string, ct time.Time) {
 
 func TestChMTimeDir(t *testing.T) {
 	type testcase struct {
-		name   string
-		time   time.Time
-		dir    *fs.Dir
-		isErr  bool
-		errStr string
+		name string
+		time time.Time
+		dir  *fs.Dir
 	}
 
 	testcases := []testcase{

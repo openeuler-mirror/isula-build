@@ -25,68 +25,55 @@ func TestParseArg(t *testing.T) {
 	type testcase struct {
 		str    string
 		expect string
-		err    string
 	}
 	var testcases = []testcase{
 		{
 			str:    "CB_VERSION=6.5.0",
 			expect: "(ARG) (CB_VERSION=6.5.0)",
-			err:    "",
 		},
 		{
 			str:    "CB_RELEASE_URL=https://packages.couchbase.com/releases/6.5.0",
 			expect: "(ARG) (CB_RELEASE_URL=https://packages.couchbase.com/releases/6.5.0)",
-			err:    "",
 		},
 		{
 			str:    "CB_PACKAGE=couchbase-server-enterprise_6.5.0-ubuntu16.04_amd64.deb",
 			expect: "(ARG) (CB_PACKAGE=couchbase-server-enterprise_6.5.0-ubuntu16.04_amd64.deb)",
-			err:    "",
 		},
 		{
 			str:    "CB_SHA256=5505c6bb026090dae7351e9d83caeab00437f19e48e826afd4cb6bafc484cd2b",
 			expect: "(ARG) (CB_SHA256=5505c6bb026090dae7351e9d83caeab00437f19e48e826afd4cb6bafc484cd2b)",
-			err:    "",
 		},
 		{
 			str:    `USER_HOME_DIR="/root"`,
 			expect: `(ARG) (USER_HOME_DIR="/root")`,
-			err:    "",
 		},
 		{
 			str:    "BASE_URL=https://apache.osuosl.org/maven/maven-3/${MAVEN_VERSION}/binaries",
 			expect: "(ARG) (BASE_URL=https://apache.osuosl.org/maven/maven-3/${MAVEN_VERSION}/binaries)",
-			err:    "",
 		},
 		{
 			str:    "!@#$%^*()-_+foo=isula",
 			expect: "(ARG) (!@#$%^*()-_+foo=isula)",
-			err:    "",
 		},
 		{
 			str:    "foo =var",
 			expect: "",
-			err:    "",
 		},
 		{
 			str:    "foo= var",
 			expect: "",
-			err:    "",
 		},
 		{
 			str:    "foo=",
 			expect: "",
-			err:    "",
 		},
 		{
 			str:    "foo=var isula",
 			expect: "",
-			err:    "",
 		},
 		{
 			str:    "!@#$%^*()-_+foo=var isula",
 			expect: "",
-			err:    "",
 		},
 	}
 

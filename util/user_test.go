@@ -36,6 +36,7 @@ func TestGetChownOptions(t *testing.T) {
 	err := os.MkdirAll(mountpoint+"/etc", constant.DefaultSharedDirMode)
 	assert.NilError(t, err)
 	pFile, err := os.Create(mountpoint + "/etc/passwd")
+	assert.NilError(t, err)
 	if pFile != nil {
 		_, err = pFile.WriteString("root:x:0:0:root:/root:/bin/ash\nbin:x:1:1:bin:/bin:/sbin/nologin\n" +
 			"daemon:x:2:2:daemon:/sbin:/sbin/nologin\n555555:x:3:4:adm:/var/adm:/sbin/nologin\n" +
@@ -45,6 +46,7 @@ func TestGetChownOptions(t *testing.T) {
 	}
 
 	gFile, err := os.Create(mountpoint + "/etc/group")
+	assert.NilError(t, err)
 	if gFile != nil {
 		_, err = gFile.WriteString("root:x:0:root\nbin:x:1:root,bin,daemon\n" +
 			"daemon:x:2:root,bin,daemon\n77777:x:3:root,bin,adm\n")
@@ -158,8 +160,8 @@ func TestGetChownOptions(t *testing.T) {
 
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-			pair, err := GetChownOptions(c.chown, mountpoint)
-			assert.Equal(t, err != nil, c.isErr)
+			pair, gErr := GetChownOptions(c.chown, mountpoint)
+			assert.Equal(t, gErr != nil, c.isErr)
 			assert.Equal(t, pair.UID, c.UIDWanted)
 			assert.Equal(t, pair.GID, c.GIDWanted)
 		})
