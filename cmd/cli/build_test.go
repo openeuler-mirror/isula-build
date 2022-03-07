@@ -140,7 +140,6 @@ func TestRunBuildWithDefaultDockerFile(t *testing.T) {
 // expect: pass
 func TestRunBuildWithNArchiveExporter(t *testing.T) {
 	type testcase struct {
-		exporter string
 		descSpec string
 		format   string
 	}
@@ -169,12 +168,10 @@ func TestRunBuildWithNArchiveExporter(t *testing.T) {
 
 	var testcases = []testcase{
 		{
-			exporter: "docker-daeomn",
 			descSpec: "docker-daemon:isula:latest",
 			format:   "docker",
 		},
 		{
-			exporter: constant.OCIArchiveTransport,
 			descSpec: "oci-archive:isula:latest",
 			format:   "oci",
 		},
@@ -193,7 +190,6 @@ func TestRunBuildWithNArchiveExporter(t *testing.T) {
 // expect: pass
 func TestRunBuildWithArchiveExporter(t *testing.T) {
 	type testcase struct {
-		exporter string
 		descSpec string
 		format   string
 	}
@@ -221,12 +217,10 @@ func TestRunBuildWithArchiveExporter(t *testing.T) {
 
 	var testcases = []testcase{
 		{
-			exporter: constant.DockerArchiveTransport,
 			descSpec: "docker-archive:/tmp/image:isula:latest",
 			format:   "docker",
 		},
 		{
-			exporter: constant.OCIArchiveTransport,
 			descSpec: "oci-archive:/tmp/image:isula:latest",
 			format:   "oci",
 		},
@@ -344,6 +338,7 @@ func TestReadDockerfileWithNoNameAndNoFileNamedDockerfile(t *testing.T) {
 func TestNewBuildOptions(t *testing.T) {
 	// no args case use current working directory as context directory
 	cwd, err := os.Getwd()
+	assert.NilError(t, err)
 	realCwd, err := filepath.EvalSymlinks(cwd)
 	assert.NilError(t, err)
 	var args []string
@@ -354,6 +349,7 @@ func TestNewBuildOptions(t *testing.T) {
 	// normal case
 	args = []string{".", "abc"}
 	absPath, err := filepath.Abs(".")
+	assert.NilError(t, err)
 	realPath, err := filepath.EvalSymlinks(absPath)
 	assert.NilError(t, err)
 	err = newBuildOptions(args)
@@ -369,6 +365,7 @@ func TestNewBuildOptions(t *testing.T) {
 
 	// context directory is not a directory
 	err = ioutil.WriteFile(tmpDir.Path()+"/test", []byte(""), constant.DefaultRootFileMode)
+	assert.NilError(t, err)
 	args = []string{tmpDir.Path() + "/test"}
 	err = newBuildOptions(args)
 	assert.ErrorContains(t, err, "should be a directory")
@@ -376,94 +373,70 @@ func TestNewBuildOptions(t *testing.T) {
 
 func TestCheckAndProcessOut(t *testing.T) {
 	type testcase struct {
-		name     string
-		output   string
-		expect   string
-		errStr   string
-		isIsulad bool
-		isErr    bool
+		name   string
+		output string
+		errStr string
+		isErr  bool
 	}
 
 	testcases := []testcase{
 		{
-			name:     "docker-archive",
-			output:   "docker-archive:/root/docker-archive.tar",
-			expect:   "/root/docker-archive.tar",
-			isIsulad: false,
+			name:   "docker-archive",
+			output: "docker-archive:/root/docker-archive.tar",
 		},
 		{
-			name:     "docker-daemon",
-			output:   "docker-daemon:busybox:latest",
-			expect:   "",
-			isIsulad: false,
+			name:   "docker-daemon",
+			output: "docker-daemon:busybox:latest",
 		},
 		{
-			name:     "docker-registry",
-			output:   "docker://registry.example.com/busybox:latest",
-			expect:   "",
-			isIsulad: false,
+			name:   "docker-registry",
+			output: "docker://registry.example.com/busybox:latest",
 		},
 		{
-			name:     "empyty exporter",
-			output:   "",
-			expect:   "",
-			isIsulad: false,
+			name:   "empyty exporter",
+			output: "",
 		},
 		{
-			name:     "only has colon",
-			output:   ":",
-			expect:   "",
-			isIsulad: false,
-			errStr:   "transport should not be empty",
-			isErr:    true,
+			name:   "only has colon",
+			output: ":",
+			errStr: "transport should not be empty",
+			isErr:  true,
 		},
 		{
-			name:     "only has transport",
-			output:   "docker-archive:",
-			expect:   "",
-			isIsulad: false,
-			errStr:   "destination should not be empty",
-			isErr:    true,
+			name:   "only has transport",
+			output: "docker-archive:",
+			errStr: "destination should not be empty",
+			isErr:  true,
 		},
 		{
-			name:     "invalid exporter with no dest1",
-			output:   "docker-archive",
-			expect:   "",
-			isErr:    true,
-			errStr:   "destination should not be empty",
-			isIsulad: false,
+			name:   "invalid exporter with no dest1",
+			output: "docker-archive",
+			isErr:  true,
+			errStr: "destination should not be empty",
 		},
 		{
-			name:     "invalid exporter with no dest3",
-			output:   "docker-archive:  ",
-			expect:   "",
-			isErr:    true,
-			errStr:   "destination should not be empty",
-			isIsulad: false,
+			name:   "invalid exporter with no dest3",
+			output: "docker-archive:  ",
+			isErr:  true,
+			errStr: "destination should not be empty",
 		},
 		{
-			name:     "invalid exporter with no dest2",
-			output:   "docker-archive:",
-			expect:   "",
-			isErr:    true,
-			errStr:   "destination should not be empty",
-			isIsulad: false,
+			name:   "invalid exporter with no dest2",
+			output: "docker-archive:",
+			isErr:  true,
+			errStr: "destination should not be empty",
 		},
 		{
-			name:     "invalid exporter with no transport",
-			output:   ":/test/images",
-			expect:   "",
-			isErr:    true,
-			errStr:   "transport should not be empty",
-			isIsulad: false,
+			name:   "invalid exporter with no transport",
+			output: ":/test/images",
+			isErr:  true,
+			errStr: "transport should not be empty",
 		},
 		{
-			name:     "invalid transport",
-			output:   "docker-isula:/root/docker-isula.tar",
-			expect:   "/root/docker-isula.tar",
-			errStr:   "not support",
-			isErr:    true,
-			isIsulad: false,
+			name:   "invalid transport",
+			output: "docker-isula:/root/docker-isula.tar",
+			errStr: "not support",
+			isErr:  true,
 		},
 		{
 			name:   "invalid docker transport longer than limit",
@@ -510,10 +483,7 @@ func TestCheckAndProcessOut(t *testing.T) {
 		{
 			name:   "valid isulad transport",
 			output: "isulad:isula:latest",
-			// since refactor, when transport is isulad, the tmp tarball will stored in data dir
-			expect:   "",
-			isErr:    false,
-			isIsulad: true,
+			isErr:  false,
 		},
 	}
 

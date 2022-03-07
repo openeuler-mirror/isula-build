@@ -1,7 +1,7 @@
 run:
   deadline: 10m
   issues-exit-code: 1
-  tests: false
+  tests: true
 
   skip-dirs:
     - vendor
@@ -98,14 +98,11 @@ issues:
   exclude-rules:
     path: _test\.go
     linters:
-      - gocyclo
       - scopelint
       - errcheck
-      - dupl
       - gosec
-      - structcheck
-      - staticcheck
-      - gomnd
+      - goconst
+      - maligned
       - ineffassign
   max-issues-per-linter: 0
   max-same-issues: 0

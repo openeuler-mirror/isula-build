@@ -344,7 +344,7 @@ RUN ls
 	assert.DeepEqual(t, b.stageBuilders[0].commands[5].args,
 		map[string]string{"STAGE1_ARG": "foo", "GLOBALARG_ONE": "globalarg_one_default_value", "GLOBALARG_TWO": "override"})
 
-	//assert.DeepEqual(t, b.stageBuilders[1].(*stageBuilder).fromImage, "override:globalarg_one_default_value")
+	// assert.DeepEqual(t, b.stageBuilders[1].(*stageBuilder).fromImage, "override:globalarg_one_default_value")
 	assert.DeepEqual(t, b.stageBuilders[1].commands[0].args,
 		map[string]string{})
 	assert.DeepEqual(t, b.stageBuilders[1].commands[2].args,
@@ -1228,7 +1228,8 @@ func TestParseRequestBuildArgs(t *testing.T) {
 				assert.NilError(t, err)
 				err = util.GenRSAPublicKeyFile(b.rsaKey, keyPath)
 				assert.NilError(t, err)
-				pubKey, err := util.ReadPublicKey(keyPath)
+				var pubKey rsa.PublicKey
+				pubKey, err = util.ReadPublicKey(keyPath)
 				assert.NilError(t, err)
 				var args = make([]string, 0, 10)
 				for _, v := range tt.buildArgs {

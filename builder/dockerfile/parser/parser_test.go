@@ -251,7 +251,7 @@ func TestParseContainSingleFrom(t *testing.T) {
 			isErr:     false,
 			committed: false,
 		}, {
-			name:      "compelte_stage_with_single_from_stage",
+			name:      "complete_stage_with_single_from_stage",
 			isErr:     false,
 			committed: false,
 		}, {
@@ -277,8 +277,7 @@ func TestParseContainSingleFrom(t *testing.T) {
 			defer r.Close()
 
 			df := dockerfile{}
-			playbook := &parser.PlayBook{}
-			playbook, err = df.Parse(r, false)
+			playbook, err := df.Parse(r, false)
 
 			if !tc.isErr {
 				assert.NilError(t, err, file)
@@ -386,7 +385,6 @@ func TestGetPageName(t *testing.T) {
 		name      string
 		line      parser.Line
 		isErr     bool
-		errStr    string
 		expectStr string
 	}
 	var testcases = []testcase{

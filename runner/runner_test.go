@@ -194,7 +194,8 @@ func TestRunOCIRuntimeContextCancel(t *testing.T) {
 	cliLog := logger.NewCliLogger(constant.CliLogBufferLen)
 	spec := &specs.Spec{}
 
-	ctx, _ := context.WithTimeout(context.Background(), 500*time.Millisecond)
+	ctx, cancelFunc := context.WithTimeout(context.Background(), 500*time.Millisecond)
+	defer cancelFunc()
 	runner := NewOCIRunner(&OCIRunOpts{
 		Ctx:         ctx,
 		Spec:        spec,

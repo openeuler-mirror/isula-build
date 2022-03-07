@@ -55,7 +55,7 @@ func TestSave(t *testing.T) {
 	d := prepare(t)
 	defer tmpClean(d)
 
-	//TODO: create image manually and save
+	// nolint:godox TODO: create image manually and save
 	options := &storage.ImageOptions{}
 	img, err := d.Daemon.localStore.CreateImage(stringid.GenerateRandomID(), []string{"image:latest"}, "", "", options)
 	if err != nil {

@@ -65,8 +65,7 @@ func TestSetup(t *testing.T) {
 		return
 	}
 
-	var testDir *fs.Dir
-	testDir = fs.NewDir(t, "TestSetup")
+	testDir := fs.NewDir(t, "TestSetup")
 	defer testDir.Remove()
 
 	cmd := reexec.Command(testDumpStackCommand)

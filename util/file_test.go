@@ -24,6 +24,7 @@ import (
 	"github.com/containers/storage/pkg/archive"
 	"gotest.tools/v3/assert"
 	"gotest.tools/v3/fs"
+
 	constant "isula.org/isula-build"
 )
 
@@ -70,7 +71,7 @@ func TestLoadJSONFile(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if err := LoadJSONFile(tt.args.file, &tt.args.v); (err != nil) != tt.wantErr {
+			if err = LoadJSONFile(tt.args.file, &tt.args.v); (err != nil) != tt.wantErr {
 				t.Errorf("LoadJSONFile() error = %v, wantErr %v", err, tt.wantErr)
 			}
 			if err == nil {
@@ -89,6 +90,7 @@ func TestChangeFileModifyTime(t *testing.T) {
 	assert.NilError(t, err)
 	immutableFile := filepath.Join(pwd, "immutableFile")
 	_, err = os.Create(immutableFile)
+	assert.NilError(t, err)
 	defer os.Remove(immutableFile)
 
 	type args struct {

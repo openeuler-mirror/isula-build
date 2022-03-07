@@ -203,6 +203,7 @@ func TestCheckLoadOpts(t *testing.T) {
 	ioutil.WriteFile(baseFile.Name(), []byte("This is base file"), constant.DefaultRootFileMode)
 
 	libFile, err := os.Create(filepath.Join(root.Path(), "lib.tar"))
+	assert.NilError(t, err)
 	ioutil.WriteFile(libFile.Name(), []byte("This is lib file"), constant.DefaultRootFileMode)
 
 	type fields struct {

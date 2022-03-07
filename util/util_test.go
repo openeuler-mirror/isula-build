@@ -92,7 +92,7 @@ func TestCopyFile(t *testing.T) {
 	}
 
 	for index := range testcases.attrName {
-		err := system.Lsetxattr(src, testcases.attrName[index], []byte(testcases.attr[index]), 0)
+		err = system.Lsetxattr(src, testcases.attrName[index], []byte(testcases.attr[index]), 0)
 		assert.NilError(t, err)
 	}
 
@@ -214,7 +214,7 @@ func TestCopyXattrs(t *testing.T) {
 			assert.NilError(t, err2)
 
 			for index := range tt.attrName {
-				err := system.Lsetxattr(src, tt.attrName[index], []byte(tt.attr[index]), 0)
+				err = system.Lsetxattr(src, tt.attrName[index], []byte(tt.attr[index]), 0)
 				assert.NilError(t, err)
 			}
 
@@ -322,7 +322,7 @@ func TestGenerateNonCryptoID(t *testing.T) {
 	}{
 		{
 			name: "TC1 - generate id",
-			want:64,
+			want: 64,
 		},
 	}
 	for _, tt := range tests {
@@ -393,8 +393,8 @@ func TestIsClientExporter(t *testing.T) {
 			wantResult: true,
 		},
 		{
-			name:       "abnormal unkown",
-			exporter:   "unkown",
+			name:       "abnormal unknown",
+			exporter:   "unknown",
 			wantResult: false,
 		},
 	}

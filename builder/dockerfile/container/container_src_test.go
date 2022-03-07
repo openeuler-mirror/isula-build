@@ -56,12 +56,9 @@ func TestReference(t *testing.T) {
 
 func TestGetSignatures(t *testing.T) {
 	type testcase struct {
-		name         string
-		digest       *digest.Digest
-		manifest     []byte
-		manifestType string
-		isErr        bool
-		errStr       string
+		name   string
+		digest *digest.Digest
+		isErr  bool
 	}
 	d := digest.SHA256.FromString("isula")
 	var testcases = []testcase{
@@ -90,12 +87,9 @@ func TestGetSignatures(t *testing.T) {
 
 func TestGetManifest(t *testing.T) {
 	type testcase struct {
-		name         string
-		digest       *digest.Digest
-		manifest     []byte
-		manifestType string
-		isErr        bool
-		errStr       string
+		name   string
+		digest *digest.Digest
+		isErr  bool
 	}
 	d := digest.SHA256.FromString("isula")
 	var testcases = []testcase{

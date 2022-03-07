@@ -22,7 +22,7 @@ import (
 	"gotest.tools/v3/assert"
 	"gotest.tools/v3/fs"
 
-	"isula.org/isula-build"
+	constant "isula.org/isula-build"
 )
 
 func TestFormatTransport(t *testing.T) {
@@ -120,7 +120,7 @@ func TestGetManifestType(t *testing.T) {
 		},
 		{
 			name:    "unknown format manifest type",
-			format:  "unkown",
+			format:  "unknown",
 			wantErr: true,
 		},
 	}
@@ -137,4 +137,3 @@ func TestGetManifestType(t *testing.T) {
 		})
 	}
 }
-
