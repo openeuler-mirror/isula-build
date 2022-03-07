@@ -102,8 +102,8 @@ func validateConfigFileAndMerge(cmd *cobra.Command) error {
 }
 
 func mergeStorageConfig(cmd *cobra.Command) error {
-	store.SetDefaultConfigFilePath(constant.StorageConfigPath)
-	option, err := store.GetDefaultStoreOptions(true)
+	store.SetStorageConfigFilePath(constant.StorageConfigPath)
+	option, err := store.GetStorageConfigFileOptions()
 	if err != nil {
 		return err
 	}

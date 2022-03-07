@@ -139,8 +139,8 @@ func TestRunAndDataRootSet(t *testing.T) {
 		defer tmpDir.Remove()
 		filePath := tmpDir.Join(fileName)
 
-		store.SetDefaultConfigFilePath(filePath)
-		option, err := store.GetDefaultStoreOptions(true)
+		store.SetStorageConfigFilePath(filePath)
+		option, err := store.GetStorageConfigFileOptions()
 		if err != nil {
 			t.Fatalf("get default store options failed with error: %v", err)
 		}
@@ -225,7 +225,7 @@ func TestRunAndDataRootSet(t *testing.T) {
 	for _, tc := range testcases {
 		t.Run(tc.name, func(t *testing.T) {
 			tc.setF()
-			storeOptions, err := store.GetDefaultStoreOptions(false)
+			storeOptions, err := store.GetDefaultStoreOptions()
 			if err != nil {
 				t.Fatalf("get default store options failed with error: %v", err)
 			}
@@ -250,10 +250,10 @@ func TestValidateConfigFileAndMerge(t *testing.T) {
 	err = validateConfigFileAndMerge(cmd)
 	assert.NilError(t, err)
 
-	if err := setStoreAccordingToDaemonOpts(); err != nil {
+	if err = setStoreAccordingToDaemonOpts(); err != nil {
 		t.Fatalf("set store options failed with error: %v", err)
 	}
-	storeOptions, err := store.GetDefaultStoreOptions(false)
+	storeOptions, err := store.GetDefaultStoreOptions()
 	if err != nil {
 		t.Fatalf("get default store options failed with error: %v", err)
 	}
