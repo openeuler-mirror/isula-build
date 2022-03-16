@@ -1,0 +1,33 @@
+From d536520c7ecc20c67c2e2b10931a2a773425e3f6 Mon Sep 17 00:00:00 2001
+From: xingweizheng <xingweizheng@huawei.com>
+Date: Wed, 16 Mar 2022 11:17:25 +0800
+Subject: [PATCH] tule
+
+---
+ .../opencontainers/selinux/go-selinux/selinux_linux.go          | 2 ++
+ .../opencontainers/selinux/go-selinux/selinux_stub.go           | 2 +-
+ 2 files changed, 3 insertions(+), 1 deletion(-)
+
+diff --git a/vendor/github.com/opencontainers/selinux/go-selinux/selinux_linux.go b/vendor/github.com/opencontainers/selinux/go-selinux/selinux_linux.go
+index b045843..0b16f03 100644
+--- a/vendor/github.com/opencontainers/selinux/go-selinux/selinux_linux.go
++++ b/vendor/github.com/opencontainers/selinux/go-selinux/selinux_linux.go
+@@ -1,3 +1,5 @@
++// +build !linux
++
+ package selinux
+ 
+ import (
+diff --git a/vendor/github.com/opencontainers/selinux/go-selinux/selinux_stub.go b/vendor/github.com/opencontainers/selinux/go-selinux/selinux_stub.go
+index 4265775..7ac4017 100644
+--- a/vendor/github.com/opencontainers/selinux/go-selinux/selinux_stub.go
++++ b/vendor/github.com/opencontainers/selinux/go-selinux/selinux_stub.go
+@@ -1,4 +1,4 @@
+-// +build !linux
++// +build linux
+ 
+ package selinux
+ 
+-- 
+2.27.0
+
