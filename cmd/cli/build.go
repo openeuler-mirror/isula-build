@@ -478,6 +478,7 @@ func resolveDockerfilePath() (string, error) {
 		return resolvedPath, nil
 	}
 	logrus.Debugf("Stat dockerfile failed with path %s", resolvedPath)
+	firstErr := errors.Errorf("check dockerfile %s failed: %v", resolvedPath, err)
 
 	// not found with filepath, try to resolve with contextDir+filepath
 	resolvedPath = path.Join(buildOpts.contextDir, buildOpts.file)
@@ -485,9 +486,10 @@ func resolveDockerfilePath() (string, error) {
 		return resolvedPath, nil
 
 	}
+	secondErr := errors.Errorf("check dockerfile %s failed again: %v", resolvedPath, err)
 	logrus.Debugf("Stat dockerfile failed again with path %s", resolvedPath)
 
-	return "", errors.Wrap(err, "check dockerfile failed")
+	return "", errors.Errorf("%v, %v", firstErr, secondErr)
 }
 
 func getAbsPath(path string) (string, error) {
