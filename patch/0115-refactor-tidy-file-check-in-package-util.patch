@@ -1,0 +1,816 @@
+From 563580c128e0c49df89bc317b7c45a6b00c2da06 Mon Sep 17 00:00:00 2001
+From: xingweizheng <xingweizheng@huawei.com>
+Date: Mon, 24 Jan 2022 20:25:28 +0800
+Subject: [PATCH 14/20] refactor: tidy file check in package util
+
+---
+ builder/dockerfile/parser/parser.go      |  2 +-
+ builder/dockerfile/parser/parser_test.go |  2 +-
+ builder/dockerfile/run.go                |  4 +-
+ cmd/cli/build.go                         | 47 +++++---------
+ cmd/cli/import.go                        |  7 +--
+ cmd/cli/load.go                          |  2 +-
+ cmd/cli/load_test.go                     | 11 +++-
+ cmd/daemon/main.go                       | 33 +---------
+ constant.go                              |  8 ++-
+ daemon/load.go                           |  2 +-
+ image/context.go                         | 30 ++-------
+ image/context_test.go                    | 59 -----------------
+ runner/runner.go                         |  2 +-
+ util/common.go                           | 46 +++-----------
+ util/common_test.go                      | 80 +++---------------------
+ util/file.go                             | 31 +++------
+ util/file_test.go                        | 68 --------------------
+ util/user.go                             |  2 +-
+ 18 files changed, 75 insertions(+), 361 deletions(-)
+
+diff --git a/builder/dockerfile/parser/parser.go b/builder/dockerfile/parser/parser.go
+index 650c5e5..1968fc1 100644
+--- a/builder/dockerfile/parser/parser.go
++++ b/builder/dockerfile/parser/parser.go
+@@ -304,7 +304,7 @@ func (df *dockerfile) ParseIgnore(dir string) ([]string, error) {
+ 		}
+ 		return ignores, errors.Wrap(err, "state dockerignore file failed")
+ 	}
+-	if err := util.CheckFileSize(fullPath, constant.MaxFileSize); err != nil {
++	if err := util.CheckFileInfoAndSize(fullPath, constant.MaxFileSize); err != nil {
+ 		return ignores, err
+ 	}
+ 
+diff --git a/builder/dockerfile/parser/parser_test.go b/builder/dockerfile/parser/parser_test.go
+index 870132f..ba7fce5 100644
+--- a/builder/dockerfile/parser/parser_test.go
++++ b/builder/dockerfile/parser/parser_test.go
+@@ -328,7 +328,7 @@ func TestParseIgnoreWithDir(t *testing.T) {
+ 
+ 	df := dockerfile{}
+ 	_, err := df.ParseIgnore(ctxDir.Path())
+-	assert.ErrorContains(t, err, "a directory")
++	assert.ErrorContains(t, err, "should be a regular file")
+ }
+ 
+ func TestParseWithHeadingArgs(t *testing.T) {
+diff --git a/builder/dockerfile/run.go b/builder/dockerfile/run.go
+index d33573f..5b066fb 100644
+--- a/builder/dockerfile/run.go
++++ b/builder/dockerfile/run.go
+@@ -171,7 +171,7 @@ func setupBindFiles(bundlePath string) (map[string]string, error) {
+ }
+ 
+ func generateHosts(bundlePath string) (string, error) {
+-	if err := util.CheckFileSize(constant.HostsFilePath, constant.MaxFileSize); err != nil {
++	if err := util.CheckFileInfoAndSize(constant.HostsFilePath, constant.MaxFileSize); err != nil {
+ 		return "", err
+ 	}
+ 
+@@ -194,7 +194,7 @@ func generateHosts(bundlePath string) (string, error) {
+ }
+ 
+ func generateResolv(bundlePath string) (string, error) {
+-	if err := util.CheckFileSize(constant.ResolvFilePath, constant.MaxFileSize); err != nil {
++	if err := util.CheckFileInfoAndSize(constant.ResolvFilePath, constant.MaxFileSize); err != nil {
+ 		return "", err
+ 	}
+ 
+diff --git a/cmd/cli/build.go b/cmd/cli/build.go
+index 4b4e6f5..c9efd4e 100644
+--- a/cmd/cli/build.go
++++ b/cmd/cli/build.go
+@@ -460,51 +460,34 @@ func readDockerfile() (string, string, error) {
+ 	return string(buf), parts[1], nil
+ }
+ 
+-func checkDockerfile(filePath string) error {
+-	fileInfo, err := os.Stat(filePath)
+-	if err != nil {
+-		return err
+-	}
+-
+-	if !fileInfo.Mode().IsRegular() {
+-		return errors.Errorf("file %s should be a regular file", filePath)
+-	}
+-	if fileInfo.Size() == 0 {
+-		return errors.New("file is empty, is it a normal dockerfile?")
+-	}
+-	if fileInfo.Size() > constant.MaxFileSize {
+-		return errors.Errorf("file is too big with size %v, is it a normal dockerfile?", fileInfo.Size())
+-	}
+-	return nil
+-}
+-
+ func resolveDockerfilePath() (string, error) {
+ 	var resolvedPath = buildOpts.file
+ 	var err error
+ 	if buildOpts.file == "" {
+ 		// filepath is empty, try to resolve with contextDir+Dockerfile
+ 		resolvedPath = path.Join(buildOpts.contextDir, "Dockerfile")
+-		err = checkDockerfile(resolvedPath)
+-		if err != nil {
++		if err = util.CheckFileInfoAndSize(resolvedPath, constant.MaxFileSize); err != nil {
+ 			logrus.Debugf("Stat dockerfile failed with path %s", resolvedPath)
+-			return "", err
++			return "", errors.Wrap(err, "check dockerfile failed")
+ 		}
++
+ 		return resolvedPath, nil
+ 	}
+ 
+-	err = checkDockerfile(resolvedPath)
+-	if err != nil {
+-		logrus.Debugf("Stat dockerfile failed with path %s", resolvedPath)
+-		// not found with filepath, try to resolve with contextDir+filepath
+-		resolvedPath = path.Join(buildOpts.contextDir, buildOpts.file)
+-		err = checkDockerfile(resolvedPath)
+-		if err != nil {
+-			logrus.Debugf("Stat dockerfile failed again with path %s", resolvedPath)
+-			return "", err
+-		}
++	if err = util.CheckFileInfoAndSize(resolvedPath, constant.MaxFileSize); err == nil {
++		return resolvedPath, nil
++	}
++	logrus.Debugf("Stat dockerfile failed with path %s", resolvedPath)
++
++	// not found with filepath, try to resolve with contextDir+filepath
++	resolvedPath = path.Join(buildOpts.contextDir, buildOpts.file)
++	if err = util.CheckFileInfoAndSize(resolvedPath, constant.MaxFileSize); err == nil {
++		return resolvedPath, nil
++
+ 	}
++	logrus.Debugf("Stat dockerfile failed again with path %s", resolvedPath)
+ 
+-	return resolvedPath, nil
++	return "", errors.Wrap(err, "check dockerfile failed")
+ }
+ 
+ func getAbsPath(path string) (string, error) {
+diff --git a/cmd/cli/import.go b/cmd/cli/import.go
+index 96263db..40f933a 100644
+--- a/cmd/cli/import.go
++++ b/cmd/cli/import.go
+@@ -29,9 +29,8 @@ import (
+ )
+ 
+ const (
+-	maxTarballSize = 1024 * 1024 * 1024 // support tarball max size at most 1G
+-	importExample  = `isula-build ctr-img import busybox.tar busybox:isula`
+-	importArgsLen  = 1
++	importExample = `isula-build ctr-img import busybox.tar busybox:isula`
++	importArgsLen = 1
+ )
+ 
+ type importOptions struct {
+@@ -57,7 +56,7 @@ func importCommand(c *cobra.Command, args []string) error {
+ 	if len(args) < importArgsLen {
+ 		return errors.New("requires at least one argument")
+ 	}
+-	if err := util.CheckFileSize(args[0], maxTarballSize); err != nil {
++	if err := util.CheckFileInfoAndSize(args[0], constant.MaxImportFileSize); err != nil {
+ 		return err
+ 	}
+ 	importOpts.source = args[0]
+diff --git a/cmd/cli/load.go b/cmd/cli/load.go
+index 90d189a..363c54e 100644
+--- a/cmd/cli/load.go
++++ b/cmd/cli/load.go
+@@ -128,7 +128,7 @@ func resolveLoadPath(path, pwd string) (string, error) {
+ 	}
+ 
+ 	path = util.MakeAbsolute(path, pwd)
+-	if err := util.CheckLoadFile(path); err != nil {
++	if err := util.CheckFileInfoAndSize(path, constant.MaxLoadFileSize); err != nil {
+ 		return "", err
+ 	}
+ 
+diff --git a/cmd/cli/load_test.go b/cmd/cli/load_test.go
+index cb8217c..a5b3c30 100644
+--- a/cmd/cli/load_test.go
++++ b/cmd/cli/load_test.go
+@@ -189,14 +189,19 @@ func TestCheckLoadOpts(t *testing.T) {
+ 	assert.NilError(t, err)
+ 	root := fs.NewDir(t, t.Name())
+ 	defer root.Remove()
++
++	emptyTar := "empty.tar"
+ 	emptyFile, err := os.Create(filepath.Join(root.Path(), "empty.tar"))
+ 	assert.NilError(t, err)
++
+ 	fileWithContent, err := os.Create(filepath.Join(root.Path(), "test.tar"))
+ 	assert.NilError(t, err)
+ 	ioutil.WriteFile(fileWithContent.Name(), []byte("This is test file"), constant.DefaultRootFileMode)
++
+ 	baseFile, err := os.Create(filepath.Join(root.Path(), "base.tar"))
+ 	assert.NilError(t, err)
+ 	ioutil.WriteFile(baseFile.Name(), []byte("This is base file"), constant.DefaultRootFileMode)
++
+ 	libFile, err := os.Create(filepath.Join(root.Path(), "lib.tar"))
+ 	ioutil.WriteFile(libFile.Name(), []byte("This is lib file"), constant.DefaultRootFileMode)
+ 
+@@ -228,7 +233,7 @@ func TestCheckLoadOpts(t *testing.T) {
+ 				path: emptyFile.Name(),
+ 			},
+ 			wantErr:    true,
+-			errMessage: "loading file is empty",
++			errMessage: "file " + emptyTar + " is empty",
+ 		},
+ 		{
+ 			name: "TC-separated load",
+@@ -290,7 +295,7 @@ func TestCheckLoadOpts(t *testing.T) {
+ 				},
+ 			},
+ 			wantErr:    true,
+-			errMessage: "resolve base tarball path failed: loading file is empty",
++			errMessage: "resolve base tarball path failed: file " + emptyTar + " is empty",
+ 		},
+ 		{
+ 			name: "TC-separated load with empty lib tarball",
+@@ -303,7 +308,7 @@ func TestCheckLoadOpts(t *testing.T) {
+ 				},
+ 			},
+ 			wantErr:    true,
+-			errMessage: "resolve lib tarball path failed: loading file is empty",
++			errMessage: "resolve lib tarball path failed: file " + emptyTar + " is empty",
+ 		},
+ 		{
+ 			name: "TC-separated load with same base and lib tarball",
+diff --git a/cmd/daemon/main.go b/cmd/daemon/main.go
+index 3cecbf9..06a53fa 100644
+--- a/cmd/daemon/main.go
++++ b/cmd/daemon/main.go
+@@ -189,18 +189,10 @@ func before(cmd *cobra.Command) error {
+ 
+ func loadConfig(path string) (config.TomlConfig, error) {
+ 	var conf config.TomlConfig
+-	fi, err := os.Stat(path)
+-	if err != nil {
++	if err := util.CheckFileInfoAndSize(path, constant.MaxFileSize); err != nil {
+ 		return conf, err
+ 	}
+ 
+-	if !fi.Mode().IsRegular() {
+-		return conf, errors.New("config file must be a regular file")
+-	}
+-
+-	if err = util.CheckFileSize(path, constant.MaxFileSize); err != nil {
+-		return conf, err
+-	}
+ 	configData, err := ioutil.ReadFile(filepath.Clean(path))
+ 	if err != nil {
+ 		return conf, err
+@@ -211,17 +203,7 @@ func loadConfig(path string) (config.TomlConfig, error) {
+ }
+ 
+ func checkRootSetInConfig(path string) (setRunRoot, setGraphRoot bool, err error) {
+-	fi, err := os.Stat(path)
+-	if err != nil {
+-		return false, false, err
+-	}
+-
+-	if !fi.Mode().IsRegular() {
+-		err = errors.New("config file must be a regular file")
+-		return false, false, err
+-	}
+-
+-	if err = util.CheckFileSize(path, constant.MaxFileSize); err != nil {
++	if err = util.CheckFileInfoAndSize(path, constant.MaxFileSize); err != nil {
+ 		return false, false, err
+ 	}
+ 
+@@ -391,16 +373,7 @@ func checkAndValidateConfig(cmd *cobra.Command) error {
+ 		if exist, err := util.IsExist(file); err != nil {
+ 			return err
+ 		} else if exist {
+-			fi, err := os.Stat(file)
+-			if err != nil {
+-				return errors.Wrapf(err, "stat file %q failed", file)
+-			}
+-
+-			if !fi.Mode().IsRegular() {
+-				return errors.Errorf("file %s should be a regular file", fi.Name())
+-			}
+-
+-			if err := util.CheckFileSize(file, constant.MaxFileSize); err != nil {
++			if err := util.CheckFileInfoAndSize(file, constant.MaxFileSize); err != nil {
+ 				return err
+ 			}
+ 		}
+diff --git a/constant.go b/constant.go
+index 5af4fe2..47b7c2b 100644
+--- a/constant.go
++++ b/constant.go
+@@ -67,8 +67,14 @@ const (
+ 
+ 	// CliLogBufferLen is log channel buffer size
+ 	CliLogBufferLen = 8
+-	// MaxFileSize is the maximum file size allowed, set 1M
++	// MaxFileSize is the max size of normal config file at most 1M
+ 	MaxFileSize = 1024 * 1024
++	// JSONMaxFileSize is the max size of json file at most 10M
++	JSONMaxFileSize = 10 * 1024 * 1024
++	// MaxImportFileSize is the max size of import image file at most 1G
++	MaxImportFileSize = 1024 * 1024 * 1024
++	// MaxLoadFileSize is the max size of load image file at most 50G
++	MaxLoadFileSize = 50 * 1024 * 1024 * 1024
+ 	// DefaultHTTPTimeout includes the total time of dial, TLS handshake, request, resp headers and body
+ 	DefaultHTTPTimeout = 3600 * time.Second
+ 	// DefaultFailedCode is the exit code for most scenes
+diff --git a/daemon/load.go b/daemon/load.go
+index 1ee025b..2d0c154 100644
+--- a/daemon/load.go
++++ b/daemon/load.go
+@@ -62,7 +62,7 @@ func (b *Backend) getLoadOptions(req *pb.LoadRequest) (LoadOptions, error) {
+ 
+ 	// normal image loading
+ 	if !req.GetSep().GetEnabled() {
+-		if err = util.CheckLoadFile(opt.path); err != nil {
++		if err = util.CheckFileInfoAndSize(opt.path, constant.MaxLoadFileSize); err != nil {
+ 			return LoadOptions{}, err
+ 		}
+ 		return opt, nil
+diff --git a/image/context.go b/image/context.go
+index ea826c6..c2d4150 100644
+--- a/image/context.go
++++ b/image/context.go
+@@ -15,12 +15,10 @@ package image
+ 
+ import (
+ 	"io"
+-	"os"
+ 	"sync"
+ 
+ 	cp "github.com/containers/image/v5/copy"
+ 	"github.com/containers/image/v5/types"
+-	"github.com/pkg/errors"
+ 	"github.com/sirupsen/logrus"
+ 
+ 	constant "isula.org/isula-build"
+@@ -40,31 +38,13 @@ func init() {
+ 	}
+ }
+ 
+-func validateConfigFiles(configs []string) error {
+-	var (
+-		cfgInfo os.FileInfo
+-		err     error
+-	)
+-	for _, cfg := range configs {
+-		if err = util.CheckFileSize(cfg, constant.MaxFileSize); err != nil {
+-			return err
+-		}
+-		if cfgInfo, err = os.Stat(cfg); err != nil {
+-			return err
+-		}
+-		if cfgInfo.Size() == 0 {
+-			return errors.Errorf("config %q cannot be an empty file", cfg)
+-		}
+-	}
+-
+-	return nil
+-}
+-
+ // SetSystemContext set the values of globalSystemContext
+ func SetSystemContext(dataRoot string) {
+-	err := validateConfigFiles([]string{constant.SignaturePolicyPath, constant.RegistryConfigPath})
+-	if err != nil {
+-		logrus.Fatal(err)
++	configFiles := []string{constant.SignaturePolicyPath, constant.RegistryConfigPath}
++	for _, cfg := range configFiles {
++		if err := util.CheckFileInfoAndSize(cfg, constant.MaxFileSize); err != nil {
++			logrus.Fatalf("check config file %q failed: %v", cfg, err)
++		}
+ 	}
+ 
+ 	once.Do(func() {
+diff --git a/image/context_test.go b/image/context_test.go
+index 131c3a2..08d34e9 100644
+--- a/image/context_test.go
++++ b/image/context_test.go
+@@ -29,65 +29,6 @@ func doCmd(cmd string) {
+ 	}
+ }
+ 
+-func TestValidateConfigFiles(t *testing.T) {
+-	type args struct {
+-		configs []string
+-	}
+-	tests := []struct {
+-		name       string
+-		args       args
+-		wantErr    bool
+-		prepareCmd string
+-		cleanCmd   string
+-	}{
+-		{
+-			name:       "none file",
+-			args:       args{configs: []string{"/tmp/validate-config/policy.json"}},
+-			prepareCmd: "mkdir -p /tmp/validate-config/ && touch /tmp/validate-config/policy.json",
+-			cleanCmd:   "rm -rf /tmp/validate-config",
+-			wantErr:    true,
+-		},
+-		{
+-			name:       "size zero",
+-			args:       args{configs: []string{"/tmp/validate-config/policy.json"}},
+-			prepareCmd: "mkdir -p /tmp/validate-config/ && touch /tmp/validate-config/policy.json",
+-			cleanCmd:   "rm -rf /tmp/validate-config",
+-			wantErr:    true,
+-		},
+-		{
+-			name:       "big file",
+-			args:       args{configs: []string{"/tmp/validate-config/policy.json"}},
+-			prepareCmd: "mkdir -p /tmp/validate-config/ && dd if=/dev/zero of=/tmp/validate-config/policy.json bs=16k count=1024",
+-			cleanCmd:   "rm -rf /tmp/validate-config",
+-			wantErr:    true,
+-		},
+-		{
+-			name:       "normal",
+-			args:       args{configs: []string{"/tmp/validate-config/policy.json"}},
+-			prepareCmd: "mkdir -p /tmp/validate-config/ && echo hello > /tmp/validate-config/policy.json",
+-			cleanCmd:   "rm -rf /tmp/validate-config",
+-			wantErr:    false,
+-		},
+-		{
+-			name: "normal",
+-			args: args{configs: []string{"/tmp/validate-config/policy.json"}},
+-			prepareCmd: "mkdir -p /tmp/validate-config/ && echo hello > /tmp/validate-config/policy.json.bak &&" +
+-				"ln -sf /tmp/validate-config/policy.json.bak /tmp/validate-config/policy.json",
+-			cleanCmd: "rm -rf /tmp/validate-config",
+-			wantErr:  false,
+-		},
+-	}
+-	for _, tt := range tests {
+-		t.Run(tt.name, func(t *testing.T) {
+-			doCmd(tt.prepareCmd)
+-			if err := validateConfigFiles(tt.args.configs); (err != nil) != tt.wantErr {
+-				t.Errorf("validateConfigFiles() error = %v, wantErr %v", err, tt.wantErr)
+-			}
+-			doCmd(tt.cleanCmd)
+-		})
+-	}
+-}
+-
+ func TestSetSystemContext(t *testing.T) {
+ 	prepareFunc := func(path string) {
+ 		if _, err := os.Stat(path); err != nil {
+diff --git a/runner/runner.go b/runner/runner.go
+index e813024..dd43901 100644
+--- a/runner/runner.go
++++ b/runner/runner.go
+@@ -215,7 +215,7 @@ func (r *OCIRunner) runContainer() (unix.WaitStatus, error) { // nolint:gocyclo
+ }
+ 
+ func readPid(pidFilePath string) (int, error) {
+-	if err := util.CheckFileSize(pidFilePath, constant.MaxFileSize); err != nil {
++	if err := util.CheckFileInfoAndSize(pidFilePath, constant.MaxFileSize); err != nil {
+ 		return 0, err
+ 	}
+ 	pidValue, err := ioutil.ReadFile(filepath.Clean(pidFilePath))
+diff --git a/util/common.go b/util/common.go
+index ff85da9..42d81b8 100644
+--- a/util/common.go
++++ b/util/common.go
+@@ -29,10 +29,7 @@ import (
+ 	constant "isula.org/isula-build"
+ )
+ 
+-const (
+-	maxServerNameLength = 255
+-	maxLoadFileSize     = 50 * 1024 * 1024 * 1024
+-)
++const maxServerNameLength = 255
+ 
+ // CopyMapStringString copies all KVs in a map[string]string to a new map
+ func CopyMapStringString(m map[string]string) map[string]string {
+@@ -94,44 +91,21 @@ func SetUmask() bool {
+ 	return unix.Umask(wanted) == wanted
+ }
+ 
+-// CheckFileSize check whether the file size exceeds limit
+-func CheckFileSize(path string, sizeLimit int64) error {
+-	filename := filepath.Base(path)
++// CheckFileInfoAndSize check whether the file exists, is regular file, and if its size exceeds limit
++func CheckFileInfoAndSize(path string, sizeLimit int64) error {
+ 	f, err := os.Stat(filepath.Clean(path))
+-	// file not exist, file size check ok
+-	if os.IsNotExist(err) {
+-		return nil
+-	}
+ 	if err != nil {
+-		return errors.Errorf("stat file %v err: %v", filename, err)
+-	}
+-	if f.IsDir() {
+-		return errors.Errorf("file %s is a directory", filename)
++		return err
+ 	}
+-	if f.Size() > sizeLimit {
+-		return errors.Errorf("file %v size is: %v, exceeds limit %v", filename, f.Size(), sizeLimit)
++	if !f.Mode().IsRegular() {
++		return errors.Errorf("file %s should be a regular file", f.Name())
+ 	}
+ 
+-	return nil
+-}
+-
+-// CheckLoadFile checks the file which will be loaded
+-func CheckLoadFile(path string) error {
+-	fi, err := os.Stat(path)
+-	if err != nil {
+-		return errors.Wrapf(err, "stat %q failed", path)
+-	}
+-
+-	if !fi.Mode().IsRegular() {
+-		return errors.Errorf("loading file %s should be a regular file", fi.Name())
++	if f.Size() == 0 {
++		return errors.Errorf("file %s is empty", f.Name())
+ 	}
+-
+-	if fi.Size() == 0 {
+-		return errors.New("loading file is empty")
+-	}
+-
+-	if fi.Size() > maxLoadFileSize {
+-		return errors.Errorf("file %s size is: %v, exceeds limit %v", fi.Name(), fi.Size(), maxLoadFileSize)
++	if f.Size() > sizeLimit {
++		return errors.Errorf("file %s size is: %d, exceeds limit %d", f.Name(), f.Size(), sizeLimit)
+ 	}
+ 
+ 	return nil
+diff --git a/util/common_test.go b/util/common_test.go
+index 9831971..7d2444a 100644
+--- a/util/common_test.go
++++ b/util/common_test.go
+@@ -14,17 +14,14 @@
+ package util
+ 
+ import (
+-	"io/ioutil"
+-	"os"
+ 	"path/filepath"
+ 	"testing"
+ 
+ 	"gotest.tools/v3/assert"
+ 	"gotest.tools/v3/fs"
+-	constant "isula.org/isula-build"
+ )
+ 
+-func TestCheckFileSize(t *testing.T) {
++func TestCheckFileInfoAndSize(t *testing.T) {
+ 	content := `
+  ARG testArg
+  ARG testArg2
+@@ -48,6 +45,12 @@ func TestCheckFileSize(t *testing.T) {
+ 			ctxDir:    fs.NewDir(t, t.Name(), fs.WithFile("Dockerfile", content)),
+ 			sizeLimit: 200,
+ 		},
++		{
++			name:   "empty file",
++			ctxDir: fs.NewDir(t, t.Name(), fs.WithFile("Dockerfile", "")),
++			isErr:  true,
++			errStr: "is empty",
++		},
+ 		{
+ 			name:      "exceeds limit file",
+ 			ctxDir:    fs.NewDir(t, t.Name(), fs.WithFile("Dockerfile", content)),
+@@ -60,12 +63,7 @@ func TestCheckFileSize(t *testing.T) {
+ 			ctxDir: fs.NewDir(t, t.Name(), fs.WithFile("Dockerfile", content)),
+ 			isDir:  true,
+ 			isErr:  true,
+-			errStr: "is a directory",
+-		},
+-		{
+-			name:      "not exist file",
+-			ctxDir:    fs.NewDir(t, t.Name()),
+-			sizeLimit: 5,
++			errStr: "should be a regular file",
+ 		},
+ 		{
+ 			name:      "exceeds limit directory",
+@@ -83,7 +81,7 @@ func TestCheckFileSize(t *testing.T) {
+ 			if !c.isDir {
+ 				path = filepath.Join(path, "Dockerfile")
+ 			}
+-			err := CheckFileSize(path, c.sizeLimit)
++			err := CheckFileInfoAndSize(path, c.sizeLimit)
+ 			assert.Equal(t, err != nil, c.isErr)
+ 			if c.isErr {
+ 				assert.ErrorContains(t, err, c.errStr)
+@@ -250,63 +248,3 @@ func TestAnyFlagSet(t *testing.T) {
+ 		})
+ 	}
+ }
+-
+-func TestCheckLoadFile(t *testing.T) {
+-	loadFile := fs.NewFile(t, t.Name())
+-	defer loadFile.Remove()
+-	err := ioutil.WriteFile(loadFile.Path(), []byte("hello"), constant.DefaultRootFileMode)
+-	assert.NilError(t, err)
+-
+-	emptyFile := fs.NewFile(t, t.Name())
+-	defer emptyFile.Remove()
+-
+-	root := fs.NewDir(t, t.Name())
+-	defer root.Remove()
+-
+-	bigFile := filepath.Join(root.Path(), "bigFile")
+-	f, err := os.Create(bigFile)
+-	assert.NilError(t, err)
+-	defer os.Remove(f.Name())
+-	err = f.Truncate(maxLoadFileSize + 1)
+-	assert.NilError(t, err)
+-
+-	type args struct {
+-		path string
+-	}
+-	tests := []struct {
+-		name    string
+-		args    args
+-		wantErr bool
+-	}{
+-		{
+-			name: "TC-normal load file",
+-			args: args{path: loadFile.Path()},
+-		},
+-		{
+-			name:    "TC-load file not exist",
+-			wantErr: true,
+-		},
+-		{
+-			name:    "TC-empty load file",
+-			args:    args{path: emptyFile.Path()},
+-			wantErr: true,
+-		},
+-		{
+-			name:    "TC-invalid load file",
+-			args:    args{path: "/dev/cdrom"},
+-			wantErr: true,
+-		},
+-		{
+-			name:    "TC-load file too big",
+-			args:    args{path: bigFile},
+-			wantErr: true,
+-		},
+-	}
+-	for _, tt := range tests {
+-		t.Run(tt.name, func(t *testing.T) {
+-			if err := CheckLoadFile(tt.args.path); (err != nil) != tt.wantErr {
+-				t.Errorf("CheckLoadFile() error = %v, wantErr %v", err, tt.wantErr)
+-			}
+-		})
+-	}
+-}
+diff --git a/util/file.go b/util/file.go
+index e035389..07123ce 100644
+--- a/util/file.go
++++ b/util/file.go
+@@ -23,10 +23,8 @@ import (
+ 
+ 	"github.com/containers/storage/pkg/archive"
+ 	"github.com/pkg/errors"
+-)
+ 
+-const (
+-	fileMaxSize = 10 * 1024 * 1024 // 10MB
++	constant "isula.org/isula-build"
+ )
+ 
+ var (
+@@ -34,33 +32,18 @@ var (
+ 	accessTime = time.Date(2017, time.January, 0, 0, 0, 0, 0, time.UTC)
+ )
+ 
+-// ReadSmallFile read small file less than 10MB
+-func ReadSmallFile(path string) ([]byte, error) {
+-	st, err := os.Lstat(path)
++// LoadJSONFile load json files and store it into v
++func LoadJSONFile(file string, v interface{}) error {
++	err := CheckFileInfoAndSize(file, constant.JSONMaxFileSize)
+ 	if err != nil {
+-		return nil, err
+-	}
+-
+-	if !st.Mode().IsRegular() {
+-		return nil, errors.Errorf("loading file %s should be a regular file", st.Name())
+-	}
+-
+-	if st.Size() == 0 {
+-		return nil, errors.New("loading file is empty")
+-	}
+-
+-	if st.Size() > fileMaxSize {
+-		return nil, errors.Errorf("file %q too big", path)
++		return err
+ 	}
+-	return ioutil.ReadFile(path) // nolint: gosec
+-}
+ 
+-// LoadJSONFile load json files and store it into v
+-func LoadJSONFile(file string, v interface{}) error {
+-	f, err := ReadSmallFile(file)
++	f, err := ioutil.ReadFile(file) // nolint: gosec
+ 	if err != nil {
+ 		return err
+ 	}
++
+ 	return json.Unmarshal(f, v)
+ }
+ 
+diff --git a/util/file_test.go b/util/file_test.go
+index 09aed41..b23b474 100644
+--- a/util/file_test.go
++++ b/util/file_test.go
+@@ -18,7 +18,6 @@ import (
+ 	"io/ioutil"
+ 	"os"
+ 	"path/filepath"
+-	"reflect"
+ 	"testing"
+ 	"time"
+ 
+@@ -28,73 +27,6 @@ import (
+ 	constant "isula.org/isula-build"
+ )
+ 
+-func TestReadSmallFile(t *testing.T) {
+-	smallFile := fs.NewFile(t, t.Name())
+-	defer smallFile.Remove()
+-	err := ioutil.WriteFile(smallFile.Path(), []byte("small file"), constant.DefaultRootFileMode)
+-	assert.NilError(t, err)
+-
+-	root := fs.NewDir(t, t.Name())
+-	defer root.Remove()
+-
+-	bigFile := filepath.Join(root.Path(), "bigFile")
+-	f, err := os.Create(bigFile)
+-	assert.NilError(t, err)
+-	defer os.Remove(f.Name())
+-	err = f.Truncate(fileMaxSize + 1)
+-	assert.NilError(t, err)
+-
+-	emptyFile := fs.NewFile(t, t.Name())
+-	defer emptyFile.Remove()
+-
+-	type args struct {
+-		path string
+-	}
+-	tests := []struct {
+-		name    string
+-		args    args
+-		want    []byte
+-		wantErr bool
+-	}{
+-		{
+-			name: "TC-normal read",
+-			args: args{path: smallFile.Path()},
+-			want: []byte("small file"),
+-		},
+-		{
+-			name:    "TC-not exist path",
+-			wantErr: true,
+-		},
+-		{
+-			name:    "TC-file too big",
+-			args:    args{path: bigFile},
+-			wantErr: true,
+-		},
+-		{
+-			name:    "TC-empty file",
+-			args:    args{path: emptyFile.Path()},
+-			wantErr: true,
+-		},
+-		{
+-			name:    "TC-invalid file",
+-			args:    args{path: "/dev/cdrom"},
+-			wantErr: true,
+-		},
+-	}
+-	for _, tt := range tests {
+-		t.Run(tt.name, func(t *testing.T) {
+-			got, err := ReadSmallFile(tt.args.path)
+-			if (err != nil) != tt.wantErr {
+-				t.Errorf("ReadSmallFile() error = %v, wantErr %v", err, tt.wantErr)
+-				return
+-			}
+-			if !reflect.DeepEqual(got, tt.want) {
+-				t.Errorf("ReadSmallFile() = %v, want %v", got, tt.want)
+-			}
+-		})
+-	}
+-}
+-
+ func TestLoadJSONFile(t *testing.T) {
+ 	type rename struct {
+ 		Name   string `json:"name"`
+diff --git a/util/user.go b/util/user.go
+index ce398ff..5bf12ef 100644
+--- a/util/user.go
++++ b/util/user.go
+@@ -76,7 +76,7 @@ func GetChownOptions(chown, mountpoint string) (idtools.IDPair, error) {
+ // searchUserGroup searches user in etc/passwd and group in etc/group
+ // function caller should make sure the path is clean
+ func searchUserGroup(name, path string, userFlag bool) (int, error) {
+-	if err := CheckFileSize(path, constant.MaxFileSize); err != nil {
++	if err := CheckFileInfoAndSize(path, constant.MaxFileSize); err != nil {
+ 		return 0, err
+ 	}
+ 	f, err := os.Open(path) // nolint:gosec
+-- 
+2.27.0
+

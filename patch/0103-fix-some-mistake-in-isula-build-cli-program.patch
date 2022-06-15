@@ -1,0 +1,159 @@
+From cd55c2a7ba2351b65d983c504776732e9c8d26da Mon Sep 17 00:00:00 2001
+From: hlwqds <545743488@qq.com>
+Date: Wed, 5 Jan 2022 18:19:30 +0800
+Subject: [PATCH 02/20] fix some mistake in isula-build cli program Fixes:
+ #I4OW7N Signed-off-by: hlwqds 545743488@qq.com
+
+---
+ cmd/cli/info.go        |  6 ------
+ cmd/cli/login.go       | 16 ++++++++++++----
+ cmd/cli/login_test.go  | 33 +++++++++++++++++++++++++--------
+ cmd/cli/logout.go      |  2 +-
+ cmd/cli/logout_test.go |  3 ++-
+ 5 files changed, 40 insertions(+), 20 deletions(-)
+
+diff --git a/cmd/cli/info.go b/cmd/cli/info.go
+index 43ba637..1ed9038 100644
+--- a/cmd/cli/info.go
++++ b/cmd/cli/info.go
+@@ -78,12 +78,6 @@ func infoCommand(c *cobra.Command, args []string) error {
+ 	if len(args) > 1 {
+ 		return errors.New("invalid args for info command")
+ 	}
+-	if c.Flag("verbose").Changed {
+-		infoOpts.verbose = true
+-	}
+-	if c.Flag("human-readable").Changed {
+-		infoOpts.humanReadable = true
+-	}
+ 
+ 	ctx := context.Background()
+ 	cli, err := NewClient(ctx)
+diff --git a/cmd/cli/login.go b/cmd/cli/login.go
+index 9a36eb9..06724b7 100644
+--- a/cmd/cli/login.go
++++ b/cmd/cli/login.go
+@@ -87,6 +87,10 @@ func loginCommand(c *cobra.Command, args []string) error {
+ 	}
+ 	loginOpts.keyPath = util.DefaultRSAKeyPath
+ 
++	if err := checkAuthOpt(); err != nil {
++		return err
++	}
++
+ 	ctx, cancel := context.WithCancel(context.Background())
+ 	defer cancel()
+ 
+@@ -131,6 +135,13 @@ func runLogin(ctx context.Context, cli Cli, c *cobra.Command) (string, error) {
+ 	return resp.Content, err
+ }
+ 
++func checkAuthOpt() error {
++	if loginOpts.stdinPass && loginOpts.username == "" {
++		return errLackOfFlags
++	}
++	return nil
++}
++
+ func getAuthInfo(c *cobra.Command) error {
+ 	if err := getUsername(c); err != nil {
+ 		return err
+@@ -192,7 +203,7 @@ func getUsername(c *cobra.Command) error {
+ 		return err
+ 	}
+ 
+-	if !c.Flag("username").Changed {
++	if loginOpts.username == "" {
+ 		fmt.Print("Username: ")
+ 		if _, err := fmt.Scanln(&username); err != nil {
+ 			return errReadUsernameFromTerm
+@@ -215,9 +226,6 @@ func getPassword(c *cobra.Command) error {
+ 	if loginOpts.password != "" {
+ 		return nil
+ 	}
+-	if c.Flag("password-stdin").Changed && !c.Flag("username").Changed {
+-		return errLackOfFlags
+-	}
+ 
+ 	if loginOpts.stdinPass {
+ 		if err := getPassFromStdin(os.Stdin); err != nil {
+diff --git a/cmd/cli/login_test.go b/cmd/cli/login_test.go
+index f5f1a44..28a11f4 100644
+--- a/cmd/cli/login_test.go
++++ b/cmd/cli/login_test.go
+@@ -29,16 +29,33 @@ import (
+ )
+ 
+ func TestNewLoginCmd(t *testing.T) {
+-	loginCmd := NewLoginCmd()
+-	loginCmd.SetArgs(strings.Split("test.org --username testuser --password-stdin", " "))
+-	err := loginCmd.Execute()
+-	args := []string{"test.org"}
+-	err = loginCommand(loginCmd, args)
+-	if err != nil {
+-		assert.ErrorContains(t, err, "isula_build.sock")
++	tests := []struct {
++		name      string
++		args      string
++		errString string
++	}{
++		{
++			name:      "TC1 - normal case",
++			args:      "test.org --username testuser --password-stdin",
++			errString: "isula_build.sock",
++		},
++		{
++			name:      "TC2 - abnormal case provides --password-stdin without --username ",
++			args:      "test.org --password-stdin",
++			errString: "must provides --password-stdin with --username",
++		},
++	}
++	for _, tt := range tests {
++		t.Run(tt.name, func(t *testing.T) {
++			cmd := NewLoginCmd()
++			cmd.SetArgs(strings.Split(tt.args, " "))
++			err := cmd.Execute()
++			if err != nil {
++				assert.ErrorContains(t, err, tt.errString)
++			}
++		})
+ 	}
+ }
+-
+ func TestGetPassFromInput(t *testing.T) {
+ 	type args struct {
+ 		f passReader
+diff --git a/cmd/cli/logout.go b/cmd/cli/logout.go
+index 5d3affd..14f3c6c 100644
+--- a/cmd/cli/logout.go
++++ b/cmd/cli/logout.go
+@@ -88,7 +88,7 @@ func newLogoutOptions(c *cobra.Command, args []string) error {
+ 	}
+ 
+ 	// no need args check when all flag is set
+-	if c.Flag("all").Changed {
++	if logoutOpts.all {
+ 		logoutOpts.all = true
+ 		logoutOpts.server = ""
+ 		return nil
+diff --git a/cmd/cli/logout_test.go b/cmd/cli/logout_test.go
+index 1328c2a..c8b890c 100644
+--- a/cmd/cli/logout_test.go
++++ b/cmd/cli/logout_test.go
+@@ -125,11 +125,12 @@ func TestNewLogoutOptions(t *testing.T) {
+ 	for _, tt := range tests {
+ 		t.Run(tt.name, func(t *testing.T) {
+ 			if tt.flag != "" {
+-				tt.args.c.Flag("all").Changed = true
++				logoutOpts.all = true
+ 			}
+ 			if err := newLogoutOptions(tt.args.c, tt.args.args); (err != nil) != tt.wantErr {
+ 				t.Errorf("newLogoutOptions() error = %v, wantErr %v", err, tt.wantErr)
+ 			}
++			logoutOpts.all = false
+ 		})
+ 	}
+ }
+-- 
+2.27.0
+
