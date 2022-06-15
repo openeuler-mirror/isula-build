@@ -1,0 +1,62 @@
+From a50afb463874aa4121c1a61f48b58992550329d6 Mon Sep 17 00:00:00 2001
+From: xingweizheng <xingweizheng@huawei.com>
+Date: Mon, 10 Jan 2022 19:30:49 +0800
+Subject: [PATCH 03/20] fix wrong behavior when the image of image:tag is
+ prefix of other image id
+
+---
+ daemon/remove.go | 3 ++-
+ image/image.go   | 9 +++++----
+ 2 files changed, 7 insertions(+), 5 deletions(-)
+
+diff --git a/daemon/remove.go b/daemon/remove.go
+index 12acf0c..e0a9eed 100644
+--- a/daemon/remove.go
++++ b/daemon/remove.go
+@@ -20,6 +20,7 @@ import (
+ 	"github.com/pkg/errors"
+ 	"github.com/sirupsen/logrus"
+ 
++	constant "isula.org/isula-build"
+ 	pb "isula.org/isula-build/api/services"
+ 	"isula.org/isula-build/image"
+ 	"isula.org/isula-build/store"
+@@ -121,7 +122,7 @@ func untagImage(imageID string, store storage.Store, image *storage.Image) (bool
+ 	newNames := make([]string, 0)
+ 	removed := false
+ 	for _, imgName := range image.Names {
+-		if imgName == imageID {
++		if imgName == imageID || imgName == fmt.Sprintf("%s:%s", imageID, constant.DefaultTag) {
+ 			removed = true
+ 			continue
+ 		}
+diff --git a/image/image.go b/image/image.go
+index 37cd7fa..357363a 100644
+--- a/image/image.go
++++ b/image/image.go
+@@ -522,17 +522,18 @@ func ResolveName(name string, sc *types.SystemContext, store *store.Store) ([]st
+ }
+ 
+ func tryResolveNameInStore(name string, store *store.Store) string {
+-	logrus.Infof("Try to find image: %s in local storage", name)
+-	img, err := store.Image(name)
++	logrus.Infof("Try to find image: %s:%s in local storage", name, constant.DefaultTag)
++	img, err := store.Image(fmt.Sprintf("%s:%s", name, constant.DefaultTag))
+ 	if err == nil {
+ 		return img.ID
+ 	}
+ 
+-	logrus.Infof("Try to find image: %s:%s in local storage", name, constant.DefaultTag)
+-	img, err = store.Image(fmt.Sprintf("%s:%s", name, constant.DefaultTag))
++	logrus.Infof("Try to find image: %s in local storage", name)
++	img, err = store.Image(name)
+ 	if err != nil {
+ 		return ""
+ 	}
++
+ 	return img.ID
+ }
+ 
+-- 
+2.27.0
+

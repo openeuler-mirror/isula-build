@@ -1,0 +1,113 @@
+From 4b8086307bf4ef4951bf9377338578d1908e41cc Mon Sep 17 00:00:00 2001
+From: xingweizheng <xingweizheng@huawei.com>
+Date: Tue, 11 Jan 2022 15:59:50 +0800
+Subject: [PATCH 08/20] better display of integration test
+
+---
+ tests/lib/common.sh                |  6 +++---
+ tests/lib/integration_commonlib.sh | 12 ++++++++++--
+ tests/test.sh                      | 15 +++++++++++++--
+ 3 files changed, 26 insertions(+), 7 deletions(-)
+
+diff --git a/tests/lib/common.sh b/tests/lib/common.sh
+index c600616..b67361e 100755
+--- a/tests/lib/common.sh
++++ b/tests/lib/common.sh
+@@ -78,7 +78,7 @@ function run_check_result() {
+ 
+     eval "$command" >/dev/null 2>&1
+     result=$?
+-    debug "expected $expected, get $result"
++    debug "run command: $command, expected $expected, get $result"
+     if [ "$result" != "$expected" ]; then
+         testcase_path="${BASH_SOURCE[1]}"
+         testcase="${testcase_path##/*/}"
+@@ -96,7 +96,7 @@ function run_check_result() {
+ function check_value() {
+     local -r result="$1"
+     local -r expected="$2"
+-    debug "expected $expected, get $result"
++    debug "check value: expected $expected, get $result"
+ 
+     if [ "$result" != "$expected" ]; then
+         testcase_path="${BASH_SOURCE[1]}"
+@@ -115,7 +115,7 @@ function debug() {
+     local -r message="$1"
+ 
+     if [ "$TEST_DEBUG" == "true" ]; then
+-        printf "(%s %s)  " "DEBUG:" "$message"
++        echo -e " \tDEBUG:" "$message"
+     fi
+ }
+ 
+diff --git a/tests/lib/integration_commonlib.sh b/tests/lib/integration_commonlib.sh
+index 44f186f..de8dde5 100644
+--- a/tests/lib/integration_commonlib.sh
++++ b/tests/lib/integration_commonlib.sh
+@@ -22,8 +22,6 @@ data_root="/var/lib/integration-isula-build"
+ config_file="/etc/isula-build/configuration.toml"
+ 
+ function pre_integration() {
+-    rm -f "$TMPDIR"/buildlog-failed
+-
+     cp $config_file "$config_file".integration
+     sed -i "/run_root/d;/data_root/d" $config_file
+     echo "run_root = \"${run_root}\"" >>$config_file
+@@ -32,11 +30,21 @@ function pre_integration() {
+     systemctl restart isula-build
+ }
+ 
++# clean test dir
++# $1 (failed testcases)
+ function after_integration() {
++    local -r failed="$1"
++
+     systemd_run_command "isula-build ctr-img rm -a"
+ 
+     rm -f $config_file
+     mv "$config_file".integration $config_file
+     systemctl stop isula-build
+     rm -rf $run_root $data_root
++
++    if [ $((failed)) -eq 0 ]; then
++        rm -rf "$TMPDIR"
++    else
++        echo "Please check $TMPDIR/buildlog-failed for more information."
++    fi
+ }
+diff --git a/tests/test.sh b/tests/test.sh
+index 3f2785b..c949a4e 100755
+--- a/tests/test.sh
++++ b/tests/test.sh
+@@ -40,15 +40,26 @@ function integration() {
+     create_tmp_dir
+     pre_integration
+ 
++    all=0
++    failed=0
+     while IFS= read -r testfile; do
++        ((all++))
+         printf "%-65s" "test $(basename "$testfile"): "
++        if [ "$TEST_DEBUG" == true ]; then
++            echo ""
++        fi
++
+         if ! bash "$testfile"; then
++            ((failed++))
+             echo "FAIL"
+             continue
+         fi
+-        echo "PASS"
++        echo -e "\033[32mPASS\033[0m"
+     done < <(find "$top_dir"/tests/src -maxdepth 1 -name "test_*" -type f -print)
+-    after_integration
++    after_integration "$failed"
++
++    rate=$(echo "scale=2; $((all - failed)) * 100 / $all" | bc)
++    echo -e "\033[32m| $(date "+%Y-%m-%d-%H-%M-%S") | Total Testcases: $all | FAIL: $failed | PASS: $((all - failed)) | PASS RATE: $rate %|\033[0m"
+ }
+ 
+ # main function to chose which kind of test
+-- 
+2.27.0
+
