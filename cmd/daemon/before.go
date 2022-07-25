@@ -67,7 +67,7 @@ func validateConfigFileAndMerge(cmd *cobra.Command) error {
 		mergeConfig func(cmd *cobra.Command) error
 	}{
 		{path: constant.StorageConfigPath, needed: false, mergeConfig: mergeStorageConfig},
-		{path: constant.RegistryConfigPath, needed: false, mergeConfig: nil},
+		{path: constant.RegistryConfigPath, needed: true, mergeConfig: nil},
 		// policy.json file must exists
 		{path: constant.SignaturePolicyPath, needed: true, mergeConfig: nil},
 		// main configuration comes last for the final merge operation

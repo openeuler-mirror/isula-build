@@ -304,7 +304,7 @@ func (df *dockerfile) ParseIgnore(dir string) ([]string, error) {
 		}
 		return ignores, errors.Wrap(err, "state dockerignore file failed")
 	}
-	if err := util.CheckFileInfoAndSize(fullPath, constant.MaxFileSize); err != nil {
+	if err := util.CheckFileAllowEmpty(fullPath, constant.MaxFileSize); err != nil {
 		return ignores, err
 	}
 
