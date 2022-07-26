@@ -111,6 +111,23 @@ func CheckFileInfoAndSize(path string, sizeLimit int64) error {
 	return nil
 }
 
+// CheckFileAllowEmpty same as CheckFileInfoAndSize, but allow file to be empty
+func CheckFileAllowEmpty(path string, sizeLimit int64) error {
+	f, err := os.Stat(filepath.Clean(path))
+	if err != nil {
+		return err
+	}
+	if !f.Mode().IsRegular() {
+		return errors.Errorf("file %s should be a regular file", f.Name())
+	}
+
+	if f.Size() > sizeLimit {
+		return errors.Errorf("file %s size is: %d, exceeds limit %d", f.Name(), f.Size(), sizeLimit)
+	}
+
+	return nil
+}
+
 // ParseServer will get registry address from input
 // if input is https://index.docker.io/v1
 // the result will be index.docker.io
