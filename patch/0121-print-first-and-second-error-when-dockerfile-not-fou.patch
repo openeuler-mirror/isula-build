@@ -1,0 +1,36 @@
+From 61fdeef3a9ea095bebaa952460085e81c67df734 Mon Sep 17 00:00:00 2001
+From: xingweizheng <xingweizheng@huawei.com>
+Date: Tue, 14 Jun 2022 14:09:40 +0800
+Subject: [PATCH 20/20] print first and second error when dockerfile not found
+
+---
+ cmd/cli/build.go | 4 +++-
+ 1 file changed, 3 insertions(+), 1 deletion(-)
+
+diff --git a/cmd/cli/build.go b/cmd/cli/build.go
+index c9efd4e..82e2ceb 100644
+--- a/cmd/cli/build.go
++++ b/cmd/cli/build.go
+@@ -478,6 +478,7 @@ func resolveDockerfilePath() (string, error) {
+ 		return resolvedPath, nil
+ 	}
+ 	logrus.Debugf("Stat dockerfile failed with path %s", resolvedPath)
++	firstErr := errors.Errorf("check dockerfile %s failed: %v", resolvedPath, err)
+ 
+ 	// not found with filepath, try to resolve with contextDir+filepath
+ 	resolvedPath = path.Join(buildOpts.contextDir, buildOpts.file)
+@@ -485,9 +486,10 @@ func resolveDockerfilePath() (string, error) {
+ 		return resolvedPath, nil
+ 
+ 	}
++	secondErr := errors.Errorf("check dockerfile %s failed again: %v", resolvedPath, err)
+ 	logrus.Debugf("Stat dockerfile failed again with path %s", resolvedPath)
+ 
+-	return "", errors.Wrap(err, "check dockerfile failed")
++	return "", errors.Errorf("%v, %v", firstErr, secondErr)
+ }
+ 
+ func getAbsPath(path string) (string, error) {
+-- 
+2.27.0
+

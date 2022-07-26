@@ -1,0 +1,195 @@
+From 2fcdfbb31346650f5661c6ab5daed46bce0997f2 Mon Sep 17 00:00:00 2001
+From: xingweizheng <xingweizheng@huawei.com>
+Date: Mon, 31 Jan 2022 23:24:37 +0800
+Subject: [PATCH 19/20] make isula-build store more simple
+
+---
+ builder/dockerfile/stage_builder_test.go |  8 ++--
+ cmd/daemon/before.go                     |  4 +-
+ cmd/daemon/before_test.go                | 10 ++---
+ store/store.go                           | 57 +++++++++---------------
+ store/store_test.go                      |  4 +-
+ 5 files changed, 34 insertions(+), 49 deletions(-)
+
+diff --git a/builder/dockerfile/stage_builder_test.go b/builder/dockerfile/stage_builder_test.go
+index 2c92266..e3a814e 100644
+--- a/builder/dockerfile/stage_builder_test.go
++++ b/builder/dockerfile/stage_builder_test.go
+@@ -82,17 +82,17 @@ func cleanAndSetDefaultStoreOpt(t *testing.T) {
+ }
+ 
+ func cleanDefaultStoreOpt(t *testing.T) {
+-	opt, err := store.GetDefaultStoreOptions(false)
++	store, err := store.GetStore()
+ 	assert.NilError(t, err)
+ 
+-	driverRoot := opt.GraphRoot + "/overlay"
++	driverRoot := store.GraphRoot() + "/overlay"
+ 	os.RemoveAll(driverRoot)
+ 	assert.NilError(t, err)
+-	err = os.RemoveAll(opt.RunRoot)
++	err = os.RemoveAll(store.RunRoot())
+ 	assert.NilError(t, err)
+ 	err = unix.Unmount(driverRoot, 0)
+ 	assert.NilError(t, err)
+-	err = os.RemoveAll(opt.GraphRoot)
++	err = os.RemoveAll(store.GraphRoot())
+ 	assert.NilError(t, err)
+ 	err = os.RemoveAll("/tmp/isula-build")
+ 	assert.NilError(t, err)
+diff --git a/cmd/daemon/before.go b/cmd/daemon/before.go
+index ac13303..1d28d9e 100644
+--- a/cmd/daemon/before.go
++++ b/cmd/daemon/before.go
+@@ -102,8 +102,8 @@ func validateConfigFileAndMerge(cmd *cobra.Command) error {
+ }
+ 
+ func mergeStorageConfig(cmd *cobra.Command) error {
+-	store.SetDefaultConfigFilePath(constant.StorageConfigPath)
+-	option, err := store.GetDefaultStoreOptions(true)
++	store.SetStorageConfigFilePath(constant.StorageConfigPath)
++	option, err := store.GetStorageConfigFileOptions()
+ 	if err != nil {
+ 		return err
+ 	}
+diff --git a/cmd/daemon/before_test.go b/cmd/daemon/before_test.go
+index b1b8859..19b1bc0 100644
+--- a/cmd/daemon/before_test.go
++++ b/cmd/daemon/before_test.go
+@@ -139,8 +139,8 @@ func TestRunAndDataRootSet(t *testing.T) {
+ 		defer tmpDir.Remove()
+ 		filePath := tmpDir.Join(fileName)
+ 
+-		store.SetDefaultConfigFilePath(filePath)
+-		option, err := store.GetDefaultStoreOptions(true)
++		store.SetStorageConfigFilePath(filePath)
++		option, err := store.GetStorageConfigFileOptions()
+ 		if err != nil {
+ 			t.Fatalf("get default store options failed with error: %v", err)
+ 		}
+@@ -225,7 +225,7 @@ func TestRunAndDataRootSet(t *testing.T) {
+ 	for _, tc := range testcases {
+ 		t.Run(tc.name, func(t *testing.T) {
+ 			tc.setF()
+-			storeOptions, err := store.GetDefaultStoreOptions(false)
++			storeOptions, err := store.GetDefaultStoreOptions()
+ 			if err != nil {
+ 				t.Fatalf("get default store options failed with error: %v", err)
+ 			}
+@@ -250,10 +250,10 @@ func TestValidateConfigFileAndMerge(t *testing.T) {
+ 	err = validateConfigFileAndMerge(cmd)
+ 	assert.NilError(t, err)
+ 
+-	if err := setStoreAccordingToDaemonOpts(); err != nil {
++	if err = setStoreAccordingToDaemonOpts(); err != nil {
+ 		t.Fatalf("set store options failed with error: %v", err)
+ 	}
+-	storeOptions, err := store.GetDefaultStoreOptions(false)
++	storeOptions, err := store.GetDefaultStoreOptions()
+ 	if err != nil {
+ 		t.Fatalf("get default store options failed with error: %v", err)
+ 	}
+diff --git a/store/store.go b/store/store.go
+index 410eef1..5754466 100644
+--- a/store/store.go
++++ b/store/store.go
+@@ -41,60 +41,45 @@ type Store struct {
+ 	sync.RWMutex
+ }
+ 
+-// GetDefaultStoreOptions returns default store options.
+-func GetDefaultStoreOptions(configOnly bool) (storage.StoreOptions, error) {
++// SetStorageConfigFilePath sets the default file path of storage configuration
++func SetStorageConfigFilePath(path string) {
++	storage.SetDefaultConfigFilePath(path)
++}
++
++// GetStorageConfigFileOptions returns the default storage config options.
++func GetStorageConfigFileOptions() (storage.StoreOptions, error) {
+ 	options, err := storage.DefaultStoreOptions(false, 0)
+ 	if err != nil {
+ 		return storage.StoreOptions{}, err
+ 	}
+ 
+-	if !configOnly {
+-		// StoreOpts override specific parameters of options
+-		if storeOpts.DataRoot != "" {
+-			options.GraphRoot = storeOpts.DataRoot
+-		}
+-		if storeOpts.RunRoot != "" {
+-			options.RunRoot = storeOpts.RunRoot
+-		}
+-		if storeOpts.Driver != "" {
+-			options.GraphDriverName = storeOpts.Driver
+-		}
+-		if len(storeOpts.DriverOption) > 0 {
+-			options.GraphDriverOptions = storeOpts.DriverOption
+-		}
+-	}
+-
+ 	return options, nil
+ }
+ 
+ // SetDefaultStoreOptions sets the default store options
+ func SetDefaultStoreOptions(opt DaemonStoreOptions) {
+-	if opt.DataRoot != "" {
+-		storeOpts.DataRoot = opt.DataRoot
+-	}
+-
+-	if opt.RunRoot != "" {
+-		storeOpts.RunRoot = opt.RunRoot
+-	}
++	storeOpts = opt
++}
+ 
+-	if opt.Driver != "" {
+-		storeOpts.Driver = opt.Driver
++// GetDefaultStoreOptions returns default store options.
++func GetDefaultStoreOptions() (storage.StoreOptions, error) {
++	options, err := storage.DefaultStoreOptions(false, 0)
++	if err != nil {
++		return storage.StoreOptions{}, err
+ 	}
+ 
+-	if len(opt.DriverOption) > 0 {
+-		storeOpts.DriverOption = opt.DriverOption
+-	}
+-}
++	options.GraphRoot = storeOpts.DataRoot
++	options.RunRoot = storeOpts.RunRoot
++	options.GraphDriverName = storeOpts.Driver
++	options.GraphDriverOptions = storeOpts.DriverOption
+ 
+-// SetDefaultConfigFilePath sets the default configuration to the specified path
+-func SetDefaultConfigFilePath(path string) {
+-	storage.SetDefaultConfigFilePath(path)
++	return options, nil
+ }
+ 
+-// GetStore returns a Store object.If it is called the first time,
++// GetStore returns a Store object. If it is called the first time,
+ // a store object will be created by the default store options.
+ func GetStore() (Store, error) {
+-	options, err := GetDefaultStoreOptions(false)
++	options, err := GetDefaultStoreOptions()
+ 	if err != nil {
+ 		return Store{}, err
+ 	}
+diff --git a/store/store_test.go b/store/store_test.go
+index 5c69dc8..d99d871 100644
+--- a/store/store_test.go
++++ b/store/store_test.go
+@@ -31,8 +31,8 @@ func init() {
+ 	reexec.Init()
+ }
+ 
+-func TestWithGetDefaultStoreOptions(t *testing.T) {
+-	_, err := GetDefaultStoreOptions(false)
++func TestGetDefaultStoreOptions(t *testing.T) {
++	_, err := GetDefaultStoreOptions()
+ 	assert.NilError(t, err)
+ }
+ 
+-- 
+2.27.0
+

@@ -1,0 +1,42 @@
+From be2a7daec421d1ef3873e8f293608b19ef7c5347 Mon Sep 17 00:00:00 2001
+From: xingweizheng <xingweizheng@huawei.com>
+Date: Thu, 27 Jan 2022 14:17:39 +0800
+Subject: [PATCH 13/20] move unused func args to caller
+
+---
+ daemon/save.go           | 3 ++-
+ daemon/separator/save.go | 4 +---
+ 2 files changed, 3 insertions(+), 4 deletions(-)
+
+diff --git a/daemon/save.go b/daemon/save.go
+index 708fab3..7206a5d 100644
+--- a/daemon/save.go
++++ b/daemon/save.go
+@@ -111,7 +111,8 @@ func (b *Backend) Save(req *pb.SaveRequest, stream pb.Control_SaveServer) (err e
+ 	}
+ 
+ 	if opts.sep.Enabled() {
+-		return opts.sep.SeparateImage(opts.localStore, opts.oriImgList, opts.outputPath)
++		opts.logEntry.Infof("Start saving separated images %v", opts.oriImgList)
++		return opts.sep.SeparateImage(opts.localStore, opts.outputPath)
+ 	}
+ 
+ 	return nil
+diff --git a/daemon/separator/save.go b/daemon/separator/save.go
+index a455335..16c9446 100644
+--- a/daemon/separator/save.go
++++ b/daemon/separator/save.go
+@@ -84,9 +84,7 @@ func GetSepSaveOptions(req *pb.SaveRequest, logEntry *logrus.Entry, dataRoot str
+ }
+ 
+ // SeparateImage the main method of Saver, tries to separated the listed images to pieces
+-func (s *Saver) SeparateImage(localStore *store.Store, oriImgList []string, outputPath string) (err error) {
+-	s.log.Infof("Start saving separated images %v", oriImgList)
+-
++func (s *Saver) SeparateImage(localStore *store.Store, outputPath string) (err error) {
+ 	if err = os.MkdirAll(s.dest, constant.DefaultRootDirMode); err != nil {
+ 		return err
+ 	}
+-- 
+2.27.0
+
