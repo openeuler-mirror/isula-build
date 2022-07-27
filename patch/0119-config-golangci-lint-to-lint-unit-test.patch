@@ -1,0 +1,1232 @@
+From eb23e7530407b039b3dc3bc5b679adc20e937c5d Mon Sep 17 00:00:00 2001
+From: xingweizheng <xingweizheng@huawei.com>
+Date: Wed, 2 Feb 2022 18:12:09 +0800
+Subject: [PATCH 18/20] config golangci-lint to lint unit test
+
+---
+ .golangci.yml                                 |   9 +-
+ builder/dockerfile/builder_test.go            |   5 +-
+ .../container/container_src_test.go           |  18 +-
+ builder/dockerfile/container/help_test.go     |   9 +-
+ builder/dockerfile/container/util_test.go     |  11 +-
+ builder/dockerfile/parser/command_test.go     |  13 -
+ builder/dockerfile/parser/parser_test.go      |   6 +-
+ ... => complete_stage_with_single_from_stage} |   0
+ builder/dockerfile/parser/util_test.go        | 231 ++++++------------
+ builder/dockerfile/stage_builder_test.go      |  16 +-
+ cmd/cli/build_test.go                         | 118 ++++-----
+ cmd/cli/info_test.go                          |   1 +
+ cmd/cli/load_test.go                          |   1 +
+ cmd/cli/save_test.go                          |   1 +
+ daemon/save_test.go                           |   2 +-
+ exporter/common_test.go                       |   5 +-
+ pkg/gc/gc_test.go                             |  16 +-
+ pkg/opts/opts_test.go                         |   1 +
+ pkg/stack/stack_test.go                       |   3 +-
+ runner/runner_test.go                         |   3 +-
+ util/cipher_test.go                           |   1 +
+ util/file_test.go                             |   4 +-
+ util/filepath_test.go                         |   1 +
+ util/user_test.go                             |   6 +-
+ util/util_test.go                             |  10 +-
+ 25 files changed, 181 insertions(+), 310 deletions(-)
+ rename builder/dockerfile/parser/testfiles/preprocess/{compelte_stage_with_single_from_stage => complete_stage_with_single_from_stage} (100%)
+
+diff --git a/.golangci.yml b/.golangci.yml
+index 50a3129..5a03aae 100644
+--- a/.golangci.yml
++++ b/.golangci.yml
+@@ -1,7 +1,7 @@
+ run:
+   deadline: 10m
+   issues-exit-code: 1
+-  tests: false
++  tests: true
+ 
+   skip-dirs:
+     - vendor
+@@ -98,14 +98,11 @@ issues:
+   exclude-rules:
+     path: _test\.go
+     linters:
+-      - gocyclo
+       - scopelint
+       - errcheck
+-      - dupl
+       - gosec
+-      - structcheck
+-      - staticcheck
+-      - gomnd
++      - goconst
++      - maligned
+       - ineffassign
+   max-issues-per-linter: 0
+   max-same-issues: 0
+diff --git a/builder/dockerfile/builder_test.go b/builder/dockerfile/builder_test.go
+index 20cca43..985ad25 100644
+--- a/builder/dockerfile/builder_test.go
++++ b/builder/dockerfile/builder_test.go
+@@ -344,7 +344,7 @@ RUN ls
+ 	assert.DeepEqual(t, b.stageBuilders[0].commands[5].args,
+ 		map[string]string{"STAGE1_ARG": "foo", "GLOBALARG_ONE": "globalarg_one_default_value", "GLOBALARG_TWO": "override"})
+ 
+-	//assert.DeepEqual(t, b.stageBuilders[1].(*stageBuilder).fromImage, "override:globalarg_one_default_value")
++	// assert.DeepEqual(t, b.stageBuilders[1].(*stageBuilder).fromImage, "override:globalarg_one_default_value")
+ 	assert.DeepEqual(t, b.stageBuilders[1].commands[0].args,
+ 		map[string]string{})
+ 	assert.DeepEqual(t, b.stageBuilders[1].commands[2].args,
+@@ -1228,7 +1228,8 @@ func TestParseRequestBuildArgs(t *testing.T) {
+ 				assert.NilError(t, err)
+ 				err = util.GenRSAPublicKeyFile(b.rsaKey, keyPath)
+ 				assert.NilError(t, err)
+-				pubKey, err := util.ReadPublicKey(keyPath)
++				var pubKey rsa.PublicKey
++				pubKey, err = util.ReadPublicKey(keyPath)
+ 				assert.NilError(t, err)
+ 				var args = make([]string, 0, 10)
+ 				for _, v := range tt.buildArgs {
+diff --git a/builder/dockerfile/container/container_src_test.go b/builder/dockerfile/container/container_src_test.go
+index a80b58a..71b9616 100644
+--- a/builder/dockerfile/container/container_src_test.go
++++ b/builder/dockerfile/container/container_src_test.go
+@@ -56,12 +56,9 @@ func TestReference(t *testing.T) {
+ 
+ func TestGetSignatures(t *testing.T) {
+ 	type testcase struct {
+-		name         string
+-		digest       *digest.Digest
+-		manifest     []byte
+-		manifestType string
+-		isErr        bool
+-		errStr       string
++		name   string
++		digest *digest.Digest
++		isErr  bool
+ 	}
+ 	d := digest.SHA256.FromString("isula")
+ 	var testcases = []testcase{
+@@ -90,12 +87,9 @@ func TestGetSignatures(t *testing.T) {
+ 
+ func TestGetManifest(t *testing.T) {
+ 	type testcase struct {
+-		name         string
+-		digest       *digest.Digest
+-		manifest     []byte
+-		manifestType string
+-		isErr        bool
+-		errStr       string
++		name   string
++		digest *digest.Digest
++		isErr  bool
+ 	}
+ 	d := digest.SHA256.FromString("isula")
+ 	var testcases = []testcase{
+diff --git a/builder/dockerfile/container/help_test.go b/builder/dockerfile/container/help_test.go
+index 6f4e73f..a691628 100644
+--- a/builder/dockerfile/container/help_test.go
++++ b/builder/dockerfile/container/help_test.go
+@@ -51,9 +51,10 @@ func init() {
+ 
+ func TestMain(m *testing.M) {
+ 	fmt.Println("container package test begin")
+-	m.Run()
++	exitVal := m.Run()
+ 	fmt.Println("container package test end")
+ 	clean()
++	os.Exit(exitVal)
+ }
+ 
+ func clean() {
+@@ -79,7 +80,7 @@ func TestCreateConfigsAndManifests(t *testing.T) {
+ 			ID:        "",
+ 			Parent:    "",
+ 			Comment:   "",
+-			Created:   containerRef.created, //"2020-04-15 07:41:47.96447546 +0000 UTC",
++			Created:   containerRef.created, // "2020-04-15 07:41:47.96447546 +0000 UTC",
+ 			Container: "e6587b2dbfd56b5ce2e64dd7933ba04886bff86836dec5f09ce59d599df012fe",
+ 			ContainerConfig: docker.Config{
+ 				Hostname:     "ab281de98ba0",
+@@ -122,11 +123,11 @@ func TestCreateConfigsAndManifests(t *testing.T) {
+ 		RootFS: &docker.RootFS{Type: "layers", DiffIDs: []digest.Digest{}},
+ 		History: []docker.History{
+ 			{
+-				Created:   time.Date(2017, 5, 12, 21, 36, 57, 81970000, time.UTC), //created, //"2017-05-12 21:36:57.08197 +0000 UTC",
++				Created:   time.Date(2017, 5, 12, 21, 36, 57, 81970000, time.UTC), // created, //"2017-05-12 21:36:57.08197 +0000 UTC",
+ 				CreatedBy: "/bin/sh -c #(nop) ADD file:e9e6f86057e43a27b678a139b906091c3ecb1600b08ad17e80ff5ad56920c96e in / ",
+ 			},
+ 			{
+-				Created:    time.Date(2017, 5, 12, 21, 36, 57, 851043000, time.UTC), //"2017-05-12 21:36:57.851043 +0000 UTC",
++				Created:    time.Date(2017, 5, 12, 21, 36, 57, 851043000, time.UTC), // "2017-05-12 21:36:57.851043 +0000 UTC",
+ 				CreatedBy:  `/bin/sh -c #(nop)  CMD ["sh"]`,
+ 				EmptyLayer: true,
+ 			},
+diff --git a/builder/dockerfile/container/util_test.go b/builder/dockerfile/container/util_test.go
+index 257e09c..a1d47e1 100644
+--- a/builder/dockerfile/container/util_test.go
++++ b/builder/dockerfile/container/util_test.go
+@@ -119,7 +119,6 @@ func TestEncodeConfigsAndManifests(t *testing.T) {
+ 		dimage         docker.Image
+ 		dmanifest      docker.Manifest
+ 		manifestType   string
+-		expectConfig   string
+ 		expectManifest string
+ 	}
+ 
+@@ -217,7 +216,7 @@ func TestEncodeConfigsAndManifests(t *testing.T) {
+ 	}
+ 
+ 	for _, tc := range testcases {
+-		_, manifest, err := encodeConfigsAndManifests(tc.dimage, tc.dmanifest, mimetypes.DockerV2Schema2MediaType)
++		_, manifest, err := encodeConfigsAndManifests(tc.dimage, tc.dmanifest, tc.manifestType)
+ 		assert.NilError(t, err)
+ 		assert.Equal(t, string(manifest), tc.expectManifest, tc.name)
+ 	}
+@@ -240,11 +239,9 @@ func checkDirTimeFunc(t *testing.T, dir string, ct time.Time) {
+ 
+ func TestChMTimeDir(t *testing.T) {
+ 	type testcase struct {
+-		name   string
+-		time   time.Time
+-		dir    *fs.Dir
+-		isErr  bool
+-		errStr string
++		name string
++		time time.Time
++		dir  *fs.Dir
+ 	}
+ 
+ 	testcases := []testcase{
+diff --git a/builder/dockerfile/parser/command_test.go b/builder/dockerfile/parser/command_test.go
+index 3859faa..f6cef02 100644
+--- a/builder/dockerfile/parser/command_test.go
++++ b/builder/dockerfile/parser/command_test.go
+@@ -25,68 +25,55 @@ func TestParseArg(t *testing.T) {
+ 	type testcase struct {
+ 		str    string
+ 		expect string
+-		err    string
+ 	}
+ 	var testcases = []testcase{
+ 		{
+ 			str:    "CB_VERSION=6.5.0",
+ 			expect: "(ARG) (CB_VERSION=6.5.0)",
+-			err:    "",
+ 		},
+ 		{
+ 			str:    "CB_RELEASE_URL=https://packages.couchbase.com/releases/6.5.0",
+ 			expect: "(ARG) (CB_RELEASE_URL=https://packages.couchbase.com/releases/6.5.0)",
+-			err:    "",
+ 		},
+ 		{
+ 			str:    "CB_PACKAGE=couchbase-server-enterprise_6.5.0-ubuntu16.04_amd64.deb",
+ 			expect: "(ARG) (CB_PACKAGE=couchbase-server-enterprise_6.5.0-ubuntu16.04_amd64.deb)",
+-			err:    "",
+ 		},
+ 		{
+ 			str:    "CB_SHA256=5505c6bb026090dae7351e9d83caeab00437f19e48e826afd4cb6bafc484cd2b",
+ 			expect: "(ARG) (CB_SHA256=5505c6bb026090dae7351e9d83caeab00437f19e48e826afd4cb6bafc484cd2b)",
+-			err:    "",
+ 		},
+ 		{
+ 			str:    `USER_HOME_DIR="/root"`,
+ 			expect: `(ARG) (USER_HOME_DIR="/root")`,
+-			err:    "",
+ 		},
+ 		{
+ 			str:    "BASE_URL=https://apache.osuosl.org/maven/maven-3/${MAVEN_VERSION}/binaries",
+ 			expect: "(ARG) (BASE_URL=https://apache.osuosl.org/maven/maven-3/${MAVEN_VERSION}/binaries)",
+-			err:    "",
+ 		},
+ 		{
+ 			str:    "!@#$%^*()-_+foo=isula",
+ 			expect: "(ARG) (!@#$%^*()-_+foo=isula)",
+-			err:    "",
+ 		},
+ 		{
+ 			str:    "foo =var",
+ 			expect: "",
+-			err:    "",
+ 		},
+ 		{
+ 			str:    "foo= var",
+ 			expect: "",
+-			err:    "",
+ 		},
+ 		{
+ 			str:    "foo=",
+ 			expect: "",
+-			err:    "",
+ 		},
+ 		{
+ 			str:    "foo=var isula",
+ 			expect: "",
+-			err:    "",
+ 		},
+ 		{
+ 			str:    "!@#$%^*()-_+foo=var isula",
+ 			expect: "",
+-			err:    "",
+ 		},
+ 	}
+ 
+diff --git a/builder/dockerfile/parser/parser_test.go b/builder/dockerfile/parser/parser_test.go
+index ba7fce5..0db5b4d 100644
+--- a/builder/dockerfile/parser/parser_test.go
++++ b/builder/dockerfile/parser/parser_test.go
+@@ -251,7 +251,7 @@ func TestParseContainSingleFrom(t *testing.T) {
+ 			isErr:     false,
+ 			committed: false,
+ 		}, {
+-			name:      "compelte_stage_with_single_from_stage",
++			name:      "complete_stage_with_single_from_stage",
+ 			isErr:     false,
+ 			committed: false,
+ 		}, {
+@@ -277,8 +277,7 @@ func TestParseContainSingleFrom(t *testing.T) {
+ 			defer r.Close()
+ 
+ 			df := dockerfile{}
+-			playbook := &parser.PlayBook{}
+-			playbook, err = df.Parse(r, false)
++			playbook, err := df.Parse(r, false)
+ 
+ 			if !tc.isErr {
+ 				assert.NilError(t, err, file)
+@@ -386,7 +385,6 @@ func TestGetPageName(t *testing.T) {
+ 		name      string
+ 		line      parser.Line
+ 		isErr     bool
+-		errStr    string
+ 		expectStr string
+ 	}
+ 	var testcases = []testcase{
+diff --git a/builder/dockerfile/parser/testfiles/preprocess/compelte_stage_with_single_from_stage b/builder/dockerfile/parser/testfiles/preprocess/complete_stage_with_single_from_stage
+similarity index 100%
+rename from builder/dockerfile/parser/testfiles/preprocess/compelte_stage_with_single_from_stage
+rename to builder/dockerfile/parser/testfiles/preprocess/complete_stage_with_single_from_stage
+diff --git a/builder/dockerfile/parser/util_test.go b/builder/dockerfile/parser/util_test.go
+index 6123860..5935cab 100644
+--- a/builder/dockerfile/parser/util_test.go
++++ b/builder/dockerfile/parser/util_test.go
+@@ -166,6 +166,20 @@ func TestResolveParam(t *testing.T) {
+ 		strict     bool
+ 		resolveArg func(string) string
+ 	}
++	equalFoundElseFail := func(given string) func(input string) string {
++		return func(input string) string {
++			if input == given {
++				return "found"
++			}
++			return "fail"
++		}
++	}
++	name1EmptyElseBusybox := func(s string) string {
++		if s == "name1" {
++			return ""
++		}
++		return "busybox"
++	}
+ 	tests := []struct {
+ 		name    string
+ 		args    args
+@@ -268,15 +282,9 @@ func TestResolveParam(t *testing.T) {
+ 		{
+ 			name: "case 101",
+ 			args: args{
+-				s:      "${testArg}",
+-				strict: false,
+-				resolveArg: func(s string) string {
+-					if s == "testArg" {
+-						return "found"
+-					} else {
+-						return "fail"
+-					}
+-				},
++				s:          "${testArg}",
++				strict:     false,
++				resolveArg: equalFoundElseFail("testArg"),
+ 			},
+ 			want:    "found",
+ 			wantErr: false,
+@@ -284,15 +292,9 @@ func TestResolveParam(t *testing.T) {
+ 		{
+ 			name: "case 102",
+ 			args: args{
+-				s:      "${testArg}foo",
+-				strict: false,
+-				resolveArg: func(s string) string {
+-					if s == "testArg" {
+-						return "found"
+-					} else {
+-						return "fail"
+-					}
+-				},
++				s:          "${testArg}foo",
++				strict:     false,
++				resolveArg: equalFoundElseFail("testArg"),
+ 			},
+ 			want:    "foundfoo",
+ 			wantErr: false,
+@@ -300,15 +302,9 @@ func TestResolveParam(t *testing.T) {
+ 		{
+ 			name: "case 103",
+ 			args: args{
+-				s:      "$testArg:tag",
+-				strict: false,
+-				resolveArg: func(s string) string {
+-					if s == "testArg" {
+-						return "found"
+-					} else {
+-						return "fail"
+-					}
+-				},
++				s:          "$testArg:tag",
++				strict:     false,
++				resolveArg: equalFoundElseFail("testArg"),
+ 			},
+ 			want:    "found:tag",
+ 			wantErr: false,
+@@ -316,15 +312,9 @@ func TestResolveParam(t *testing.T) {
+ 		{
+ 			name: "case 104",
+ 			args: args{
+-				s:      `\$testArg:tag`,
+-				strict: false,
+-				resolveArg: func(s string) string {
+-					if s == "testArg" {
+-						return "found"
+-					} else {
+-						return "fail"
+-					}
+-				},
++				s:          `\$testArg:tag`,
++				strict:     false,
++				resolveArg: equalFoundElseFail("testArg"),
+ 			},
+ 			want:    `\$testArg:tag`,
+ 			wantErr: false,
+@@ -332,15 +322,9 @@ func TestResolveParam(t *testing.T) {
+ 		{
+ 			name: "case 105",
+ 			args: args{
+-				s:      `$testArg:\$tag`,
+-				strict: false,
+-				resolveArg: func(s string) string {
+-					if s == "testArg" {
+-						return "found"
+-					} else {
+-						return "fail"
+-					}
+-				},
++				s:          `$testArg:\$tag`,
++				strict:     false,
++				resolveArg: equalFoundElseFail("testArg"),
+ 			},
+ 			want:    `found:\$tag`,
+ 			wantErr: false,
+@@ -348,15 +332,9 @@ func TestResolveParam(t *testing.T) {
+ 		{
+ 			name: "case 106",
+ 			args: args{
+-				s:      `\$`,
+-				strict: false,
+-				resolveArg: func(s string) string {
+-					if s == "testArg" {
+-						return "found"
+-					} else {
+-						return "fail"
+-					}
+-				},
++				s:          `\$`,
++				strict:     false,
++				resolveArg: equalFoundElseFail("testArg"),
+ 			},
+ 			want:    `\$`,
+ 			wantErr: false,
+@@ -364,15 +342,9 @@ func TestResolveParam(t *testing.T) {
+ 		{
+ 			name: "case 107",
+ 			args: args{
+-				s:      `${A}`,
+-				strict: false,
+-				resolveArg: func(s string) string {
+-					if s == "A" {
+-						return "found"
+-					} else {
+-						return "fail"
+-					}
+-				},
++				s:          `${A}`,
++				strict:     false,
++				resolveArg: equalFoundElseFail("A"),
+ 			},
+ 			want:    `found`,
+ 			wantErr: false,
+@@ -381,15 +353,9 @@ func TestResolveParam(t *testing.T) {
+ 			// ${variable:-name}, match variable, return $variable
+ 			name: "case 201",
+ 			args: args{
+-				s:      "${testArg:-word}",
+-				strict: false,
+-				resolveArg: func(s string) string {
+-					if s == "testArg:-word" {
+-						return "found"
+-					} else {
+-						return "fail"
+-					}
+-				},
++				s:          "${testArg:-word}",
++				strict:     false,
++				resolveArg: equalFoundElseFail("testArg:-word"),
+ 			},
+ 			want:    "found",
+ 			wantErr: false,
+@@ -398,15 +364,9 @@ func TestResolveParam(t *testing.T) {
+ 			// ${variable:+name}, match variable, return name
+ 			name: "case 202",
+ 			args: args{
+-				s:      "${testArg:+word}",
+-				strict: false,
+-				resolveArg: func(s string) string {
+-					if s == "testArg:+word" {
+-						return "found"
+-					} else {
+-						return "fail"
+-					}
+-				},
++				s:          "${testArg:+word}",
++				strict:     false,
++				resolveArg: equalFoundElseFail("testArg:+word"),
+ 			},
+ 			want:    "found",
+ 			wantErr: false,
+@@ -415,15 +375,9 @@ func TestResolveParam(t *testing.T) {
+ 			// strict mode test for FROM command. No matching for name1, return "", then got err
+ 			name: "case 301",
+ 			args: args{
+-				s:      "${name1}",
+-				strict: true,
+-				resolveArg: func(s string) string {
+-					if s == "name1" {
+-						return ""
+-					} else {
+-						return "busybox"
+-					}
+-				},
++				s:          "${name1}",
++				strict:     true,
++				resolveArg: name1EmptyElseBusybox,
+ 			},
+ 			want:    "",
+ 			wantErr: true,
+@@ -432,15 +386,9 @@ func TestResolveParam(t *testing.T) {
+ 			// easy mode (v.s. strict) test for other commands. No matching for name1, return "", no err just ignore "name1"
+ 			name: "case 302",
+ 			args: args{
+-				s:      "${name1}*Arg",
+-				strict: false,
+-				resolveArg: func(s string) string {
+-					if s == "name1" {
+-						return ""
+-					} else {
+-						return "busybox"
+-					}
+-				},
++				s:          "${name1}*Arg",
++				strict:     false,
++				resolveArg: name1EmptyElseBusybox,
+ 			},
+ 			want:    "*Arg",
+ 			wantErr: false,
+@@ -449,15 +397,9 @@ func TestResolveParam(t *testing.T) {
+ 			// strict mode test for FROM command. No matching for name1, return "", then got err
+ 			name: "case 303",
+ 			args: args{
+-				s:      "$name1*Arg",
+-				strict: true,
+-				resolveArg: func(s string) string {
+-					if s == "name1" {
+-						return ""
+-					} else {
+-						return "busybox"
+-					}
+-				},
++				s:          "$name1*Arg",
++				strict:     true,
++				resolveArg: name1EmptyElseBusybox,
+ 			},
+ 			want:    "",
+ 			wantErr: true,
+@@ -466,15 +408,9 @@ func TestResolveParam(t *testing.T) {
+ 			// easy mode (v.s. strict) test for other commands. No matching for name1, return "", no err just ignore "name1"
+ 			name: "case 304",
+ 			args: args{
+-				s:      "$name1*Arg",
+-				strict: false,
+-				resolveArg: func(s string) string {
+-					if s == "name1" {
+-						return ""
+-					} else {
+-						return "busybox"
+-					}
+-				},
++				s:          "$name1*Arg",
++				strict:     false,
++				resolveArg: name1EmptyElseBusybox,
+ 			},
+ 			want:    "*Arg",
+ 			wantErr: false,
+@@ -505,15 +441,9 @@ func TestResolveParam(t *testing.T) {
+ 			// single quotes
+ 			name: "case 401 - quotes",
+ 			args: args{
+-				s:      "'testArg'foo",
+-				strict: false,
+-				resolveArg: func(s string) string {
+-					if s == "testArg" {
+-						return "found"
+-					} else {
+-						return "fail"
+-					}
+-				},
++				s:          "'testArg'foo",
++				strict:     false,
++				resolveArg: equalFoundElseFail("testArg"),
+ 			},
+ 			want:    "testArgfoo",
+ 			wantErr: false,
+@@ -522,15 +452,9 @@ func TestResolveParam(t *testing.T) {
+ 			// single quotes
+ 			name: "case 402 - quotes",
+ 			args: args{
+-				s:      "'testArgfoo",
+-				strict: false,
+-				resolveArg: func(s string) string {
+-					if s == "testArg" {
+-						return "found"
+-					} else {
+-						return "fail"
+-					}
+-				},
++				s:          "'testArgfoo",
++				strict:     false,
++				resolveArg: equalFoundElseFail("testArg"),
+ 			},
+ 			want:    "",
+ 			wantErr: true,
+@@ -539,15 +463,9 @@ func TestResolveParam(t *testing.T) {
+ 			// double quotes
+ 			name: "case 403 - quotes",
+ 			args: args{
+-				s:      `"testArg"foo`,
+-				strict: false,
+-				resolveArg: func(s string) string {
+-					if s == "testArg" {
+-						return "found"
+-					} else {
+-						return "fail"
+-					}
+-				},
++				s:          `"testArg"foo`,
++				strict:     false,
++				resolveArg: equalFoundElseFail("testArg"),
+ 			},
+ 			want:    "testArgfoo",
+ 			wantErr: false,
+@@ -556,15 +474,9 @@ func TestResolveParam(t *testing.T) {
+ 			// double quotes
+ 			name: "case 404 - quotes",
+ 			args: args{
+-				s:      `"testArgfoo`,
+-				strict: false,
+-				resolveArg: func(s string) string {
+-					if s == "testArg" {
+-						return "found"
+-					} else {
+-						return "fail"
+-					}
+-				},
++				s:          `"testArgfoo`,
++				strict:     false,
++				resolveArg: equalFoundElseFail("testArg"),
+ 			},
+ 			want:    "",
+ 			wantErr: true,
+@@ -573,20 +485,15 @@ func TestResolveParam(t *testing.T) {
+ 			// fixed quotes
+ 			name: "case 405 - quotes",
+ 			args: args{
+-				s:      `"testArg'foo`,
+-				strict: false,
+-				resolveArg: func(s string) string {
+-					if s == "testArg" {
+-						return "found"
+-					} else {
+-						return "fail"
+-					}
+-				},
++				s:          `"testArg'foo`,
++				strict:     false,
++				resolveArg: equalFoundElseFail("testArg"),
+ 			},
+ 			want:    "",
+ 			wantErr: true,
+ 		},
+ 	}
++
+ 	for _, tt := range tests {
+ 		t.Run(tt.name, func(t *testing.T) {
+ 			got, err := ResolveParam(tt.args.s, tt.args.strict, tt.args.resolveArg)
+diff --git a/builder/dockerfile/stage_builder_test.go b/builder/dockerfile/stage_builder_test.go
+index 2c92266..e456ad6 100644
+--- a/builder/dockerfile/stage_builder_test.go
++++ b/builder/dockerfile/stage_builder_test.go
+@@ -57,9 +57,10 @@ func init() {
+ 
+ func TestMain(m *testing.M) {
+ 	fmt.Println("dockerfile package test begin")
+-	m.Run()
++	exitVal := m.Run()
+ 	fmt.Println("dockerfile package test end")
+ 	clean()
++	os.Exit(exitVal)
+ }
+ 
+ func clean() {
+@@ -165,10 +166,9 @@ func TestPrepareFromImage(t *testing.T) {
+ 	contentJustForFillLog := `FROM busybox
+ CMD ["sh"]`
+ 	type fields struct {
+-		buildOpt   *stageBuilderOption
+-		builder    *Builder
+-		localStore *store.Store
+-		rawStage   *parser.Page
++		buildOpt *stageBuilderOption
++		builder  *Builder
++		rawStage *parser.Page
+ 
+ 		name       string
+ 		imageID    string
+@@ -182,12 +182,10 @@ CMD ["sh"]`
+ 		fromImageID string
+ 		container   string
+ 		containerID string
+-		docker      docker.Image
+ 		env         map[string]string
+ 	}
+ 	type args struct {
+-		ctx  context.Context
+-		base string
++		ctx context.Context
+ 	}
+ 	tests := []struct {
+ 		depLast   bool
+@@ -359,7 +357,7 @@ CMD ["sh"]`
+ 			s.env = make(map[string]string)
+ 			err := s.prepare(tt.args.ctx)
+ 			if s.mountpoint != "" {
+-				_, err := s.localStore.Unmount(s.containerID, false)
++				_, err = s.localStore.Unmount(s.containerID, false)
+ 				assert.NilError(t, err)
+ 			}
+ 			logrus.Infof("get mount point %q", s.mountpoint)
+diff --git a/cmd/cli/build_test.go b/cmd/cli/build_test.go
+index 7faa125..086fe65 100644
+--- a/cmd/cli/build_test.go
++++ b/cmd/cli/build_test.go
+@@ -140,7 +140,6 @@ func TestRunBuildWithDefaultDockerFile(t *testing.T) {
+ // expect: pass
+ func TestRunBuildWithNArchiveExporter(t *testing.T) {
+ 	type testcase struct {
+-		exporter string
+ 		descSpec string
+ 		format   string
+ 	}
+@@ -169,12 +168,10 @@ func TestRunBuildWithNArchiveExporter(t *testing.T) {
+ 
+ 	var testcases = []testcase{
+ 		{
+-			exporter: "docker-daeomn",
+ 			descSpec: "docker-daemon:isula:latest",
+ 			format:   "docker",
+ 		},
+ 		{
+-			exporter: constant.OCIArchiveTransport,
+ 			descSpec: "oci-archive:isula:latest",
+ 			format:   "oci",
+ 		},
+@@ -193,7 +190,6 @@ func TestRunBuildWithNArchiveExporter(t *testing.T) {
+ // expect: pass
+ func TestRunBuildWithArchiveExporter(t *testing.T) {
+ 	type testcase struct {
+-		exporter string
+ 		descSpec string
+ 		format   string
+ 	}
+@@ -221,12 +217,10 @@ func TestRunBuildWithArchiveExporter(t *testing.T) {
+ 
+ 	var testcases = []testcase{
+ 		{
+-			exporter: constant.DockerArchiveTransport,
+ 			descSpec: "docker-archive:/tmp/image:isula:latest",
+ 			format:   "docker",
+ 		},
+ 		{
+-			exporter: constant.OCIArchiveTransport,
+ 			descSpec: "oci-archive:/tmp/image:isula:latest",
+ 			format:   "oci",
+ 		},
+@@ -344,6 +338,7 @@ func TestReadDockerfileWithNoNameAndNoFileNamedDockerfile(t *testing.T) {
+ func TestNewBuildOptions(t *testing.T) {
+ 	// no args case use current working directory as context directory
+ 	cwd, err := os.Getwd()
++	assert.NilError(t, err)
+ 	realCwd, err := filepath.EvalSymlinks(cwd)
+ 	assert.NilError(t, err)
+ 	var args []string
+@@ -354,6 +349,7 @@ func TestNewBuildOptions(t *testing.T) {
+ 	// normal case
+ 	args = []string{".", "abc"}
+ 	absPath, err := filepath.Abs(".")
++	assert.NilError(t, err)
+ 	realPath, err := filepath.EvalSymlinks(absPath)
+ 	assert.NilError(t, err)
+ 	err = newBuildOptions(args)
+@@ -369,6 +365,7 @@ func TestNewBuildOptions(t *testing.T) {
+ 
+ 	// context directory is not a directory
+ 	err = ioutil.WriteFile(tmpDir.Path()+"/test", []byte(""), constant.DefaultRootFileMode)
++	assert.NilError(t, err)
+ 	args = []string{tmpDir.Path() + "/test"}
+ 	err = newBuildOptions(args)
+ 	assert.ErrorContains(t, err, "should be a directory")
+@@ -376,94 +373,70 @@ func TestNewBuildOptions(t *testing.T) {
+ 
+ func TestCheckAndProcessOut(t *testing.T) {
+ 	type testcase struct {
+-		name     string
+-		output   string
+-		expect   string
+-		errStr   string
+-		isIsulad bool
+-		isErr    bool
++		name   string
++		output string
++		errStr string
++		isErr  bool
+ 	}
+ 
+ 	testcases := []testcase{
+ 		{
+-			name:     "docker-archive",
+-			output:   "docker-archive:/root/docker-archive.tar",
+-			expect:   "/root/docker-archive.tar",
+-			isIsulad: false,
++			name:   "docker-archive",
++			output: "docker-archive:/root/docker-archive.tar",
+ 		},
+ 		{
+-			name:     "docker-daemon",
+-			output:   "docker-daemon:busybox:latest",
+-			expect:   "",
+-			isIsulad: false,
++			name:   "docker-daemon",
++			output: "docker-daemon:busybox:latest",
+ 		},
+ 		{
+-			name:     "docker-registry",
+-			output:   "docker://registry.example.com/busybox:latest",
+-			expect:   "",
+-			isIsulad: false,
++			name:   "docker-registry",
++			output: "docker://registry.example.com/busybox:latest",
+ 		},
+ 		{
+-			name:     "empyty exporter",
+-			output:   "",
+-			expect:   "",
+-			isIsulad: false,
++			name:   "empyty exporter",
++			output: "",
+ 		},
+ 		{
+-			name:     "only has colon",
+-			output:   ":",
+-			expect:   "",
+-			isIsulad: false,
+-			errStr:   "transport should not be empty",
+-			isErr:    true,
++			name:   "only has colon",
++			output: ":",
++			errStr: "transport should not be empty",
++			isErr:  true,
+ 		},
+ 		{
+-			name:     "only has transport",
+-			output:   "docker-archive:",
+-			expect:   "",
+-			isIsulad: false,
+-			errStr:   "destination should not be empty",
+-			isErr:    true,
++			name:   "only has transport",
++			output: "docker-archive:",
++			errStr: "destination should not be empty",
++			isErr:  true,
+ 		},
+ 		{
+-			name:     "invalid exporter with no dest1",
+-			output:   "docker-archive",
+-			expect:   "",
+-			isErr:    true,
+-			errStr:   "destination should not be empty",
+-			isIsulad: false,
++			name:   "invalid exporter with no dest1",
++			output: "docker-archive",
++			isErr:  true,
++			errStr: "destination should not be empty",
+ 		},
+ 		{
+-			name:     "invalid exporter with no dest3",
+-			output:   "docker-archive:  ",
+-			expect:   "",
+-			isErr:    true,
+-			errStr:   "destination should not be empty",
+-			isIsulad: false,
++			name:   "invalid exporter with no dest3",
++			output: "docker-archive:  ",
++			isErr:  true,
++			errStr: "destination should not be empty",
+ 		},
+ 		{
+-			name:     "invalid exporter with no dest2",
+-			output:   "docker-archive:",
+-			expect:   "",
+-			isErr:    true,
+-			errStr:   "destination should not be empty",
+-			isIsulad: false,
++			name:   "invalid exporter with no dest2",
++			output: "docker-archive:",
++			isErr:  true,
++			errStr: "destination should not be empty",
+ 		},
+ 		{
+-			name:     "invalid exporter with no transport",
+-			output:   ":/test/images",
+-			expect:   "",
+-			isErr:    true,
+-			errStr:   "transport should not be empty",
+-			isIsulad: false,
++			name:   "invalid exporter with no transport",
++			output: ":/test/images",
++			isErr:  true,
++			errStr: "transport should not be empty",
+ 		},
+ 		{
+-			name:     "invalid transport",
+-			output:   "docker-isula:/root/docker-isula.tar",
+-			expect:   "/root/docker-isula.tar",
+-			errStr:   "not support",
+-			isErr:    true,
+-			isIsulad: false,
++			name:   "invalid transport",
++			output: "docker-isula:/root/docker-isula.tar",
++			errStr: "not support",
++			isErr:  true,
+ 		},
+ 		{
+ 			name:   "invalid docker transport longer than limit",
+@@ -510,10 +483,7 @@ func TestCheckAndProcessOut(t *testing.T) {
+ 		{
+ 			name:   "valid isulad transport",
+ 			output: "isulad:isula:latest",
+-			// since refactor, when transport is isulad, the tmp tarball will stored in data dir
+-			expect:   "",
+-			isErr:    false,
+-			isIsulad: true,
++			isErr:  false,
+ 		},
+ 	}
+ 
+diff --git a/cmd/cli/info_test.go b/cmd/cli/info_test.go
+index b8e14b4..6c5dfdd 100644
+--- a/cmd/cli/info_test.go
++++ b/cmd/cli/info_test.go
+@@ -18,6 +18,7 @@ import (
+ 	"testing"
+ 
+ 	"gotest.tools/v3/assert"
++
+ 	pb "isula.org/isula-build/api/services"
+ )
+ 
+diff --git a/cmd/cli/load_test.go b/cmd/cli/load_test.go
+index a5b3c30..ce896e7 100644
+--- a/cmd/cli/load_test.go
++++ b/cmd/cli/load_test.go
+@@ -203,6 +203,7 @@ func TestCheckLoadOpts(t *testing.T) {
+ 	ioutil.WriteFile(baseFile.Name(), []byte("This is base file"), constant.DefaultRootFileMode)
+ 
+ 	libFile, err := os.Create(filepath.Join(root.Path(), "lib.tar"))
++	assert.NilError(t, err)
+ 	ioutil.WriteFile(libFile.Name(), []byte("This is lib file"), constant.DefaultRootFileMode)
+ 
+ 	type fields struct {
+diff --git a/cmd/cli/save_test.go b/cmd/cli/save_test.go
+index 72f6ded..4928cb3 100644
+--- a/cmd/cli/save_test.go
++++ b/cmd/cli/save_test.go
+@@ -22,6 +22,7 @@ import (
+ 
+ 	"gotest.tools/v3/assert"
+ 	"gotest.tools/v3/fs"
++
+ 	constant "isula.org/isula-build"
+ )
+ 
+diff --git a/daemon/save_test.go b/daemon/save_test.go
+index c1b3734..30c2151 100644
+--- a/daemon/save_test.go
++++ b/daemon/save_test.go
+@@ -55,7 +55,7 @@ func TestSave(t *testing.T) {
+ 	d := prepare(t)
+ 	defer tmpClean(d)
+ 
+-	//TODO: create image manually and save
++	// nolint:godox TODO: create image manually and save
+ 	options := &storage.ImageOptions{}
+ 	img, err := d.Daemon.localStore.CreateImage(stringid.GenerateRandomID(), []string{"image:latest"}, "", "", options)
+ 	if err != nil {
+diff --git a/exporter/common_test.go b/exporter/common_test.go
+index 7434d3b..a912839 100644
+--- a/exporter/common_test.go
++++ b/exporter/common_test.go
+@@ -22,7 +22,7 @@ import (
+ 	"gotest.tools/v3/assert"
+ 	"gotest.tools/v3/fs"
+ 
+-	"isula.org/isula-build"
++	constant "isula.org/isula-build"
+ )
+ 
+ func TestFormatTransport(t *testing.T) {
+@@ -120,7 +120,7 @@ func TestGetManifestType(t *testing.T) {
+ 		},
+ 		{
+ 			name:    "unknown format manifest type",
+-			format:  "unkown",
++			format:  "unknown",
+ 			wantErr: true,
+ 		},
+ 	}
+@@ -137,4 +137,3 @@ func TestGetManifestType(t *testing.T) {
+ 		})
+ 	}
+ }
+-
+diff --git a/pkg/gc/gc_test.go b/pkg/gc/gc_test.go
+index a24560c..1552df7 100644
+--- a/pkg/gc/gc_test.go
++++ b/pkg/gc/gc_test.go
+@@ -15,6 +15,8 @@ package gc
+ 
+ import (
+ 	"context"
++	"fmt"
++	"os"
+ 	"sync"
+ 	"testing"
+ 	"time"
+@@ -38,12 +40,22 @@ var (
+ 	gc                    *GarbageCollector
+ )
+ 
+-func init() {
++func TestMain(m *testing.M) {
++	fmt.Println("gc package test begin")
++
+ 	backend = &mockBackend{status: map[string]string{"init": "init"}}
+ 	emptyBackend = &mockBackend{}
+-	ctx, _ := context.WithCancel(context.Background())
++
++	ctx, cancelFunc := context.WithCancel(context.Background())
++
+ 	gc = NewGC()
+ 	gc.StartGC(ctx)
++
++	exitVal := m.Run()
++
++	fmt.Println("gc package test end")
++	cancelFunc()
++	os.Exit(exitVal)
+ }
+ 
+ func TestRegisterGCWithEmptyOption(t *testing.T) {
+diff --git a/pkg/opts/opts_test.go b/pkg/opts/opts_test.go
+index d5d7ac7..d114c46 100644
+--- a/pkg/opts/opts_test.go
++++ b/pkg/opts/opts_test.go
+@@ -47,6 +47,7 @@ func TestOptValidator(t *testing.T) {
+ 		if err != nil {
+ 			assert.Equal(t, tc.expect[0], k)
+ 			assert.Equal(t, tc.expect[1], v)
++			assert.ErrorContains(t, err, tc.errStr)
+ 		}
+ 	}
+ 
+diff --git a/pkg/stack/stack_test.go b/pkg/stack/stack_test.go
+index 6d38592..284b95f 100644
+--- a/pkg/stack/stack_test.go
++++ b/pkg/stack/stack_test.go
+@@ -65,8 +65,7 @@ func TestSetup(t *testing.T) {
+ 		return
+ 	}
+ 
+-	var testDir *fs.Dir
+-	testDir = fs.NewDir(t, "TestSetup")
++	testDir := fs.NewDir(t, "TestSetup")
+ 	defer testDir.Remove()
+ 
+ 	cmd := reexec.Command(testDumpStackCommand)
+diff --git a/runner/runner_test.go b/runner/runner_test.go
+index b48047f..5eb7ef7 100644
+--- a/runner/runner_test.go
++++ b/runner/runner_test.go
+@@ -194,7 +194,8 @@ func TestRunOCIRuntimeContextCancel(t *testing.T) {
+ 	cliLog := logger.NewCliLogger(constant.CliLogBufferLen)
+ 	spec := &specs.Spec{}
+ 
+-	ctx, _ := context.WithTimeout(context.Background(), 500*time.Millisecond)
++	ctx, cancelFunc := context.WithTimeout(context.Background(), 500*time.Millisecond)
++	defer cancelFunc()
+ 	runner := NewOCIRunner(&OCIRunOpts{
+ 		Ctx:         ctx,
+ 		Spec:        spec,
+diff --git a/util/cipher_test.go b/util/cipher_test.go
+index 834c297..3b8e0ae 100644
+--- a/util/cipher_test.go
++++ b/util/cipher_test.go
+@@ -30,6 +30,7 @@ import (
+ 
+ 	"gotest.tools/v3/assert"
+ 	"gotest.tools/v3/fs"
++
+ 	constant "isula.org/isula-build"
+ )
+ 
+diff --git a/util/file_test.go b/util/file_test.go
+index b23b474..f09279e 100644
+--- a/util/file_test.go
++++ b/util/file_test.go
+@@ -24,6 +24,7 @@ import (
+ 	"github.com/containers/storage/pkg/archive"
+ 	"gotest.tools/v3/assert"
+ 	"gotest.tools/v3/fs"
++
+ 	constant "isula.org/isula-build"
+ )
+ 
+@@ -70,7 +71,7 @@ func TestLoadJSONFile(t *testing.T) {
+ 	}
+ 	for _, tt := range tests {
+ 		t.Run(tt.name, func(t *testing.T) {
+-			if err := LoadJSONFile(tt.args.file, &tt.args.v); (err != nil) != tt.wantErr {
++			if err = LoadJSONFile(tt.args.file, &tt.args.v); (err != nil) != tt.wantErr {
+ 				t.Errorf("LoadJSONFile() error = %v, wantErr %v", err, tt.wantErr)
+ 			}
+ 			if err == nil {
+@@ -89,6 +90,7 @@ func TestChangeFileModifyTime(t *testing.T) {
+ 	assert.NilError(t, err)
+ 	immutableFile := filepath.Join(pwd, "immutableFile")
+ 	_, err = os.Create(immutableFile)
++	assert.NilError(t, err)
+ 	defer os.Remove(immutableFile)
+ 
+ 	type args struct {
+diff --git a/util/filepath_test.go b/util/filepath_test.go
+index add4545..3c48fcd 100644
+--- a/util/filepath_test.go
++++ b/util/filepath_test.go
+@@ -20,6 +20,7 @@ import (
+ 	"testing"
+ 
+ 	"gotest.tools/v3/assert"
++
+ 	constant "isula.org/isula-build"
+ )
+ 
+diff --git a/util/user_test.go b/util/user_test.go
+index 441dca4..380d70f 100644
+--- a/util/user_test.go
++++ b/util/user_test.go
+@@ -36,6 +36,7 @@ func TestGetChownOptions(t *testing.T) {
+ 	err := os.MkdirAll(mountpoint+"/etc", constant.DefaultSharedDirMode)
+ 	assert.NilError(t, err)
+ 	pFile, err := os.Create(mountpoint + "/etc/passwd")
++	assert.NilError(t, err)
+ 	if pFile != nil {
+ 		_, err = pFile.WriteString("root:x:0:0:root:/root:/bin/ash\nbin:x:1:1:bin:/bin:/sbin/nologin\n" +
+ 			"daemon:x:2:2:daemon:/sbin:/sbin/nologin\n555555:x:3:4:adm:/var/adm:/sbin/nologin\n" +
+@@ -45,6 +46,7 @@ func TestGetChownOptions(t *testing.T) {
+ 	}
+ 
+ 	gFile, err := os.Create(mountpoint + "/etc/group")
++	assert.NilError(t, err)
+ 	if gFile != nil {
+ 		_, err = gFile.WriteString("root:x:0:root\nbin:x:1:root,bin,daemon\n" +
+ 			"daemon:x:2:root,bin,daemon\n77777:x:3:root,bin,adm\n")
+@@ -158,8 +160,8 @@ func TestGetChownOptions(t *testing.T) {
+ 
+ 	for _, c := range cases {
+ 		t.Run(c.name, func(t *testing.T) {
+-			pair, err := GetChownOptions(c.chown, mountpoint)
+-			assert.Equal(t, err != nil, c.isErr)
++			pair, gErr := GetChownOptions(c.chown, mountpoint)
++			assert.Equal(t, gErr != nil, c.isErr)
+ 			assert.Equal(t, pair.UID, c.UIDWanted)
+ 			assert.Equal(t, pair.GID, c.GIDWanted)
+ 		})
+diff --git a/util/util_test.go b/util/util_test.go
+index 374a69f..7ffacd2 100644
+--- a/util/util_test.go
++++ b/util/util_test.go
+@@ -92,7 +92,7 @@ func TestCopyFile(t *testing.T) {
+ 	}
+ 
+ 	for index := range testcases.attrName {
+-		err := system.Lsetxattr(src, testcases.attrName[index], []byte(testcases.attr[index]), 0)
++		err = system.Lsetxattr(src, testcases.attrName[index], []byte(testcases.attr[index]), 0)
+ 		assert.NilError(t, err)
+ 	}
+ 
+@@ -214,7 +214,7 @@ func TestCopyXattrs(t *testing.T) {
+ 			assert.NilError(t, err2)
+ 
+ 			for index := range tt.attrName {
+-				err := system.Lsetxattr(src, tt.attrName[index], []byte(tt.attr[index]), 0)
++				err = system.Lsetxattr(src, tt.attrName[index], []byte(tt.attr[index]), 0)
+ 				assert.NilError(t, err)
+ 			}
+ 
+@@ -322,7 +322,7 @@ func TestGenerateNonCryptoID(t *testing.T) {
+ 	}{
+ 		{
+ 			name: "TC1 - generate id",
+-			want:64,
++			want: 64,
+ 		},
+ 	}
+ 	for _, tt := range tests {
+@@ -393,8 +393,8 @@ func TestIsClientExporter(t *testing.T) {
+ 			wantResult: true,
+ 		},
+ 		{
+-			name:       "abnormal unkown",
+-			exporter:   "unkown",
++			name:       "abnormal unknown",
++			exporter:   "unknown",
+ 			wantResult: false,
+ 		},
+ 	}
+-- 
+2.27.0
+

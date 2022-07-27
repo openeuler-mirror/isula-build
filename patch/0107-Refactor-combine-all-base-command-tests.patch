@@ -1,0 +1,809 @@
+From c8f9834d59c8db4f150be3409c98debc1282134e Mon Sep 17 00:00:00 2001
+From: xingweizheng <xingweizheng@huawei.com>
+Date: Tue, 11 Jan 2022 10:38:09 +0800
+Subject: [PATCH 06/20] Refactor: combine all base command tests
+
+---
+ tests/lib/base_commonlib.sh                   | 177 ++++++++++++++++
+ tests/lib/common.sh                           | 198 ++----------------
+ tests/lib/integration_commonlib.sh            |  42 ++++
+ tests/src/isula_build_base_command.sh         |  44 ++++
+ tests/src/test_add_chown_basic.sh             |  28 ---
+ tests/src/test_build_from_scratch.sh          |  28 ---
+ tests/src/test_ctr_img_rm.sh                  |  13 +-
+ ...test_image_name_conflict_with_image_id.sh} |   0
+ tests/src/test_isula_build_base_command.sh    |  26 ---
+ tests/src/test_multi_files_env.sh             |  28 ---
+ tests/src/test_multi_stage_builds.sh          |  28 ---
+ ...> test_save_single_image_multiple_tags.sh} |   0
+ ...t_set_new_root.sh => test_set_new_root.sh} |   0
+ tests/test.sh                                 |   8 +-
+ 14 files changed, 293 insertions(+), 327 deletions(-)
+ create mode 100644 tests/lib/base_commonlib.sh
+ create mode 100644 tests/lib/integration_commonlib.sh
+ create mode 100644 tests/src/isula_build_base_command.sh
+ delete mode 100755 tests/src/test_add_chown_basic.sh
+ delete mode 100755 tests/src/test_build_from_scratch.sh
+ rename tests/src/{integration_test_image_name_conflict_with_image_id.sh => test_image_name_conflict_with_image_id.sh} (100%)
+ delete mode 100644 tests/src/test_isula_build_base_command.sh
+ delete mode 100755 tests/src/test_multi_files_env.sh
+ delete mode 100755 tests/src/test_multi_stage_builds.sh
+ rename tests/src/{integration_test_save_single_image_multiple_tags.sh => test_save_single_image_multiple_tags.sh} (100%)
+ rename tests/src/{integration_test_set_new_root.sh => test_set_new_root.sh} (100%)
+
+diff --git a/tests/lib/base_commonlib.sh b/tests/lib/base_commonlib.sh
+new file mode 100644
+index 0000000..996fcdd
+--- /dev/null
++++ b/tests/lib/base_commonlib.sh
+@@ -0,0 +1,177 @@
++#!/bin/bash
++
++# Copyright (c) Huawei Technologies Co., Ltd. 2020. All rights reserved.
++# isula-build licensed under the Mulan PSL v2.
++# You can use this software according to the terms and conditions of the Mulan PSL v2.
++# You may obtain a copy of Mulan PSL v2 at:
++#     http://license.coscl.org.cn/MulanPSL2
++# THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER EXPRESS OR
++# IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY OR FIT FOR A PARTICULAR
++# PURPOSE.
++# See the Mulan PSL v2 for more details.
++# Author: Weizheng Xing
++# Create: 2022-01-10
++# Description: common functions for isula-build base commands tests
++
++top_dir=$(git rev-parse --show-toplevel)
++# shellcheck disable=SC1091
++source "$top_dir"/tests/lib/common.sh
++
++# cross process environment for killing isula-builder
++declare -x pidofbuilder
++
++# check if legacy builder exists
++function pre_check() {
++    if pgrep isula-builder >/dev/null 2>&1; then
++        echo "isula-builder is already running, please stop it first"
++        exit 1
++    fi
++}
++
++# start isula-builder
++function start_isula_builder() {
++    nohup isula-builder >/tmp/buildlog-daemon 2>&1 &
++    pidofbuilder=$!
++
++    # check if isula-builder is started
++    builder_started=0
++    for _ in $(seq 1 30); do
++        if ! grep -i "is listening on" /tmp/buildlog-daemon >/dev/null 2>&1; then
++            sleep 0.1
++            continue
++        else
++            builder_started=1
++            break
++        fi
++    done
++    if [ "${builder_started}" -eq 0 ]; then
++        echo "isula-builder start failed, log dir /tmp/buildlog-daemon"
++        exit 1
++    fi
++}
++
++function cleanup() {
++    isula-build ctr-img rm -p >/dev/null 2>&1
++    kill -15 "${pidofbuilder}" >/dev/null 2>&1
++    rm -f /tmp/buildlog-*
++}
++
++# isula-build builds with different output
++# $1 (image name)
++# $2 (build context dir)
++function test_isula_build_output() {
++    local -r image_name="$1"
++    local -r context_dir="$2"
++
++    functions=(
++        test_build_without_output_with_docker_format
++        test_build_without_output_with_oci_format
++        test_build_with_docker_archive_output
++        test_build_with_oci_archive_output
++        test_build_with_docker_daemon_output
++        test_build_with_isulad_output
++    )
++
++    for function in "${functions[@]}"; do $function "$image_name" "$context_dir"; done
++}
++
++# test build image without output with default docker format
++function test_build_without_output_with_docker_format() {
++    commands=(
++        "isula-build ctr-img build --format docker --tag $1:latest $2"
++        "isula-build ctr-img rm $1:latest"
++    )
++
++    for command in "${commands[@]}"; do show_and_run_command "$command"; done
++}
++
++# test build image without output with oci format
++function test_build_without_output_with_oci_format() {
++    declare -a commands=(
++        "isula-build ctr-img build --format oci --tag $1:latest $2"
++        "isula-build ctr-img rm $1:latest"
++    )
++    for command in "${commands[@]}"; do show_and_run_command "$command"; done
++}
++
++# test build image with docker-archive output
++function test_build_with_docker_archive_output() {
++    declare -a commands=(
++        "isula-build ctr-img build --output=docker-archive:/tmp/$1.tar:$1:latest $2"
++        "isula-build ctr-img rm $1:latest"
++    )
++    for command in "${commands[@]}"; do show_and_run_command "$command"; done
++    rm -f /tmp/"$1".tar
++}
++
++# test build image with oci-archive output
++function test_build_with_oci_archive_output() {
++    declare -a commands=(
++        "isula-build ctr-img build --output=oci-archive:/tmp/$1.tar:$1:latest $2"
++        "isula-build ctr-img rm $1:latest"
++    )
++    for command in "${commands[@]}"; do show_and_run_command "$command"; done
++    rm -f /tmp/"$1".tar
++}
++
++# test build image with docker-daemon output
++function test_build_with_docker_daemon_output() {
++    if ! systemctl status docker >/dev/null 2>&1; then
++        return 0
++    fi
++
++    declare -a commands=(
++        "isula-build ctr-img build --output=docker-daemon:isula/$1:latest $2"
++        "isula-build ctr-img rm isula/$1:latest"
++    )
++    for command in "${commands[@]}"; do show_and_run_command "$command"; done
++    docker rmi isula/"$1" >/dev/null 2>&1
++}
++
++# test build image with isulad output
++function test_build_with_isulad_output() {
++    if ! systemctl status isulad >/dev/null 2>&1; then
++        return 0
++    fi
++
++    declare -a commands=(
++        "isula-build ctr-img build --output=isulad:isula/$1:latest $2"
++        "isula-build ctr-img rm isula/$1:latest"
++    )
++    for command in "${commands[@]}"; do show_and_run_command "$command"; done
++    isula rmi isula/"$1" >/dev/null 2>&1
++}
++
++# test isula build base command
++function test_isula_build_base_command() {
++    declare -A commands=(
++        ["Build docker format image"]="isula-build ctr-img build --tag $1-docker:latest --output=docker-archive:/tmp/$1-docker.tar:$1-docker:latest $2"
++        ["Build oci format image"]="isula-build ctr-img build --tag $1-oci:latest --output=oci-archive:/tmp/$1-oci.tar:$1-oci:latest $2"
++        ["List all images"]="isula-build ctr-img images"
++        ["List docker format image"]="isula-build ctr-img images $1-docker:latest"
++        ["List oci format image"]="isula-build ctr-img images $1-oci:latest"
++        ["Save image with docker format"]="isula-build ctr-img save -f docker $1-docker:latest -o /tmp/$1-save-docker.tar"
++        ["Save image with oci format"]="isula-build ctr-img save -f oci $1-oci:latest -o /tmp/$1-save-oci.tar"
++        ["Load docker format images"]="isula-build ctr-img load -i /tmp/$1-docker.tar"
++        ["Load oci format images"]="isula-build ctr-img load -i /tmp/$1-oci.tar"
++        ["Save multipile images with docker format"]="isula-build ctr-img save -f docker $1-docker:latest $1-oci:latest -o /tmp/$1-all.tar"
++        ["Remove images"]="isula-build ctr-img rm $1-docker:latest $1-oci:latest"
++    )
++    declare -a orders
++    orders+=("Build docker format image")
++    orders+=("Build oci format image")
++    orders+=("List all images")
++    orders+=("List docker format image")
++    orders+=("List oci format image")
++    orders+=("Save image with docker format")
++    orders+=("Save image with oci format")
++    orders+=("Load docker format images")
++    orders+=("Load oci format images")
++    orders+=("Save multipile images with docker format")
++    orders+=("Remove images")
++    for i in "${!orders[@]}"; do
++        show_and_run_command "${orders[$i]}" "${commands[${orders[$i]}]}"
++    done
++
++    rm -f /tmp/*.tar
++}
+diff --git a/tests/lib/common.sh b/tests/lib/common.sh
+index 3c031f9..3710f62 100755
+--- a/tests/lib/common.sh
++++ b/tests/lib/common.sh
+@@ -12,154 +12,10 @@
+ # Author: Danni Xia
+ # Create: 2020-03-01
+ # Description: common functions for tests
++# History: 2022-01-10 Weizheng Xing <xingweizheng@huawei.com> Refactor: only maintain the most common functions here
+ 
+-# cross process environment for killing isula-builder
+-declare -x pidofbuilder
+-
+-# check if legacy builder exists
+-function pre_check() {
+-    if pgrep isula-builder >/dev/null 2>&1; then
+-        echo "isula-builder is already running, please stop it first"
+-        exit 1
+-    fi
+-}
+-
+-# start isula-builder
+-function start_isula_builder() {
+-    nohup isula-builder >/tmp/buildlog-daemon 2>&1 &
+-    pidofbuilder=$!
+-
+-    # check if isula-builder is started
+-    builder_started=0
+-    for _ in $(seq 1 30); do
+-        if ! grep -i "is listening on" /tmp/buildlog-daemon >/dev/null 2>&1; then
+-            sleep 0.1
+-            continue
+-        else
+-            builder_started=1
+-            break
+-        fi
+-    done
+-    if [ "${builder_started}" -eq 0 ]; then
+-        echo "isula-builder start failed, log dir /tmp/buildlog-daemon"
+-        exit 1
+-    fi
+-}
+-
+-function cleanup() {
+-    isula-build ctr-img rm -p >/dev/null 2>&1
+-    kill -15 "${pidofbuilder}" >/dev/null 2>&1
+-    rm -f /tmp/buildlog-*
+-}
+-
+-# test build image without output with default docker format
+-function test_build_without_output() {
+-    commands=(
+-        "isula-build ctr-img build --format docker --tag $1:latest $2"
+-        "isula-build ctr-img rm $1:latest"
+-    )
+-
+-    for command in "${commands[@]}"; do show_and_run_command "$command"; done
+-}
+-
+-# test build image without output with oci format
+-function test_build_without_output_with_oci_format() {
+-    declare -a commands=(
+-        "isula-build ctr-img build --format oci --tag $1:latest $2"
+-        "isula-build ctr-img rm $1:latest"
+-    )
+-    for command in "${commands[@]}"; do show_and_run_command "$command"; done
+-}
+-
+-# test build image with docker-archive output
+-function test_build_with_docker_archive_output() {
+-    declare -a commands=(
+-        "isula-build ctr-img build --output=docker-archive:/tmp/$1.tar:$1:latest $2"
+-        "isula-build ctr-img rm $1:latest"
+-    )
+-    for command in "${commands[@]}"; do show_and_run_command "$command"; done
+-    rm -f /tmp/"$1".tar
+-}
+-
+-# test build image with oci-archive output
+-function test_build_with_oci_archive_output() {
+-    declare -a commands=(
+-        "isula-build ctr-img build --output=oci-archive:/tmp/$1.tar:$1:latest $2"
+-        "isula-build ctr-img rm $1:latest"
+-    )
+-    for command in "${commands[@]}"; do show_and_run_command "$command"; done
+-    rm -f /tmp/"$1".tar
+-}
+-
+-# test build image with docker-daemon output
+-function test_build_with_docker_daemon_output() {
+-    if ! systemctl status docker >/dev/null 2>&1; then
+-        return 0
+-    fi
+-
+-    declare -a commands=(
+-        "isula-build ctr-img build --output=docker-daemon:isula/$1:latest $2"
+-        "isula-build ctr-img rm isula/$1:latest"
+-    )
+-    for command in "${commands[@]}"; do show_and_run_command "$command"; done
+-    docker rmi isula/"$1" >/dev/null 2>&1
+-}
+-
+-# test build image with isulad output
+-function test_build_with_isulad_output() {
+-    if ! systemctl status isulad >/dev/null 2>&1; then
+-        return 0
+-    fi
+-
+-    declare -a commands=(
+-        "isula-build ctr-img build --output=isulad:isula/$1:latest $2"
+-        "isula-build ctr-img rm isula/$1:latest"
+-    )
+-    for command in "${commands[@]}"; do show_and_run_command "$command"; done
+-    isula rmi isula/"$1" >/dev/null 2>&1
+-}
+-
+-# test isula build base command
+-function test_isula_build_base_command() {
+-    declare -A commands=(
+-        ["Build docker format image"]="isula-build ctr-img build --tag $1-docker:latest --output=docker-archive:/tmp/$1-docker.tar:$1-docker:latest $2"
+-        ["Build oci format image"]="isula-build ctr-img build --tag $1-oci:latest --output=oci-archive:/tmp/$1-oci.tar:$1-oci:latest $2"
+-        ["List all images"]="isula-build ctr-img images"
+-        ["List docker format image"]="isula-build ctr-img images $1-docker:latest"
+-        ["List oci format image"]="isula-build ctr-img images $1-oci:latest"
+-        ["Save image with docker format"]="isula-build ctr-img save -f docker $1-docker:latest -o /tmp/$1-save-docker.tar"
+-        ["Save image with oci format"]="isula-build ctr-img save -f oci $1-oci:latest -o /tmp/$1-save-oci.tar"
+-        ["Load docker format images"]="isula-build ctr-img load -i /tmp/$1-docker.tar"
+-        ["Load oci format images"]="isula-build ctr-img load -i /tmp/$1-oci.tar"
+-        ["Save multipile images with docker format"]="isula-build ctr-img save -f docker $1-docker:latest $1-oci:latest -o /tmp/$1-all.tar"
+-        ["Remove images"]="isula-build ctr-img rm $1-docker:latest $1-oci:latest"
+-    )
+-    declare -a orders
+-    orders+=("Build docker format image")
+-    orders+=("Build oci format image")
+-    orders+=("List all images")
+-    orders+=("List docker format image")
+-    orders+=("List oci format image")
+-    orders+=("Save image with docker format")
+-    orders+=("Save image with oci format")
+-    orders+=("Load docker format images")
+-    orders+=("Load oci format images")
+-    orders+=("Save multipile images with docker format")
+-    orders+=("Remove images")
+-    for i in "${!orders[@]}"; do
+-        show_and_run_command "${orders[$i]}" "${commands[${orders[$i]}]}"
+-    done
+-
+-    rm -f /tmp/*.tar
+-}
+-
+-# print callstack of shell function
+-function shell_print_callstack() {
+-    echo "Shell Function Call Stack:"
+-    for ((index = 1; index < ${#FUNCNAME[@]}; index++)); do
+-        printf "\t%d - %s\n" "$((index - 1))" "${FUNCNAME[index]} (${BASH_SOURCE[index + 1]}:${BASH_LINENO[index]})"
+-    done
+-}
++# exit_flag for a testcase, which will be added one when check or command goes something wrong
++exit_flag=0
+ 
+ # show command brief and run
+ # $1 (command brief)
+@@ -182,13 +38,11 @@ function show_and_run_command() {
+     fi
+     local -r brief="$1"
+     local -r command="$2"
+-    printf "%-45s" "$brief"":"
++    printf "%-45s" "$brief:"
+     run_command
+     echo "PASS"
+ }
+ 
+-exit_flag=0
+-
+ # run command when isula-builder running in systemd mode
+ # $1 (concrete command)
+ function systemd_run_command() {
+@@ -217,12 +71,14 @@ function run_check_result() {
+ 
+     eval "$command" >/dev/null 2>&1
+     result=$?
++    debug "expected $expected, get $result"
+     if [ "$result" != "$expected" ]; then
+-        debug "expected $expected, get $result"
+         testcase_path="${BASH_SOURCE[1]}"
+         testcase="${testcase_path##/*/}"
+-        echo "$testcase:${BASH_LINENO[0]}" "$command" >>/tmp/buildlog-failed
+-        echo expected "$expected", get "$result" >>/tmp/buildlog-failed
++        {
++            echo "$testcase:${BASH_LINENO[0]}" "$command"
++            echo expected "$expected", get "$result"
++        } >>/tmp/buildlog-failed
+         ((exit_flag++))
+     fi
+ }
+@@ -233,13 +89,15 @@ function run_check_result() {
+ function check_value() {
+     local -r result="$1"
+     local -r expected="$2"
++    debug "expected $expected, get $result"
+ 
+     if [ "$result" != "$expected" ]; then
+-        debug "expected $expected, get $result"
+         testcase_path="${BASH_SOURCE[1]}"
+         testcase="${testcase_path##/*/}"
+-        echo "TESTCASE: $testcase:${BASH_LINENO[0]}" "${FUNCNAME[0]}" >>/tmp/buildlog-failed
+-        echo expected "$expected", get "$result" >>/tmp/buildlog-failed
++        {
++            echo "TESTCASE: $testcase:${BASH_LINENO[0]}" "${FUNCNAME[0]}"
++            echo expected "$expected", get "$result"
++        } >>/tmp/buildlog-failed
+         ((exit_flag++))
+     fi
+ }
+@@ -254,26 +112,10 @@ function debug() {
+     fi
+ }
+ 
+-run_root="/var/run/integration-isula-build"
+-data_root="/var/lib/integration-isula-build"
+-config_file="/etc/isula-build/configuration.toml"
+-
+-function pre_integration() {
+-    rm -rf /tmp/buildlog-failed
+-
+-    cp $config_file "$config_file".integration
+-    sed -i "/run_root/d;/data_root/d" $config_file
+-    echo "run_root = \"${run_root}\"" >>$config_file
+-    echo "data_root = \"${data_root}\"" >>$config_file
+-
+-    systemctl restart isula-build
+-}
+-
+-function after_integration() {
+-    systemd_run_command "isula-build ctr-img rm -a"
+-
+-    rm -f $config_file
+-    mv "$config_file".integration $config_file
+-    systemctl stop isula-build
+-    rm -rf $run_root $data_root
++# print callstack of shell function
++function shell_print_callstack() {
++    echo "Shell Function Call Stack:"
++    for ((index = 1; index < ${#FUNCNAME[@]}; index++)); do
++        printf "\t%d - %s\n" "$((index - 1))" "${FUNCNAME[index]} (${BASH_SOURCE[index + 1]}:${BASH_LINENO[index]})"
++    done
+ }
+diff --git a/tests/lib/integration_commonlib.sh b/tests/lib/integration_commonlib.sh
+new file mode 100644
+index 0000000..9dcc415
+--- /dev/null
++++ b/tests/lib/integration_commonlib.sh
+@@ -0,0 +1,42 @@
++#!/bin/bash
++
++# Copyright (c) Huawei Technologies Co., Ltd. 2020. All rights reserved.
++# isula-build licensed under the Mulan PSL v2.
++# You can use this software according to the terms and conditions of the Mulan PSL v2.
++# You may obtain a copy of Mulan PSL v2 at:
++#     http://license.coscl.org.cn/MulanPSL2
++# THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER EXPRESS OR
++# IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY OR FIT FOR A PARTICULAR
++# PURPOSE.
++# See the Mulan PSL v2 for more details.
++# Author: Weizheng Xing
++# Create: 2022-01-10
++# Description: common functions for isula-build integration tests
++
++top_dir=$(git rev-parse --show-toplevel)
++# shellcheck disable=SC1091
++source "$top_dir"/tests/lib/common.sh
++
++run_root="/var/run/integration-isula-build"
++data_root="/var/lib/integration-isula-build"
++config_file="/etc/isula-build/configuration.toml"
++
++function pre_integration() {
++    rm -f /tmp/buildlog-failed
++
++    cp $config_file "$config_file".integration
++    sed -i "/run_root/d;/data_root/d" $config_file
++    echo "run_root = \"${run_root}\"" >>$config_file
++    echo "data_root = \"${data_root}\"" >>$config_file
++
++    systemctl restart isula-build
++}
++
++function after_integration() {
++    systemd_run_command "isula-build ctr-img rm -a"
++
++    rm -f $config_file
++    mv "$config_file".integration $config_file
++    systemctl stop isula-build
++    rm -rf $run_root $data_root
++}
+diff --git a/tests/src/isula_build_base_command.sh b/tests/src/isula_build_base_command.sh
+new file mode 100644
+index 0000000..157a747
+--- /dev/null
++++ b/tests/src/isula_build_base_command.sh
+@@ -0,0 +1,44 @@
++#!/bin/bash
++
++# Copyright (c) Huawei Technologies Co., Ltd. 2020. All rights reserved.
++# isula-build licensed under the Mulan PSL v2.
++# You can use this software according to the terms and conditions of the Mulan PSL v2.
++# You may obtain a copy of Mulan PSL v2 at:
++#     http://license.coscl.org.cn/MulanPSL2
++# THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER EXPRESS OR
++# IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY OR FIT FOR A PARTICULAR
++# PURPOSE.
++# See the Mulan PSL v2 for more details.
++# Author: Weizheng Xing
++# Create: 2021-01-12
++# Description: test isula-build base commands
++
++top_dir=$(git rev-parse --show-toplevel)
++source "$top_dir"/tests/lib/base_commonlib.sh
++
++function test_isula_build_output_with_different_dockerfiles() {
++    declare -A dockerfiles=(
++        ["build-from-scratch"]="$top_dir"/tests/data/build-from-scratch
++        ["add-chown-basic"]="$top_dir"/tests/data/add-chown-basic
++        ["multi-files-env"]="$top_dir"/tests/data/multi-files-env
++        ["multi-stage-builds"]="$top_dir"/tests/data/multi-stage-builds
++    )
++
++    for image_name in "${!dockerfiles[@]}"; do
++        printf "%-45s" "Outputs with dockerfile $image_name:"
++        test_isula_build_output "$image_name" "${dockerfiles[$image_name]}"
++        echo "PASS"
++    done
++}
++
++function test_isula_build_all_base_command() {
++    image_name=build-from-scratch
++    context_dir="$top_dir"/tests/data/build-from-scratch
++
++    test_isula_build_base_command "$image_name" "$context_dir"
++    echo "PASS"
++}
++
++echo ""
++test_isula_build_output_with_different_dockerfiles
++test_isula_build_all_base_command
+diff --git a/tests/src/test_add_chown_basic.sh b/tests/src/test_add_chown_basic.sh
+deleted file mode 100755
+index 1ae55cc..0000000
+--- a/tests/src/test_add_chown_basic.sh
++++ /dev/null
+@@ -1,28 +0,0 @@
+-#!/bin/bash
+-
+-# Copyright (c) Huawei Technologies Co., Ltd. 2020. All rights reserved.
+-# isula-build licensed under the Mulan PSL v2.
+-# You can use this software according to the terms and conditions of the Mulan PSL v2.
+-# You may obtain a copy of Mulan PSL v2 at:
+-#     http://license.coscl.org.cn/MulanPSL2
+-# THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER EXPRESS OR
+-# IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY OR FIT FOR A PARTICULAR
+-# PURPOSE.
+-# See the Mulan PSL v2 for more details.
+-# Author: Danni Xia
+-# Create: 2020-08-27
+-# Description: dockerfile test add-chown-basic
+-
+-top_dir=$(git rev-parse --show-toplevel)
+-source "$top_dir"/tests/lib/common.sh
+-
+-image_name=add-chown-basic
+-context_dir="$top_dir"/tests/data/add-chown-basic
+-test_build_without_output "$image_name" "$context_dir"
+-test_build_without_output_with_oci_format "$image_name" "$context_dir"
+-test_build_with_docker_archive_output "$image_name" "$context_dir"
+-test_build_with_oci_archive_output "$image_name" "$context_dir"
+-test_build_with_docker_daemon_output "$image_name" "$context_dir"
+-test_build_with_isulad_output "$image_name" "$context_dir"
+-
+-echo "PASS"
+diff --git a/tests/src/test_build_from_scratch.sh b/tests/src/test_build_from_scratch.sh
+deleted file mode 100755
+index 6279d4a..0000000
+--- a/tests/src/test_build_from_scratch.sh
++++ /dev/null
+@@ -1,28 +0,0 @@
+-#!/bin/bash
+-
+-# Copyright (c) Huawei Technologies Co., Ltd. 2020. All rights reserved.
+-# isula-build licensed under the Mulan PSL v2.
+-# You can use this software according to the terms and conditions of the Mulan PSL v2.
+-# You may obtain a copy of Mulan PSL v2 at:
+-#     http://license.coscl.org.cn/MulanPSL2
+-# THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER EXPRESS OR
+-# IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY OR FIT FOR A PARTICULAR
+-# PURPOSE.
+-# See the Mulan PSL v2 for more details.
+-# Author: Danni Xia
+-# Create: 2020-08-27
+-# Description: dockerfile test test-build-from-scratch
+-
+-top_dir=$(git rev-parse --show-toplevel)
+-source "$top_dir"/tests/lib/common.sh
+-
+-image_name=build-from-scratch
+-context_dir="$top_dir"/tests/data/build-from-scratch
+-test_build_without_output "$image_name" "$context_dir"
+-test_build_without_output_with_oci_format "$image_name" "$context_dir"
+-test_build_with_docker_archive_output "$image_name" "$context_dir"
+-test_build_with_oci_archive_output "$image_name" "$context_dir"
+-test_build_with_docker_daemon_output "$image_name" "$context_dir"
+-test_build_with_isulad_output "$image_name" "$context_dir"
+-
+-echo "PASS"
+diff --git a/tests/src/test_ctr_img_rm.sh b/tests/src/test_ctr_img_rm.sh
+index 480e074..4f40544 100755
+--- a/tests/src/test_ctr_img_rm.sh
++++ b/tests/src/test_ctr_img_rm.sh
+@@ -12,13 +12,12 @@
+ # Author: Jingxiao Lu
+ # Create: 2020-09-07
+ # Description: dockerfile test multi-stage-builds
++# History:  2022-01-10 Weizheng Xing <xingweizheng@huawei.com> change to integration test and use run_check_result
++
++top_dir=$(git rev-parse --show-toplevel)
++# shellcheck disable=SC1091
++source "$top_dir"/tests/lib/common.sh
+ 
+ nonexistent_image="foo:bar"
+ # rm an nonexistent image
+-isula-build ctr-img rm ${nonexistent_image}  > /dev/null 2>&1
+-if [ $? -eq 0 ]; then
+-  echo "FAIL"
+-  exit 1
+-fi
+-
+-echo "PASS"
++run_check_result "isula-build ctr-img rm ${nonexistent_image}" "1"
+diff --git a/tests/src/integration_test_image_name_conflict_with_image_id.sh b/tests/src/test_image_name_conflict_with_image_id.sh
+similarity index 100%
+rename from tests/src/integration_test_image_name_conflict_with_image_id.sh
+rename to tests/src/test_image_name_conflict_with_image_id.sh
+diff --git a/tests/src/test_isula_build_base_command.sh b/tests/src/test_isula_build_base_command.sh
+deleted file mode 100644
+index 35b9e91..0000000
+--- a/tests/src/test_isula_build_base_command.sh
++++ /dev/null
+@@ -1,26 +0,0 @@
+-#!/bin/bash
+-
+-# Copyright (c) Huawei Technologies Co., Ltd. 2020. All rights reserved.
+-# isula-build licensed under the Mulan PSL v2.
+-# You can use this software according to the terms and conditions of the Mulan PSL v2.
+-# You may obtain a copy of Mulan PSL v2 at:
+-#     http://license.coscl.org.cn/MulanPSL2
+-# THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER EXPRESS OR
+-# IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY OR FIT FOR A PARTICULAR
+-# PURPOSE.
+-# See the Mulan PSL v2 for more details.
+-# Author: Weizheng Xing
+-# Create: 2021-01-12
+-# Description: test isula-build base commands
+-
+-top_dir=$(git rev-parse --show-toplevel)
+-source "$top_dir"/tests/lib/common.sh
+-
+-image_name=build-from-scratch
+-context_dir="$top_dir"/tests/data/build-from-scratch
+-
+-echo ""
+-
+-test_isula_build_base_command "$image_name" "$context_dir"
+-
+-echo "PASS"
+\ No newline at end of file
+diff --git a/tests/src/test_multi_files_env.sh b/tests/src/test_multi_files_env.sh
+deleted file mode 100755
+index 437e6f5..0000000
+--- a/tests/src/test_multi_files_env.sh
++++ /dev/null
+@@ -1,28 +0,0 @@
+-#!/bin/bash
+-
+-# Copyright (c) Huawei Technologies Co., Ltd. 2020. All rights reserved.
+-# isula-build licensed under the Mulan PSL v2.
+-# You can use this software according to the terms and conditions of the Mulan PSL v2.
+-# You may obtain a copy of Mulan PSL v2 at:
+-#     http://license.coscl.org.cn/MulanPSL2
+-# THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER EXPRESS OR
+-# IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY OR FIT FOR A PARTICULAR
+-# PURPOSE.
+-# See the Mulan PSL v2 for more details.
+-# Author: Danni Xia
+-# Create: 2020-08-27
+-# Description: dockerfile test multi-files-env
+-
+-top_dir=$(git rev-parse --show-toplevel)
+-source "$top_dir"/tests/lib/common.sh
+-
+-image_name=multi-files-env
+-context_dir="$top_dir"/tests/data/multi-files-env
+-test_build_without_output "$image_name" "$context_dir"
+-test_build_without_output_with_oci_format "$image_name" "$context_dir"
+-test_build_with_docker_archive_output "$image_name" "$context_dir"
+-test_build_with_oci_archive_output "$image_name" "$context_dir"
+-test_build_with_docker_daemon_output "$image_name" "$context_dir"
+-test_build_with_isulad_output "$image_name" "$context_dir"
+-
+-echo "PASS"
+diff --git a/tests/src/test_multi_stage_builds.sh b/tests/src/test_multi_stage_builds.sh
+deleted file mode 100755
+index 5fcd351..0000000
+--- a/tests/src/test_multi_stage_builds.sh
++++ /dev/null
+@@ -1,28 +0,0 @@
+-#!/bin/bash
+-
+-# Copyright (c) Huawei Technologies Co., Ltd. 2020. All rights reserved.
+-# isula-build licensed under the Mulan PSL v2.
+-# You can use this software according to the terms and conditions of the Mulan PSL v2.
+-# You may obtain a copy of Mulan PSL v2 at:
+-#     http://license.coscl.org.cn/MulanPSL2
+-# THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER EXPRESS OR
+-# IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY OR FIT FOR A PARTICULAR
+-# PURPOSE.
+-# See the Mulan PSL v2 for more details.
+-# Author: Danni Xia
+-# Create: 2020-08-27
+-# Description: dockerfile test multi-stage-builds
+-
+-top_dir=$(git rev-parse --show-toplevel)
+-source "$top_dir"/tests/lib/common.sh
+-
+-image_name=multi-stage-builds
+-context_dir="$top_dir"/tests/data/multi-stage-builds
+-test_build_without_output "$image_name" "$context_dir"
+-test_build_without_output_with_oci_format "$image_name" "$context_dir"
+-test_build_with_docker_archive_output "$image_name" "$context_dir"
+-test_build_with_oci_archive_output "$image_name" "$context_dir"
+-test_build_with_docker_daemon_output "$image_name" "$context_dir"
+-test_build_with_isulad_output "$image_name" "$context_dir"
+-
+-echo "PASS"
+diff --git a/tests/src/integration_test_save_single_image_multiple_tags.sh b/tests/src/test_save_single_image_multiple_tags.sh
+similarity index 100%
+rename from tests/src/integration_test_save_single_image_multiple_tags.sh
+rename to tests/src/test_save_single_image_multiple_tags.sh
+diff --git a/tests/src/integration_test_set_new_root.sh b/tests/src/test_set_new_root.sh
+similarity index 100%
+rename from tests/src/integration_test_set_new_root.sh
+rename to tests/src/test_set_new_root.sh
+diff --git a/tests/test.sh b/tests/test.sh
+index df29c22..6cf78c9 100755
+--- a/tests/test.sh
++++ b/tests/test.sh
+@@ -4,7 +4,7 @@ top_dir=$(git rev-parse --show-toplevel)
+ 
+ # base test
+ function base() {
+-    source "$top_dir"/tests/lib/common.sh
++    source "$top_dir"/tests/lib/base_commonlib.sh
+     pre_check
+     start_isula_builder
+ 
+@@ -13,7 +13,7 @@ function base() {
+         if ! bash "$testfile"; then
+             exit 1
+         fi
+-    done < <(find "$top_dir"/tests/src -maxdepth 1 -name "test_*" -type f -print)
++    done < <(find "$top_dir"/tests/src -maxdepth 1 -name "isula_build_base_command.sh" -type f -print)
+ 
+     cleanup
+ }
+@@ -35,7 +35,7 @@ function fuzz() {
+ 
+ # integration test
+ function integration() {
+-    source "$top_dir"/tests/lib/common.sh
++    source "$top_dir"/tests/lib/integration_commonlib.sh
+     pre_integration
+ 
+     while IFS= read -r testfile; do
+@@ -45,7 +45,7 @@ function integration() {
+             continue
+         fi
+         echo "PASS"
+-    done < <(find "$top_dir"/tests/src -maxdepth 1 -name "integration_test*" -type f -print)
++    done < <(find "$top_dir"/tests/src -maxdepth 1 -name "test_*" -type f -print)
+     after_integration
+ }
+ 
+-- 
+2.27.0
+

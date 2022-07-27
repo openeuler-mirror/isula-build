@@ -1,0 +1,554 @@
+From e1e1ff42c720153b67375d84e3c56262e41d2fa9 Mon Sep 17 00:00:00 2001
+From: xingweizheng <xingweizheng@huawei.com>
+Date: Wed, 26 Jan 2022 16:21:58 +0800
+Subject: [PATCH 15/20] bugfix: run and data root when cmd not set, main
+ configuration.toml first
+
+---
+ cmd/daemon/main.go                            | 178 +++++++-----------
+ cmd/daemon/main_test.go                       | 113 ++++++++---
+ image/context.go                              |   9 -
+ ..._storage_root_priority_of_configuration.sh |  92 +++++++++
+ 4 files changed, 244 insertions(+), 148 deletions(-)
+ create mode 100644 tests/src/test_storage_root_priority_of_configuration.sh
+
+diff --git a/cmd/daemon/main.go b/cmd/daemon/main.go
+index 06a53fa..6deb9cb 100644
+--- a/cmd/daemon/main.go
++++ b/cmd/daemon/main.go
+@@ -155,22 +155,10 @@ func before(cmd *cobra.Command) error {
+ 	logrus.SetOutput(os.Stdout)
+ 	logrus.SetFormatter(&logrus.TextFormatter{FullTimestamp: true})
+ 
+-	runRoot, err := securejoin.SecureJoin(daemonOpts.RunRoot, "storage")
+-	if err != nil {
++	if err := validateConfigFileAndMerge(cmd); err != nil {
+ 		return err
+ 	}
+-	dataRoot, err := securejoin.SecureJoin(daemonOpts.DataRoot, "storage")
+-	if err != nil {
+-		return err
+-	}
+-	store.SetDefaultStoreOptions(store.DaemonStoreOptions{
+-		RunRoot:      runRoot,
+-		DataRoot:     dataRoot,
+-		Driver:       daemonOpts.StorageDriver,
+-		DriverOption: util.CopyStrings(daemonOpts.StorageOpts),
+-	})
+-
+-	if err := checkAndValidateConfig(cmd); err != nil {
++	if err := setStoreAccordingToDaemonOpts(); err != nil {
+ 		return err
+ 	}
+ 
+@@ -187,6 +175,26 @@ func before(cmd *cobra.Command) error {
+ 	return nil
+ }
+ 
++func setStoreAccordingToDaemonOpts() error {
++	runRoot, err := securejoin.SecureJoin(daemonOpts.RunRoot, "storage")
++	if err != nil {
++		return err
++	}
++	dataRoot, err := securejoin.SecureJoin(daemonOpts.DataRoot, "storage")
++	if err != nil {
++		return err
++	}
++
++	store.SetDefaultStoreOptions(store.DaemonStoreOptions{
++		RunRoot:      runRoot,
++		DataRoot:     dataRoot,
++		Driver:       daemonOpts.StorageDriver,
++		DriverOption: util.CopyStrings(daemonOpts.StorageOpts),
++	})
++
++	return nil
++}
++
+ func loadConfig(path string) (config.TomlConfig, error) {
+ 	var conf config.TomlConfig
+ 	if err := util.CheckFileInfoAndSize(path, constant.MaxFileSize); err != nil {
+@@ -202,65 +210,25 @@ func loadConfig(path string) (config.TomlConfig, error) {
+ 	return conf, err
+ }
+ 
+-func checkRootSetInConfig(path string) (setRunRoot, setGraphRoot bool, err error) {
+-	if err = util.CheckFileInfoAndSize(path, constant.MaxFileSize); err != nil {
+-		return false, false, err
+-	}
+-
+-	configData, err := ioutil.ReadFile(filepath.Clean(path))
+-	if err != nil {
+-		return false, false, err
+-	}
+-	conf := struct {
+-		Storage struct {
+-			RunRoot  string `toml:"runroot"`
+-			DataRoot string `toml:"graphroot"`
+-		} `toml:"storage"`
+-	}{}
+-	_, err = toml.Decode(string(configData), &conf)
+-	return conf.Storage.RunRoot != "", conf.Storage.DataRoot != "", err
+-}
+-
+ func mergeStorageConfig(cmd *cobra.Command) error {
+ 	store.SetDefaultConfigFilePath(constant.StorageConfigPath)
+ 	option, err := store.GetDefaultStoreOptions(true)
+-	if err == nil {
+-		if option.GraphDriverName != "" && !cmd.Flag("storage-driver").Changed {
+-			daemonOpts.StorageDriver = option.GraphDriverName
+-		}
+-		if len(option.GraphDriverOptions) > 0 && !cmd.Flag("storage-opt").Changed {
+-			daemonOpts.StorageOpts = option.GraphDriverOptions
+-		}
+-	}
+-
+-	var storeOpt store.DaemonStoreOptions
+-	storeOpt.RunRoot = option.RunRoot
+-	storeOpt.DataRoot = option.GraphRoot
+-
+-	setRunRoot, setDataRoot, err := checkRootSetInConfig(constant.StorageConfigPath)
+ 	if err != nil {
+ 		return err
+ 	}
+ 
+-	if !setRunRoot {
+-		storeOpt.RunRoot, err = securejoin.SecureJoin(daemonOpts.RunRoot, "storage")
+-		if err != nil {
+-			return err
+-		}
++	if !cmd.Flag("runroot").Changed && option.RunRoot != "" {
++		daemonOpts.RunRoot = option.RunRoot
+ 	}
+-	if !setDataRoot {
+-		storeOpt.DataRoot, err = securejoin.SecureJoin(daemonOpts.DataRoot, "storage")
+-		if err != nil {
+-			return err
+-		}
++	if !cmd.Flag("dataroot").Changed && option.GraphRoot != "" {
++		daemonOpts.DataRoot = option.GraphRoot
+ 	}
+-	if daemonOpts.StorageDriver != "" {
+-		storeOpt.Driver = daemonOpts.StorageDriver
++	if !cmd.Flag("storage-driver").Changed && option.GraphDriverName != "" {
++		daemonOpts.StorageDriver = option.GraphDriverName
+ 	}
+-	if len(daemonOpts.StorageOpts) > 0 {
+-		storeOpt.DriverOption = util.CopyStrings(daemonOpts.StorageOpts)
++	if !cmd.Flag("storage-opt").Changed && len(option.GraphDriverOptions) > 0 {
++		daemonOpts.StorageOpts = option.GraphDriverOptions
+ 	}
+-	store.SetDefaultStoreOptions(storeOpt)
+ 
+ 	return nil
+ }
+@@ -288,20 +256,6 @@ func mergeConfig(conf config.TomlConfig, cmd *cobra.Command) error {
+ 		daemonOpts.DataRoot = conf.DataRoot
+ 	}
+ 
+-	runRoot, err := securejoin.SecureJoin(daemonOpts.RunRoot, "storage")
+-	if err != nil {
+-		return err
+-	}
+-
+-	dataRoot, err := securejoin.SecureJoin(daemonOpts.DataRoot, "storage")
+-	if err != nil {
+-		return err
+-	}
+-	store.SetDefaultStoreOptions(store.DaemonStoreOptions{
+-		DataRoot: dataRoot,
+-		RunRoot:  runRoot,
+-	})
+-
+ 	return nil
+ }
+ 
+@@ -342,48 +296,56 @@ func setupWorkingDirectories() error {
+ 	return nil
+ }
+ 
+-func checkAndValidateConfig(cmd *cobra.Command) error {
+-	// check if configuration.toml file exists, merge config if exists
+-	if exist, err := util.IsExist(constant.ConfigurationPath); err != nil {
+-		return err
+-	} else if !exist {
+-		logrus.Warnf("Main config file missing, the default configuration is used")
+-	} else {
+-		conf, err := loadConfig(constant.ConfigurationPath)
+-		if err != nil {
+-			logrus.Errorf("Load and parse main config file failed: %v", err)
+-			os.Exit(constant.DefaultFailedCode)
++func validateConfigFileAndMerge(cmd *cobra.Command) error {
++	confFiles := []struct {
++		path        string
++		needed      bool
++		mergeConfig func(cmd *cobra.Command) error
++	}{
++		{path: constant.StorageConfigPath, needed: false, mergeConfig: mergeStorageConfig},
++		{path: constant.RegistryConfigPath, needed: false, mergeConfig: nil},
++		// policy.json file must exists
++		{path: constant.SignaturePolicyPath, needed: true, mergeConfig: nil},
++		// main configuration comes last for the final merge operation
++		{path: constant.ConfigurationPath, needed: false, mergeConfig: loadMainConfiguration},
++	}
++
++	for _, file := range confFiles {
++		if exist, err := util.IsExist(file.path); !exist {
++			if !file.needed {
++				logrus.Warnf("Config file %q missing, the default configuration is used", file.path)
++				continue
++			}
++
++			if err != nil {
++				return errors.Wrapf(err, "check config file %q failed", file.path)
++			}
++			return errors.Errorf("config file %q is not exist", file.path)
+ 		}
+ 
+-		if err = mergeConfig(conf, cmd); err != nil {
++		if err := util.CheckFileInfoAndSize(file.path, constant.MaxFileSize); err != nil {
++			return err
++		}
++		if file.mergeConfig == nil {
++			continue
++		}
++		if err := file.mergeConfig(cmd); err != nil {
+ 			return err
+ 		}
+ 	}
+ 
+-	// file policy.json must be exist
+-	if exist, err := util.IsExist(constant.SignaturePolicyPath); err != nil {
+-		return err
+-	} else if !exist {
+-		return errors.Errorf("policy config file %v is not exist", constant.SignaturePolicyPath)
+-	}
++	return nil
++}
+ 
+-	// check all config files
+-	confFiles := []string{constant.RegistryConfigPath, constant.SignaturePolicyPath, constant.StorageConfigPath}
+-	for _, file := range confFiles {
+-		if exist, err := util.IsExist(file); err != nil {
+-			return err
+-		} else if exist {
+-			if err := util.CheckFileInfoAndSize(file, constant.MaxFileSize); err != nil {
+-				return err
+-			}
+-		}
++func loadMainConfiguration(cmd *cobra.Command) error {
++	conf, err := loadConfig(constant.ConfigurationPath)
++	if err != nil {
++		logrus.Errorf("Load and parse main config file failed: %v", err)
++		os.Exit(constant.DefaultFailedCode)
+ 	}
+ 
+-	// if storage config file exists, merge storage config
+-	if exist, err := util.IsExist(constant.StorageConfigPath); err != nil {
++	if err = mergeConfig(conf, cmd); err != nil {
+ 		return err
+-	} else if exist {
+-		return mergeStorageConfig(cmd)
+ 	}
+ 
+ 	return nil
+diff --git a/cmd/daemon/main_test.go b/cmd/daemon/main_test.go
+index 3947f7a..b1b8859 100644
+--- a/cmd/daemon/main_test.go
++++ b/cmd/daemon/main_test.go
+@@ -112,6 +112,10 @@ func TestSetupWorkingDirectories(t *testing.T) {
+ func TestRunAndDataRootSet(t *testing.T) {
+ 	dataRoot := fs.NewDir(t, t.Name())
+ 	runRoot := fs.NewDir(t, t.Name())
++	result := store.DaemonStoreOptions{
++		DataRoot: dataRoot.Join("storage"),
++		RunRoot:  runRoot.Join("storage"),
++	}
+ 
+ 	conf := config.TomlConfig{
+ 		Debug:    true,
+@@ -123,34 +127,41 @@ func TestRunAndDataRootSet(t *testing.T) {
+ 	}
+ 	cmd := newDaemonCommand()
+ 
+-	result := store.DaemonStoreOptions{
+-		DataRoot: dataRoot.Join("storage"),
+-		RunRoot:  runRoot.Join("storage"),
+-	}
+-
+-	setStorage := func(content string) func() {
+-		return func() {
+-			if err := mergeConfig(conf, cmd); err != nil {
+-				t.Fatalf("mrege config failed with error: %v", err)
+-			}
++	setStorage := func(content string) {
++		// merge main config
++		if err := mergeConfig(conf, cmd); err != nil {
++			t.Fatalf("merge config failed with error: %v", err)
++		}
+ 
+-			fileName := "storage.toml"
+-			tmpDir := fs.NewDir(t, t.Name(), fs.WithFile(fileName, content))
+-			defer tmpDir.Remove()
++		// simulate storage.toml and merge
++		fileName := "storage.toml"
++		tmpDir := fs.NewDir(t, t.Name(), fs.WithFile(fileName, content))
++		defer tmpDir.Remove()
++		filePath := tmpDir.Join(fileName)
+ 
+-			filePath := tmpDir.Join(fileName)
+-			store.SetDefaultConfigFilePath(filePath)
+-			option, err := store.GetDefaultStoreOptions(true)
+-			if err != nil {
+-				t.Fatalf("get default store options failed with error: %v", err)
+-			}
++		store.SetDefaultConfigFilePath(filePath)
++		option, err := store.GetDefaultStoreOptions(true)
++		if err != nil {
++			t.Fatalf("get default store options failed with error: %v", err)
++		}
+ 
+-			var storeOpt store.DaemonStoreOptions
+-			storeOpt.RunRoot = option.RunRoot
+-			storeOpt.DataRoot = option.GraphRoot
+-			store.SetDefaultStoreOptions(storeOpt)
++		if !cmd.Flag("runroot").Changed && option.RunRoot != "" {
++			daemonOpts.RunRoot = option.RunRoot
++		}
++		if !cmd.Flag("dataroot").Changed && option.GraphRoot != "" {
++			daemonOpts.DataRoot = option.GraphRoot
++		}
++		if !cmd.Flag("storage-driver").Changed && option.GraphDriverName != "" {
++			daemonOpts.StorageDriver = option.GraphDriverName
++		}
++		if !cmd.Flag("storage-opt").Changed && len(option.GraphDriverOptions) > 0 {
++			daemonOpts.StorageOpts = option.GraphDriverOptions
+ 		}
+ 
++		// final set
++		if err := setStoreAccordingToDaemonOpts(); err != nil {
++			t.Fatalf("set store options failed with error: %v", err)
++		}
+ 	}
+ 
+ 	testcases := []struct {
+@@ -160,28 +171,28 @@ func TestRunAndDataRootSet(t *testing.T) {
+ 	}{
+ 		{
+ 			// first run so can not be affected by other testcase
+-			name: "TC3 - all not set",
+-			setF: setStorage("[storage]\ndriver = \"overlay\""),
++			name: "TC1 - all not set",
++			setF: func() { setStorage("[storage]\ndriver = \"overlay\"") },
+ 			expectation: store.DaemonStoreOptions{
+ 				DataRoot: "/var/lib/isula-build/storage",
+ 				RunRoot:  "/var/run/isula-build/storage",
+ 			},
+ 		},
+ 		{
+-			name: "TC1 - cmd set, configuration and storage not set",
++			name: "TC2 - cmd set, configuration and storage not set",
+ 			setF: func() {
+ 				cmd.PersistentFlags().Set("runroot", runRoot.Path())
+ 				cmd.PersistentFlags().Set("dataroot", dataRoot.Path())
+-				checkAndValidateConfig(cmd)
++				setStorage("[storage]\ndriver = \"overlay\"")
+ 			},
+ 			expectation: result,
+ 		},
+ 		{
+-			name: "TC2 - cmd and storage not set, configuration set",
++			name: "TC3 - cmd and storage not set, configuration set",
+ 			setF: func() {
+ 				conf.DataRoot = dataRoot.Path()
+ 				conf.RunRoot = runRoot.Path()
+-				checkAndValidateConfig(cmd)
++				setStorage("[storage]\ndriver = \"overlay\"")
+ 			},
+ 			expectation: result,
+ 		},
+@@ -190,8 +201,22 @@ func TestRunAndDataRootSet(t *testing.T) {
+ 			setF: func() {
+ 				config := fmt.Sprintf("[storage]\ndriver = \"%s\"\nrunroot = \"%s\"\ngraphroot = \"%s\"\n",
+ 					"overlay", runRoot.Join("storage"), dataRoot.Join("storage"))
+-				sT := setStorage(config)
+-				sT()
++				setStorage(config)
++			},
++			expectation: result,
++		},
++		{
++			name: "TC5 - cmd not set, configuration and storage set, configuration first",
++			setF: func() {
++				conf.DataRoot = dataRoot.Path()
++				conf.RunRoot = runRoot.Path()
++
++				dataRootStorage := fs.NewDir(t, t.Name())
++				runRootStorage := fs.NewDir(t, t.Name())
++				config := fmt.Sprintf("[storage]\ndriver = \"%s\"\nrunroot = \"%s\"\ngraphroot = \"%s\"\n",
++					"overlay", runRootStorage.Join("storage"), dataRootStorage.Join("storage"))
++
++				setStorage(config)
+ 			},
+ 			expectation: result,
+ 		},
+@@ -210,3 +235,29 @@ func TestRunAndDataRootSet(t *testing.T) {
+ 
+ 	}
+ }
++
++func TestValidateConfigFileAndMerge(t *testing.T) {
++	// cmd line args keep default.
++	cmd := newDaemonCommand()
++	err := validateConfigFileAndMerge(cmd)
++	assert.NilError(t, err)
++
++	// cmd line runroot and dataroot args are set.
++	dataRoot := fs.NewDir(t, t.Name())
++	runRoot := fs.NewDir(t, t.Name())
++	cmd.PersistentFlags().Set("runroot", runRoot.Path())
++	cmd.PersistentFlags().Set("dataroot", dataRoot.Path())
++	err = validateConfigFileAndMerge(cmd)
++	assert.NilError(t, err)
++
++	if err := setStoreAccordingToDaemonOpts(); err != nil {
++		t.Fatalf("set store options failed with error: %v", err)
++	}
++	storeOptions, err := store.GetDefaultStoreOptions(false)
++	if err != nil {
++		t.Fatalf("get default store options failed with error: %v", err)
++	}
++
++	assert.Equal(t, storeOptions.GraphRoot, dataRoot.Join("storage"))
++	assert.Equal(t, storeOptions.RunRoot, runRoot.Join("storage"))
++}
+diff --git a/image/context.go b/image/context.go
+index c2d4150..6fd7725 100644
+--- a/image/context.go
++++ b/image/context.go
+@@ -19,10 +19,8 @@ import (
+ 
+ 	cp "github.com/containers/image/v5/copy"
+ 	"github.com/containers/image/v5/types"
+-	"github.com/sirupsen/logrus"
+ 
+ 	constant "isula.org/isula-build"
+-	"isula.org/isula-build/util"
+ )
+ 
+ var (
+@@ -40,13 +38,6 @@ func init() {
+ 
+ // SetSystemContext set the values of globalSystemContext
+ func SetSystemContext(dataRoot string) {
+-	configFiles := []string{constant.SignaturePolicyPath, constant.RegistryConfigPath}
+-	for _, cfg := range configFiles {
+-		if err := util.CheckFileInfoAndSize(cfg, constant.MaxFileSize); err != nil {
+-			logrus.Fatalf("check config file %q failed: %v", cfg, err)
+-		}
+-	}
+-
+ 	once.Do(func() {
+ 		globalSystemContext.SignaturePolicyPath = constant.SignaturePolicyPath
+ 		globalSystemContext.SystemRegistriesConfPath = constant.RegistryConfigPath
+diff --git a/tests/src/test_storage_root_priority_of_configuration.sh b/tests/src/test_storage_root_priority_of_configuration.sh
+new file mode 100644
+index 0000000..e585d0c
+--- /dev/null
++++ b/tests/src/test_storage_root_priority_of_configuration.sh
+@@ -0,0 +1,92 @@
++#!/bin/bash
++
++# Copyright (c) Huawei Technologies Co., Ltd. 2020. All rights reserved.
++# isula-build licensed under the Mulan PSL v2.
++# You can use this software according to the terms and conditions of the Mulan PSL v2.
++# You may obtain a copy of Mulan PSL v2 at:
++#     http://license.coscl.org.cn/MulanPSL2
++# THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER EXPRESS OR
++# IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY OR FIT FOR A PARTICULAR
++# PURPOSE.
++# See the Mulan PSL v2 for more details.
++# Author: Weizheng Xing
++# Create: 2022-01-25
++# Description: test priority of data and run root with different configuration locations( binary > configuration.toml > storage.toml)
++
++top_dir=$(git rev-parse --show-toplevel)
++# shellcheck disable=SC1091
++source "$top_dir"/tests/lib/common.sh
++
++config_file="/etc/isula-build/configuration.toml"
++storage_file="/etc/isula-build/storage.toml"
++main_run_root="/tmp/run/main-isula-build"
++main_data_root="/tmp/lib/main-isula-build"
++storage_run_root="/tmp/run/storage-isula-build"
++storage_data_root="/tmp/lib/storage-isula-build"
++
++# change to new data and run root
++function pre_test() {
++    cp $config_file "$config_file".bak
++    cp $config_file "$config_file".bak
++
++    cp $storage_file "$storage_file".bak
++    cp $storage_file "$storage_file".bak
++}
++
++function clean() {
++    rm -f "$config_file"
++    rm -f "$storage_file"
++
++    mv $config_file.bak "$config_file"
++    mv $storage_file.bak "$storage_file"
++}
++
++function main_set_storage_not_set() {
++    sed -i "/run_root/d;/data_root/d" $config_file
++    sed -i "/runroot/d;/graphroot/d" $storage_file
++    echo "run_root=\"$main_run_root\"" >>$config_file
++    echo "data_root=\"$main_data_root\"" >>$config_file
++
++    check_root "$main_run_root" "$main_data_root"
++}
++
++function main_not_set_storage_set() {
++    sed -i "/run_root/d;/data_root/d" $config_file
++    sed -i "/runroot/d;/graphroot/d" $storage_file
++    eval "sed -i '/\[storage\]/a\runroot=\"$storage_run_root\"' $storage_file"
++    eval "sed -i '/\[storage\]/a\graphroot=\"$storage_data_root\"' $storage_file"
++
++    check_root "$main_run_root" "$main_data_root"
++}
++
++function main_set_storage_set() {
++    sed -i "/run_root/d;/data_root/d" $config_file
++    sed -i "/runroot/d;/graphroot/d" $storage_file
++    echo "run_root = \"$main_run_root}\"" >>$config_file
++    echo "data_root = \"$main_data_root\"" >>$config_file
++    eval "sed -i '/\[storage\]/a\runroot=\"$storage_run_root\"' $storage_file"
++    eval "sed -i '/\[storage\]/a\graphroot=\"$storage_data_root\"' $storage_file"
++
++    check_root "$main_run_root" "$main_data_root"
++}
++
++# run command and check its result
++# $1 (run root)
++# $1 (data root)
++function check_root() {
++    local -r run_root="$1"
++    local -r data_root="$2"
++
++    start_time=$(date '+%Y-%m-%d %H:%M:%S')
++    systemctl restart isula-build
++
++    run_check_result "journalctl -u isula-build --since \"$start_time\" --no-pager | grep $run_root" 0
++    run_check_result "journalctl -u isula-build --since \"$start_time\" --no-pager | grep $data_root" 0
++}
++
++pre_test
++main_set_storage_not_set
++main_not_set_storage_set
++main_set_storage_set
++clean
++exit "$exit_flag"
+-- 
+2.27.0
+
