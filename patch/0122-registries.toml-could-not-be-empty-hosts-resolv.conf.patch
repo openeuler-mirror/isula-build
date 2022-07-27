@@ -1,0 +1,92 @@
+From dda31ed16ab7ae19bf07762f48d0863414ffd2da Mon Sep 17 00:00:00 2001
+From: xingweizheng <xingweizheng@huawei.com>
+Date: Mon, 25 Jul 2022 18:48:10 +0800
+Subject: [PATCH] registries.toml could not be empty;hosts, resolv.conf,
+ .dockerignore file could be empty
+
+---
+ builder/dockerfile/parser/parser.go |  2 +-
+ builder/dockerfile/run.go           |  4 ++--
+ cmd/daemon/before.go                |  2 +-
+ util/common.go                      | 17 +++++++++++++++++
+ 4 files changed, 21 insertions(+), 4 deletions(-)
+
+diff --git a/builder/dockerfile/parser/parser.go b/builder/dockerfile/parser/parser.go
+index 1968fc1..2c34bbe 100644
+--- a/builder/dockerfile/parser/parser.go
++++ b/builder/dockerfile/parser/parser.go
+@@ -304,7 +304,7 @@ func (df *dockerfile) ParseIgnore(dir string) ([]string, error) {
+ 		}
+ 		return ignores, errors.Wrap(err, "state dockerignore file failed")
+ 	}
+-	if err := util.CheckFileInfoAndSize(fullPath, constant.MaxFileSize); err != nil {
++	if err := util.CheckFileAllowEmpty(fullPath, constant.MaxFileSize); err != nil {
+ 		return ignores, err
+ 	}
+ 
+diff --git a/builder/dockerfile/run.go b/builder/dockerfile/run.go
+index 5b066fb..651897a 100644
+--- a/builder/dockerfile/run.go
++++ b/builder/dockerfile/run.go
+@@ -171,7 +171,7 @@ func setupBindFiles(bundlePath string) (map[string]string, error) {
+ }
+ 
+ func generateHosts(bundlePath string) (string, error) {
+-	if err := util.CheckFileInfoAndSize(constant.HostsFilePath, constant.MaxFileSize); err != nil {
++	if err := util.CheckFileAllowEmpty(constant.HostsFilePath, constant.MaxFileSize); err != nil {
+ 		return "", err
+ 	}
+ 
+@@ -194,7 +194,7 @@ func generateHosts(bundlePath string) (string, error) {
+ }
+ 
+ func generateResolv(bundlePath string) (string, error) {
+-	if err := util.CheckFileInfoAndSize(constant.ResolvFilePath, constant.MaxFileSize); err != nil {
++	if err := util.CheckFileAllowEmpty(constant.ResolvFilePath, constant.MaxFileSize); err != nil {
+ 		return "", err
+ 	}
+ 
+diff --git a/cmd/daemon/before.go b/cmd/daemon/before.go
+index 1d28d9e..2ed19c9 100644
+--- a/cmd/daemon/before.go
++++ b/cmd/daemon/before.go
+@@ -67,7 +67,7 @@ func validateConfigFileAndMerge(cmd *cobra.Command) error {
+ 		mergeConfig func(cmd *cobra.Command) error
+ 	}{
+ 		{path: constant.StorageConfigPath, needed: false, mergeConfig: mergeStorageConfig},
+-		{path: constant.RegistryConfigPath, needed: false, mergeConfig: nil},
++		{path: constant.RegistryConfigPath, needed: true, mergeConfig: nil},
+ 		// policy.json file must exists
+ 		{path: constant.SignaturePolicyPath, needed: true, mergeConfig: nil},
+ 		// main configuration comes last for the final merge operation
+diff --git a/util/common.go b/util/common.go
+index 42d81b8..a5d0df9 100644
+--- a/util/common.go
++++ b/util/common.go
+@@ -111,6 +111,23 @@ func CheckFileInfoAndSize(path string, sizeLimit int64) error {
+ 	return nil
+ }
+ 
++// CheckFileAllowEmpty same as CheckFileInfoAndSize, but allow file to be empty
++func CheckFileAllowEmpty(path string, sizeLimit int64) error {
++	f, err := os.Stat(filepath.Clean(path))
++	if err != nil {
++		return err
++	}
++	if !f.Mode().IsRegular() {
++		return errors.Errorf("file %s should be a regular file", f.Name())
++	}
++
++	if f.Size() > sizeLimit {
++		return errors.Errorf("file %s size is: %d, exceeds limit %d", f.Name(), f.Size(), sizeLimit)
++	}
++
++	return nil
++}
++
+ // ParseServer will get registry address from input
+ // if input is https://index.docker.io/v1
+ // the result will be index.docker.io
+-- 
+2.27.0
+
