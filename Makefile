@@ -46,8 +46,8 @@ help: ## Display the help info
 
 ##@ Build
 
-.PHONY: all ## Build both isula-build and isula-builder
-all: isula-build isula-builder
+.PHONY: all 
+all: isula-build isula-builder ## Build both isula-build and isula-builder
 
 .PHONY: isula-build
 isula-build: ./cmd/cli ## Build isula-build only

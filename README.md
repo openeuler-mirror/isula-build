@@ -4,7 +4,7 @@ isula-build is a tool provided by the iSula team for building container images. 
 
 The tool adopts the server + client mode. The binary file `isula-build` is the client that provides a CLI for building and managing images, while `isula-builder` is the server that runs as a daemon in the background, responding all the requests from client.
 
-You can use the CLI to
+User can use the CLI to
 
 - Build an image from a Dockerfile (build).
 - List all images in local store (image).
@@ -36,7 +36,7 @@ In addition, the following capabilities are also provided:
 
 #### Install from source.
 
-For compiling from source on openEuler, these packages are required on your OS:
+For compiling from source on openEuler, these packages are required on user's OS:
 
 - make
 - golang (version 1.15 or later)
@@ -50,7 +50,7 @@ For compiling from source on openEuler, these packages are required on your OS:
 - bzip2
 - systemd-devel
 
-You can install them on openEuler with `yum`:
+User can install them on openEuler with `yum`:
 
 ```sh
 sudo yum install make btrfs-progs-devel device-mapper-devel glib2-devel gpgme-devel libassuan-devel libseccomp-devel git bzip2 go-md2man systemd-devel golang
@@ -68,8 +68,16 @@ Enter the source code directory and begin compiling:
 cd isula-build
 sudo make
 ```
+Five targets can be selected to compile under "Build" after the command is executed:
+- all
+- isula-build
+- isula-builder
+- safe
+- debug
 
-After compiling success, you can install the binaries and default configuration files simply with:
+`sudo make all` compiles the client isula-build and server isula-builder. `sudo make isula-build` compiles only the client. `sudo make isula-builder` compiles only the server. `sudo make safe` compiles the client and server to generate secure binary files. `sudo make debug` compiles the client and server to  generate binary files containing debug. User can select targets to compile as required.
+
+After compiling success, user can install the binaries and default configuration files simply with:
 
 ```sh
 sudo make install
@@ -77,7 +85,7 @@ sudo make install
 
 #### Install as RPM package.
 
-`isula-build` is now released with update pack of openEuler 20.03 LTS, you can install it using yum or rpm. Before you install, please enable "update" in the repo file.
+`isula-build` is now released with update pack of openEuler 20.03 LTS, user can install it using yum or rpm. Before user install, please enable "update" in the repo file.
 
 ##### With `yum`
 
@@ -85,11 +93,11 @@ sudo make install
 sudo yum install -y isula-build
 ```
 
-**NOTE**: Please make sure the "update" part of your yum configuration is enabled. You can download the source of yum from [openEuler repo list](https://repo.openeuler.org/) and install it.
+**NOTE**: Please make sure the "update" part of user's yum configuration is enabled. User can download the source of yum from [openEuler repo list](https://repo.openeuler.org/) and install it.
 
 ##### With `rpm`
 
-You can download the RPM package of isula-build and intall it.
+User can download the RPM package of isula-build and intall it.
 
 ```sh
 sudo rpm -ivh isula-build-*.rpm
@@ -108,7 +116,7 @@ sudo systemctl start isula-build
 ```
 
 #### Directly run the isula-builder binary file.
-You can also run the isula-builder binary file on the server to start the service.
+User can also run the isula-builder binary file on the server to start the service.
 
 ```sh
 sudo isula-builder --dataroot="/var/lib/isula-build"
@@ -120,7 +128,7 @@ sudo isula-builder --dataroot="/var/lib/isula-build"
 
 For building container images, `runc` is required.
 
-You can get `runc` by installing `docker` or `docker-runc` on your openEuler distro:
+User can get `runc` by installing `docker` or `docker-runc` on user's openEuler distro:
 
 ```sh
 sudo yum install docker

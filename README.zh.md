@@ -38,7 +38,7 @@ isula-build提供的命令行工具提供了很多功能，例如：
 
 #### 从源码开始编译安装
 
-为了顺利从源码编译，以下包需要被安装在你的操作系统中：
+为了顺利从源码编译，以下包需要被安装在用户的操作系统中：
 
 - make
 - golang（大于等于1.15版本）
@@ -52,7 +52,7 @@ isula-build提供的命令行工具提供了很多功能，例如：
 - bzip2
 - systemd-devel
 
-你可以通过`yum`安装这些依赖：
+用户可以通过`yum`安装这些依赖：
 
 ```sh
 sudo yum install make btrfs-progs-devel device-mapper-devel glib2-devel gpgme-devel libassuan-devel libseccomp-devel git bzip2 systemd-devel golang
@@ -70,8 +70,16 @@ git clone https://gitee.com/openeuler/isula-build.git
 cd isula-build
 sudo make
 ```
+执行该命令后可以看到"Build"下面有5个target可编译：
+- all
+- isula-build
+- isula-builder
+- safe
+- debug
 
-编译成功之后，你可以通过该命令将编译完毕的二进制以及相关配置文件安装到系统中：
+其中`sudo make all`编译客户端isula-build和服务端isula-builder，`sudo make isula-build`仅编译客户端，`sudo make isula-builder`仅编译服务端，`sudo make safe`编译客户端和服务端生成安全编译的二进制文件，`sudo make debug`编译客户端和服务端生成带有debug的二进制文件，用户可以根据需求选择编译具体的target
+
+编译成功之后，用户可以通过该命令将编译完毕的二进制以及相关配置文件安装到系统中：
 
 ```sh
 sudo make install
@@ -79,7 +87,7 @@ sudo make install
 
 #### 通过RPM包安装
 
-`isula-build`目前已经收录在openEuler的官方源中，你可以使用`yum`或者`rpm`安装该包：
+`isula-build`目前已经收录在openEuler的官方源中，用户可以使用`yum`或者`rpm`安装该包：
 
 ##### 使用`yum`
 
@@ -89,7 +97,7 @@ sudo yum install -y isula-build
 > **注意：**
 >
 > 需要先enable repo配置的update部分
-> 你可以在[openEuler repo list](https://repo.openeuler.org/)中找到对应的yum源进行安装
+> 用户可以在[openEuler repo list](https://repo.openeuler.org/)中找到对应的yum源进行安装
 
 ##### 使用`rpm`
 
@@ -113,7 +121,7 @@ sudo systemctl start isula-build
 
 #### 直接运行二进制
 
-你也可以直接运行isula-builder二进制开启服务：
+用户也可以直接运行isula-builder二进制开启服务：
 
 ```sh
 sudo isula-builder --dataroot="/var/lib/isula-build"
@@ -125,7 +133,7 @@ sudo isula-builder --dataroot="/var/lib/isula-build"
 
 为了正确构建容器镜像，容器运行时`runc`是必要的
 
-你可以通过安装`docker`或者`docker-runc`来获取`runc`二进制
+用户可以通过安装`docker`或者`docker-runc`来获取`runc`二进制
 
 ```sh
 sudo yum install docker
@@ -139,7 +147,7 @@ sudo yum install docker-runc
 
 #### 构建镜像
 
-以下是一个简单的例子教你如何去构建一个容器镜像，更多的详细操作可以参考[使用指南](./doc/manual_zh.md#使用指南)
+以下是一个简单的例子教用户如何去构建一个容器镜像，更多的详细操作可以参考[使用指南](./doc/manual_zh.md#使用指南)
 
 创建一个构建工作目录，编写一个简单的dockerfile：
 
