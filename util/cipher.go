@@ -83,37 +83,42 @@ func DecryptRSA(data string, key *rsa.PrivateKey, h crypto.Hash) (string, error)
 }
 
 // GenRSAPublicKeyFile store public key from rsa key pair into local file
-func GenRSAPublicKeyFile(key *rsa.PrivateKey, path string) error {
-	if exist, err := IsExist(path); err != nil {
-		return err
+func GenRSAPublicKeyFile(key *rsa.PrivateKey, path string) (err error) {
+	var exist bool
+	if exist, err = IsExist(path); err != nil {
+		return
 	} else if exist {
-		if err := os.Remove(path); err != nil {
+		if err = os.Remove(path); err != nil {
 			return errors.Errorf("failed to delete the residual key file: %v", err)
 		}
 	}
 	publicKey := &key.PublicKey
-	stream, err := x509.MarshalPKIXPublicKey(publicKey)
+	var stream []byte
+	stream, err = x509.MarshalPKIXPublicKey(publicKey)
 	if err != nil {
-		return err
+		return
 	}
 	block := &pem.Block{
 		Type:  "RSA PUBLIC KEY",
 		Bytes: stream,
 	}
-	file, err := os.Create(path)
+	var file *os.File
+	file, err = os.Create(path)
 	if err != nil {
-		return err
+		return
 	}
-	if err := os.Chmod(path, constant.DefaultReadOnlyFileMode); err != nil {
-		return err
+	defer func() {
+		cErr := file.Close()
+		if cErr != nil && err == nil {
+			err = cErr
+		}
+	}()
+	if err = file.Chmod(constant.DefaultReadOnlyFileMode); err != nil {
+		return
 	}
-	if err := pem.Encode(file, block); err != nil {
-		return err
+	if err = pem.Encode(file, block); err != nil {
+		return
 	}
-	if cErr := file.Close(); cErr != nil {
-		return cErr
-	}
-
 	return nil
 }
 
