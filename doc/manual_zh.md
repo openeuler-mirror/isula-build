@@ -486,6 +486,7 @@ mybusybox                                latest       173b3cf612f8       2022-01
 > **说明：**
 >
 > - isula-build 支持导入最大1GiB的容器基础镜像。
+> - isula-build 不支持并发导入相同的容器基础镜像。
 
 #### load: 导入层叠镜像
 
