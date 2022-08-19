@@ -489,6 +489,7 @@ mybusybox                                latest       173b3cf612f8       2022-01
 > **Note:**
 >
 > - isula-build supports the import of container basic images with a maximum size of 1 GiB.
+> - isula-build does not support concurrent import of the same basic container image.
 
 #### load: Importing Cascade Images
 
