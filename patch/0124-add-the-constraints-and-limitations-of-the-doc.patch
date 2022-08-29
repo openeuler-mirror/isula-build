@@ -1,0 +1,37 @@
+From 288b90b101cd0f6fb1b22902d158f1c33146564c Mon Sep 17 00:00:00 2001
+From: daisicheng <daisicheng@huawei.com>
+Date: Fri, 19 Aug 2022 10:07:13 +0800
+Subject: [PATCH 2/3] add the constraints and limitations of the doc
+
+---
+ doc/manual_en.md | 1 +
+ doc/manual_zh.md | 1 +
+ 2 files changed, 2 insertions(+)
+
+diff --git a/doc/manual_en.md b/doc/manual_en.md
+index e591e4f..dd6e7db 100644
+--- a/doc/manual_en.md
++++ b/doc/manual_en.md
+@@ -489,6 +489,7 @@ mybusybox                                latest       173b3cf612f8       2022-01
+ > **Note:**
+ >
+ > - isula-build supports the import of container basic images with a maximum size of 1 GiB.
++> - isula-build does not support concurrent import of the same basic container image.
+ 
+ #### load: Importing Cascade Images
+ 
+diff --git a/doc/manual_zh.md b/doc/manual_zh.md
+index 41cdf43..eb5c8ff 100644
+--- a/doc/manual_zh.md
++++ b/doc/manual_zh.md
+@@ -486,6 +486,7 @@ mybusybox                                latest       173b3cf612f8       2022-01
+ > **说明：**
+ >
+ > - isula-build 支持导入最大1GiB的容器基础镜像。
++> - isula-build 不支持并发导入相同的容器基础镜像。
+ 
+ #### load: 导入层叠镜像
+ 
+-- 
+2.33.0
+
