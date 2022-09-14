@@ -1,0 +1,25 @@
+From bdbd4b3136d57ef5e8d30f8537d03693cc11c481 Mon Sep 17 00:00:00 2001
+From: xingweizheng <xingweizheng@huawei.com>
+Date: Tue, 13 Sep 2022 23:07:28 +0800
+Subject: [PATCH] improve security compile option of isula-build binary
+
+---
+ Makefile | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/Makefile b/Makefile
+index 4bdb064..0d6bd01 100644
+--- a/Makefile
++++ b/Makefile
+@@ -23,7 +23,7 @@ BUILDFLAGS := -tags "$(BUILDTAGS)"
+ TMPDIR := /tmp/isula_build_tmpdir
+ BEFLAG := -tmpdir=${TMPDIR}
+ SAFEBUILDFLAGS := -buildid=IdByIsula -buildmode=pie -extldflags=-ftrapv -extldflags=-zrelro -extldflags=-znow $(BEFLAG) $(LDFLAGS)
+-STATIC_LDFLAGS := -linkmode=external -extldflags=-static
++STATIC_LDFLAGS := -linkmode=external -extldflags "-static-pie -Wl,-z,now"
+ 
+ IMAGE_BUILDARGS := $(if $(http_proxy), --build-arg http_proxy=$(http_proxy))
+ IMAGE_BUILDARGS += $(if $(https_proxy), --build-arg https_proxy=$(https_proxy))
+-- 
+2.27.0
+

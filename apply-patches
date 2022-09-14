@@ -9,7 +9,7 @@ set -ex
 pkg=isula-build
 cwd=${PWD}
 src=${cwd}/${pkg}
-tar_file=v"$(awk -F"-" '{print $1}' < VERSION-openeuler)".tar.gz
+tar_file=v"$(awk -F"-" '{print $1}' <VERSION-openeuler)".tar.gz
 
 mkdir ${src} && tar -zxvf "${tar_file}" -C ${src} --strip-components 1
 if [ ! -d patch ]; then
@@ -25,7 +25,7 @@ git commit -m 'init build'
 cd "${cwd}"
 
 series=${cwd}/series.conf
-while IPF= read -r line; do
+while IPF= read -r line || [ -n "$line" ]; do
     if [[ "${line}" =~ ^patch* ]]; then
         echo "git apply ${cwd}/${line}"
         cd "${src}" && git apply "${cwd}/${line}"
