@@ -36,6 +36,11 @@ func TestGetDefaultStoreOptions(t *testing.T) {
 	assert.NilError(t, err)
 }
 
+func TestGetStorageConfigFileOptions(t *testing.T) {
+	_, err := GetStorageConfigFileOptions()
+	assert.NilError(t, err)
+}
+
 func TestGetStore(t *testing.T) {
 	dataDir := "/tmp/lib"
 	runDir := "/tmp/run"
@@ -52,4 +57,26 @@ func TestGetStore(t *testing.T) {
 	}()
 	assert.Equal(t, s.RunRoot(), storeOpts.RunRoot)
 	assert.Equal(t, s.GraphRoot(), storeOpts.DataRoot)
+}
+
+func TestCleanContainers(t *testing.T) {
+	dataDir := "/tmp/lib"
+	runDir := "/tmp/run"
+	storeOpts.DataRoot = filepath.Join(dataDir, "containers/storage")
+	storeOpts.RunRoot = filepath.Join(runDir, "containers/storage")
+
+	s, err := GetStore()
+	assert.NilError(t, err)
+	s.CreateContainer("", []string{""}, "", "", "", nil)
+	s.CleanContainers()
+	containers, _ := s.Containers()
+	if len(containers) > 0 {
+		t.Errorf("Failed to clean containers")
+	}
+	defer func() {
+		unix.Unmount(filepath.Join(storeOpts.DataRoot, "overlay"), 0)
+		unix.Unmount(filepath.Join(storeOpts.RunRoot, "overlay"), 0)
+		os.RemoveAll(dataDir)
+		os.RemoveAll(runDir)
+	}()
 }

@@ -17,12 +17,14 @@ import (
 	"context"
 	"io"
 	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/gogo/protobuf/types"
 	"github.com/pkg/errors"
 	"google.golang.org/grpc"
 
+	constant "isula.org/isula-build"
 	pb "isula.org/isula-build/api/services"
 )
 
@@ -261,7 +263,7 @@ func (icli *mockImportClient) Recv() (*pb.ImportResponse, error) {
 	resp := &pb.ImportResponse{
 		Log: "Import success with image id: " + imageID,
 	}
-	return resp, nil
+	return resp, io.EOF
 }
 
 func (icli *mockImportClient) Send(*pb.ImportRequest) error {
@@ -313,7 +315,20 @@ func (cli *mockClient) Close() error {
 	return nil
 }
 
-func (f *mockDaemon) importImage(_ context.Context, opts ...grpc.CallOption) (pb.Control_ImportClient, error) {
+func (f *mockDaemon) importImage(_ context.Context, in *pb.ImportRequest, opts ...grpc.CallOption) (pb.Control_ImportClient, error) {
+	f.importReq = in
+	source := f.importReq.Source
+	file, err := os.Stat(filepath.Clean(source))
+	if err != nil {
+		return &mockImportClient{}, err
+	}
+	if file.Size() == 0 {
+		return &mockImportClient{}, errors.Errorf("file %s is empty", file.Name())
+	}
+	if file.Size() > constant.MaxImportFileSize {
+		return &mockImportClient{}, errors.Errorf("file %s size is: %d, exceeds limit", file.Name(), file.Size())
+	}
+
 	return &mockImportClient{}, nil
 }
 
