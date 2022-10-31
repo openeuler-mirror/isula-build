@@ -21,6 +21,33 @@ import (
 	"gotest.tools/v3/fs"
 )
 
+func TestCopyMapStringString(t *testing.T) {
+	src := map[string]string{"isula": "build"}
+	dst := CopyMapStringString(src)
+
+	assert.Equal(t, dst != nil, true)
+	assert.Equal(t, dst == nil, false)
+	assert.Equal(t, dst["isula"] == "build", true)
+}
+
+func TestCopyStrings(t *testing.T) {
+	src := []string{"isula", "build"}
+	dst := CopyStrings(src)
+
+	assert.Equal(t, dst != nil, true)
+	const dstLen = 2
+	assert.Equal(t, len(dst) == dstLen, true)
+}
+
+func TestCopyStringsWithoutSpecificElem(t *testing.T) {
+	src := []string{"isula", "build", "gogogo"}
+	dst := CopyStringsWithoutSpecificElem(src, "go")
+
+	assert.Equal(t, dst != nil, true)
+	const dstLen = 2
+	assert.Equal(t, len(dst) == dstLen, true)
+}
+
 func TestCheckFileInfoAndSize(t *testing.T) {
 	content := `
  ARG testArg
