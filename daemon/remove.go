@@ -15,6 +15,9 @@ package daemon
 
 import (
 	"fmt"
+	"io/ioutil"
+	"os"
+	"path/filepath"
 
 	"github.com/containers/storage"
 	"github.com/pkg/errors"
@@ -24,6 +27,7 @@ import (
 	pb "isula.org/isula-build/api/services"
 	"isula.org/isula-build/image"
 	"isula.org/isula-build/store"
+	"isula.org/isula-build/util"
 )
 
 // Remove to remove store images
@@ -115,6 +119,13 @@ func (b *Backend) Remove(req *pb.RemoveRequest, stream pb.Control_RemoveServer) 
 	if rmFailed {
 		return errors.New("remove one or more images failed")
 	}
+
+	if req.All {
+		if err := resetDataRoot(s.GraphRoot()); err != nil {
+			return errors.Wrap(err, "reset data root failed")
+		}
+	}
+
 	return nil
 }
 
@@ -153,4 +164,36 @@ func getImageIDs(s *store.Store, prune bool) ([]string, error) {
 	}
 
 	return imageIDs, nil
+}
+
+func resetDataRoot(dataRoot string) error {
+	emptyOverlayStructure := map[string]string{
+		"overlay":            "l",
+		"overlay-containers": "containers.lock",
+		"overlay-images":     "images.lock",
+	}
+
+	if exist, err := util.IsExist(filepath.Join(dataRoot, "overlay-layers")); err != nil {
+		return err
+	} else if exist {
+		emptyOverlayStructure["overlay-layers"] = "layers.lock"
+	}
+	for upDir, keep := range emptyOverlayStructure {
+		upDirAbs := filepath.Join(dataRoot, upDir)
+		files, err := ioutil.ReadDir(upDirAbs)
+		if err != nil {
+			return nil
+		}
+
+		for _, file := range files {
+			if file.Name() == keep {
+				continue
+			}
+			if err := os.RemoveAll(filepath.Join(upDirAbs, file.Name())); err != nil {
+				return nil
+			}
+		}
+	}
+
+	return nil
 }
