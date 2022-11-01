@@ -108,7 +108,8 @@ func TestLoopGC(t *testing.T) {
 	// register recycleBackendStore and the backend resource will be released
 	err := gc.RegisterGC(registerOption)
 	assert.NilError(t, err)
-	time.Sleep(2 * time.Second)
+	const waitToBeCollected = 3
+	time.Sleep(waitToBeCollected * time.Second)
 	d.RLock()
 	b := d.backend
 	d.RUnlock()
@@ -120,6 +121,7 @@ func TestLoopGC(t *testing.T) {
 
 	// remove success and the resource won't be recycled again
 	gc.RemoveGCNode(registerOption.Name)
+	time.Sleep(2 * time.Second)
 	d.backend = backend
 	time.Sleep(2 * time.Second)
 	assert.Equal(t, d.backend, backend)
