@@ -1,0 +1,86 @@
+From 01f6ca6d4be513a17fc454b6c948aa992e2c47d7 Mon Sep 17 00:00:00 2001
+From: daisicheng <daisicheng@huawei.com>
+Date: Tue, 1 Nov 2022 11:04:22 +0800
+Subject: [PATCH] Fix the problem that the /var/lib/isula-build/storage/overlay
+ is still existed when killing daemon and an error when executing "isula-build
+ rm -a" at the first time.
+
+---
+ daemon/remove.go | 43 +++++++++++++++++++++++++++++++++++++++++++
+ 1 file changed, 43 insertions(+)
+
+diff --git a/daemon/remove.go b/daemon/remove.go
+index e0a9eed..2933dc3 100644
+--- a/daemon/remove.go
++++ b/daemon/remove.go
+@@ -15,6 +15,9 @@ package daemon
+ 
+ import (
+ 	"fmt"
++	"io/ioutil"
++	"os"
++	"path/filepath"
+ 
+ 	"github.com/containers/storage"
+ 	"github.com/pkg/errors"
+@@ -24,6 +27,7 @@ import (
+ 	pb "isula.org/isula-build/api/services"
+ 	"isula.org/isula-build/image"
+ 	"isula.org/isula-build/store"
++	"isula.org/isula-build/util"
+ )
+ 
+ // Remove to remove store images
+@@ -115,6 +119,13 @@ func (b *Backend) Remove(req *pb.RemoveRequest, stream pb.Control_RemoveServer)
+ 	if rmFailed {
+ 		return errors.New("remove one or more images failed")
+ 	}
++
++	if req.All {
++		if err := resetDataRoot(s.GraphRoot()); err != nil {
++			return errors.Wrap(err, "reset data root failed")
++		}
++	}
++
+ 	return nil
+ }
+ 
+@@ -154,3 +165,35 @@ func getImageIDs(s *store.Store, prune bool) ([]string, error) {
+ 
+ 	return imageIDs, nil
+ }
++
++func resetDataRoot(dataRoot string) error {
++	emptyOverlayStructure := map[string]string{
++		"overlay":            "l",
++		"overlay-containers": "containers.lock",
++		"overlay-images":     "images.lock",
++	}
++
++	if exist, err := util.IsExist(filepath.Join(dataRoot, "overlay-layers")); err != nil {
++		return err
++	} else if exist {
++		emptyOverlayStructure["overlay-layers"] = "layers.lock"
++	}
++	for upDir, keep := range emptyOverlayStructure {
++		upDirAbs := filepath.Join(dataRoot, upDir)
++		files, err := ioutil.ReadDir(upDirAbs)
++		if err != nil {
++			return nil
++		}
++
++		for _, file := range files {
++			if file.Name() == keep {
++				continue
++			}
++			if err := os.RemoveAll(filepath.Join(upDirAbs, file.Name())); err != nil {
++				return nil
++			}
++		}
++	}
++
++	return nil
++}
+-- 
+2.33.0
+
