@@ -1,10 +1,10 @@
-FROM alpine AS uuid
+FROM hub.oepkgs.net/library/busybox:latest AS uuid
 COPY uuid /src/uuid
 
-FROM alpine AS data
+FROM hub.oepkgs.net/library/busybox:latest AS data
 COPY data /src/data
 
-FROM alpine AS foo
+FROM hub.oepkgs.net/library/busybox:latest AS foo
 ARG USED_ARG="used_value"
 RUN echo ${USED_ARG} > /root/value
 RUN echo ${USED_ARG}

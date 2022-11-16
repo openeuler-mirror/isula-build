@@ -1,4 +1,4 @@
-FROM alpine AS cho
+FROM hub.oepkgs.net/library/busybox:latest AS cho
 ADD --chown=2367:3267 addchown.txt /tmp
 RUN stat -c "user:%u group:%g" /tmp/addchown.txt
 WORKDIR /home/workdir
