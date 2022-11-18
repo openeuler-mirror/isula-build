@@ -85,14 +85,13 @@ func TestRunImport(t *testing.T) {
 	ctx := context.Background()
 	mockImport := newMockDaemon()
 	cli := newMockClient(&mockGrpcClient{importFunc: mockImport.importImage})
-	fileEmpty := "empty.tar"
 	fileNormal := "test.tar"
 	exceededFile := fs.NewFile(t, t.Name())
 	err := ioutil.WriteFile(exceededFile.Path(), []byte("This is exceeded test file"), constant.DefaultSharedFileMode)
 	assert.NilError(t, err)
 	err = os.Truncate(exceededFile.Path(), ExceededImportFileSize)
 	assert.NilError(t, err)
-	ctxDir := fs.NewDir(t, "import", fs.WithFile(fileEmpty, ""), fs.WithFile(fileNormal, "test"))
+	ctxDir := fs.NewDir(t, "import", fs.WithFile(fileNormal, "test"))
 	defer ctxDir.Remove()
 	defer exceededFile.Remove()
 
@@ -104,10 +103,10 @@ func TestRunImport(t *testing.T) {
 	}
 	var testcases = []testcase{
 		{
-			name:      "TC1 - abnormal case with empty file",
-			source:    filepath.Join(ctxDir.Path(), fileEmpty),
+			name:      "TC1 - abnormal case with relative path",
+			source:    filepath.Join("./", fileNormal),
 			wantErr:   true,
-			errString: "empty",
+			errString: "no such file or directory",
 		},
 		{
 			name:      "TC2 - abnormal case with exceeded limit file",
