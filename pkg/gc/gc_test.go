@@ -138,7 +138,7 @@ func TestLoopGC(t *testing.T) {
 	registerOption.RecycleFunc = f2
 	err = gc.RegisterGC(registerOption)
 	assert.NilError(t, err)
-	time.Sleep(2 * time.Second)
+	time.Sleep(waitToBeCollected * time.Second)
 	d.RLock()
 	opts := d.opts
 	d.RUnlock()
