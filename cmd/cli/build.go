@@ -466,6 +466,12 @@ func resolveDockerfilePath() (string, error) {
 	if buildOpts.file == "" {
 		// filepath is empty, try to resolve with contextDir+Dockerfile
 		resolvedPath = path.Join(buildOpts.contextDir, "Dockerfile")
+		if err = util.CheckFileInfoAndSize(resolvedPath, constant.MaxFileSize); err == nil {
+			return resolvedPath, nil
+		}
+		logrus.Debugf("Stat dockerfile failed with path %s", resolvedPath)
+		// not found with Dockerfile, try to resolve with contextDir+dockerfile
+		resolvedPath = path.Join(buildOpts.contextDir, "dockerfile")
 		if err = util.CheckFileInfoAndSize(resolvedPath, constant.MaxFileSize); err != nil {
 			logrus.Debugf("Stat dockerfile failed with path %s", resolvedPath)
 			return "", errors.Wrap(err, "check dockerfile failed")
