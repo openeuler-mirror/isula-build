@@ -9,7 +9,7 @@ set -ex
 pkg=isula-build
 cwd=${PWD}
 src=${cwd}/${pkg}
-tar_file=v"$(awk -F"-" '{print $1}' <VERSION-openeuler)".tar.gz
+tar_file=v"$(awk -F"-" '{print $1}' <VERSION-vendor)".tar.gz
 
 mkdir ${src} && tar -zxvf "${tar_file}" -C ${src} --strip-components 1
 if [ ! -d patch ]; then
@@ -35,5 +35,5 @@ done <"${series}"
 cd "${cwd}"
 
 cp -rf "${src}"/* .
-cp -f VERSION-openeuler VERSION
+cp -f VERSION-vendor VERSION
 rm -rf "${src}"
