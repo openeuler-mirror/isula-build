@@ -16,7 +16,7 @@
 
 # Basic info
 top_dir=$(git rev-parse --show-toplevel)
-version_file="${top_dir}/VERSION-openeuler"
+version_file="${top_dir}/VERSION-vendor"
 spec_file="${top_dir}/isula-build.spec"
 commit_file=${top_dir}/git-commit
 color=$(tput setaf 2) # red
