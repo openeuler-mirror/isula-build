@@ -40,6 +40,9 @@ type pullOptions struct {
 
 // Pull receives a pull request and pull the image from remote repository
 func (b *Backend) Pull(req *pb.PullRequest, stream pb.Control_PullServer) error {
+	b.daemon.RLock()
+	defer b.daemon.RUnlock()
+
 	logrus.WithFields(logrus.Fields{
 		"PullID":    req.GetPullID(),
 		"ImageName": req.GetImageName(),

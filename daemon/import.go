@@ -38,6 +38,9 @@ import (
 
 // Import an image from a tarball
 func (b *Backend) Import(req *pb.ImportRequest, stream pb.Control_ImportServer) error {
+	b.daemon.RLock()
+	defer b.daemon.RUnlock()
+
 	var (
 		srcRef     types.ImageReference
 		ctx        = stream.Context()

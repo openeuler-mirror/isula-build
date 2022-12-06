@@ -79,6 +79,9 @@ func (b *Backend) getLoadOptions(req *pb.LoadRequest) (LoadOptions, error) {
 
 // Load loads the image
 func (b *Backend) Load(req *pb.LoadRequest, stream pb.Control_LoadServer) error {
+	b.daemon.RLock()
+	defer b.daemon.RUnlock()
+
 	logrus.WithFields(logrus.Fields{
 		"LoadID": req.GetLoadID(),
 	}).Info("LoadRequest received")
