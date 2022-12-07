@@ -1,0 +1,57 @@
+From f8952b39aa9251b7a46fcaf894a1afd9c0a2d5de Mon Sep 17 00:00:00 2001
+From: daisicheng <daisicheng@huawei.com>
+Date: Tue, 6 Dec 2022 10:41:34 +0800
+Subject: [PATCH] add read lock in load, import and pull to fix the problem
+ that GC preempts to exit subprocess
+
+---
+ daemon/import.go | 3 +++
+ daemon/load.go   | 3 +++
+ daemon/pull.go   | 3 +++
+ 3 files changed, 9 insertions(+)
+
+diff --git a/daemon/import.go b/daemon/import.go
+index 21ab729..a0a475d 100644
+--- a/daemon/import.go
++++ b/daemon/import.go
+@@ -38,6 +38,9 @@ import (
+ 
+ // Import an image from a tarball
+ func (b *Backend) Import(req *pb.ImportRequest, stream pb.Control_ImportServer) error {
++	b.daemon.RLock()
++	defer b.daemon.RUnlock()
++
+ 	var (
+ 		srcRef     types.ImageReference
+ 		ctx        = stream.Context()
+diff --git a/daemon/load.go b/daemon/load.go
+index 2d0c154..c071374 100644
+--- a/daemon/load.go
++++ b/daemon/load.go
+@@ -79,6 +79,9 @@ func (b *Backend) getLoadOptions(req *pb.LoadRequest) (LoadOptions, error) {
+ 
+ // Load loads the image
+ func (b *Backend) Load(req *pb.LoadRequest, stream pb.Control_LoadServer) error {
++	b.daemon.RLock()
++	defer b.daemon.RUnlock()
++
+ 	logrus.WithFields(logrus.Fields{
+ 		"LoadID": req.GetLoadID(),
+ 	}).Info("LoadRequest received")
+diff --git a/daemon/pull.go b/daemon/pull.go
+index 90be2a9..dc8af03 100644
+--- a/daemon/pull.go
++++ b/daemon/pull.go
+@@ -40,6 +40,9 @@ type pullOptions struct {
+ 
+ // Pull receives a pull request and pull the image from remote repository
+ func (b *Backend) Pull(req *pb.PullRequest, stream pb.Control_PullServer) error {
++	b.daemon.RLock()
++	defer b.daemon.RUnlock()
++
+ 	logrus.WithFields(logrus.Fields{
+ 		"PullID":    req.GetPullID(),
+ 		"ImageName": req.GetImageName(),
+-- 
+2.34.1
+
