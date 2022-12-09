@@ -29,6 +29,46 @@ import (
 	"isula.org/isula-build/util"
 )
 
+func TestBuildCommand(t *testing.T) {
+	dockerfile := ``
+	filename := "Dockerfile"
+	tmpDir := fs.NewDir(t, t.Name(), fs.WithFile(filename, dockerfile))
+	defer tmpDir.Remove()
+
+	type testcase struct {
+		name      string
+		file      string
+		args      []string
+		wanterr   bool
+		errString string
+	}
+	var testcases = []testcase{
+		{
+			name:      "TC1 - normal case",
+			file:      tmpDir.Path(),
+			args:      []string{tmpDir.Path()},
+			wanterr:   true,
+			errString: "isula_build.sock",
+		},
+	}
+
+	for _, tc := range testcases {
+		t.Run(tc.name, func(t *testing.T) {
+			buildCmd := NewBuildCmd()
+			err := buildCmd.Execute()
+			assert.Equal(t, err != nil, true)
+
+			err = buildCommand(buildCmd, tc.args)
+			if tc.wanterr {
+				assert.ErrorContains(t, err, tc.errString)
+			}
+			if !tc.wanterr {
+				assert.NilError(t, err)
+			}
+		})
+	}
+}
+
 func TestRunBuildWithLocalDockerfile(t *testing.T) {
 	dockerfile := `
 		FROM alpine:latest

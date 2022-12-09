@@ -34,6 +34,7 @@ import (
 	_ "isula.org/isula-build/exporter/docker"
 	"isula.org/isula-build/pkg/logger"
 	"isula.org/isula-build/store"
+	"isula.org/isula-build/util"
 )
 
 type daemonTestOptions struct {
@@ -75,10 +76,14 @@ func prepare(t *testing.T) daemonTestOptions {
 		DataRoot: dOpt.RootDir + "/data",
 		RunRoot:  dOpt.RootDir + "/run",
 	})
-	localStore, _ := store.GetStore()
+	localStore, err := store.GetStore()
+	assert.NilError(t, err)
+	localKey, err := util.GenerateRSAKey(util.DefaultRSAKeySize)
+	assert.NilError(t, err)
 	dOpt.Daemon = &Daemon{
 		opts:       opt,
 		localStore: &localStore,
+		key:        localKey,
 	}
 	dOpt.Daemon.NewBackend()
 	return dOpt
