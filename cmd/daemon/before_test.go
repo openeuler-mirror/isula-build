@@ -9,7 +9,7 @@
 // See the Mulan PSL v2 for more details.
 // Author: Xiang Li
 // Create: 2020-01-20
-// Description: This file is used for isula-build daemon testing
+// Description: This file is used for isula-build cmd/daemon testing
 
 package main
 
@@ -26,6 +26,12 @@ import (
 	"isula.org/isula-build/cmd/daemon/config"
 	"isula.org/isula-build/store"
 )
+
+func TestBefor(t *testing.T) {
+	cmd := newDaemonCommand()
+	err := before(cmd)
+	assert.NilError(t, err)
+}
 
 func TestSetupWorkingDirectories(t *testing.T) {
 	var testDir *fs.Dir
