@@ -1,0 +1,73 @@
+From 5edff01f9bdc001980a1a5423ba4b37a1adce756 Mon Sep 17 00:00:00 2001
+From: xingweizheng <xingweizheng@huawei.com>
+Date: Fri, 9 Dec 2022 11:03:12 +0800
+Subject: [PATCH] cmd/daemon: add base test for runDaemon and before function
+
+---
+ cmd/daemon/before_test.go |  8 +++++++-
+ cmd/daemon/main_test.go   | 27 +++++++++++++++++++++++++++
+ 2 files changed, 34 insertions(+), 1 deletion(-)
+ create mode 100644 cmd/daemon/main_test.go
+
+diff --git a/cmd/daemon/before_test.go b/cmd/daemon/before_test.go
+index 19b1bc0..d2a8f41 100644
+--- a/cmd/daemon/before_test.go
++++ b/cmd/daemon/before_test.go
+@@ -9,7 +9,7 @@
+ // See the Mulan PSL v2 for more details.
+ // Author: Xiang Li
+ // Create: 2020-01-20
+-// Description: This file is used for isula-build daemon testing
++// Description: This file is used for isula-build cmd/daemon testing
+ 
+ package main
+ 
+@@ -27,6 +27,12 @@ import (
+ 	"isula.org/isula-build/store"
+ )
+ 
++func TestBefor(t *testing.T) {
++	cmd := newDaemonCommand()
++	err := before(cmd)
++	assert.NilError(t, err)
++}
++
+ func TestSetupWorkingDirectories(t *testing.T) {
+ 	var testDir *fs.Dir
+ 	var testcases = []struct {
+diff --git a/cmd/daemon/main_test.go b/cmd/daemon/main_test.go
+new file mode 100644
+index 0000000..85e7b94
+--- /dev/null
++++ b/cmd/daemon/main_test.go
+@@ -0,0 +1,27 @@
++// Copyright (c) Huawei Technologies Co., Ltd. 2020. All rights reserved.
++// isula-build licensed under the Mulan PSL v2.
++// You can use this software according to the terms and conditions of the Mulan PSL v2.
++// You may obtain a copy of Mulan PSL v2 at:
++//     http://license.coscl.org.cn/MulanPSL2
++// THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER EXPRESS OR
++// IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY OR FIT FOR A PARTICULAR
++// PURPOSE.
++// See the Mulan PSL v2 for more details.
++// Author: Weizheng Xing
++// Create: 2022-12-08
++// Description: This file is used for isula-build cmd/daemon testing
++
++package main
++
++import (
++	"testing"
++
++	"gotest.tools/v3/assert"
++)
++
++func TestRunDaemon(t *testing.T) {
++	cmd := newDaemonCommand()
++	daemonOpts.Group = "none"
++	err := runDaemon(cmd, []string{})
++	assert.ErrorContains(t, err, "create new GRPC socket failed")
++}
+-- 
+2.33.0
+

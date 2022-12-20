@@ -1,0 +1,572 @@
+From 11fbc841b5af5ff4dd5ac228c033a49cac742aad Mon Sep 17 00:00:00 2001
+From: daisicheng <daisicheng@huawei.com>
+Date: Fri, 25 Nov 2022 17:40:33 +0800
+Subject: [PATCH] add login_test, logout_test, remove_test and import_test in
+ daemon
+
+---
+ cmd/cli/build_test.go |  40 ++++++++++++++++
+ daemon/import_test.go |  87 +++++++++++++++++++++++++++++++++++
+ daemon/login_test.go  | 103 ++++++++++++++++++++++++++++++++++++++++++
+ daemon/logout_test.go |  75 ++++++++++++++++++++++++++++++
+ daemon/pull_test.go   |   7 ++-
+ daemon/remove_test.go | 101 +++++++++++++++++++++++++++++++++++++++++
+ daemon/tag_test.go    |  73 ++++++++++++++++++++++++++++++
+ 7 files changed, 485 insertions(+), 1 deletion(-)
+ create mode 100644 daemon/import_test.go
+ create mode 100644 daemon/login_test.go
+ create mode 100644 daemon/logout_test.go
+ create mode 100644 daemon/remove_test.go
+ create mode 100644 daemon/tag_test.go
+
+diff --git a/cmd/cli/build_test.go b/cmd/cli/build_test.go
+index d446801..41cabbe 100644
+--- a/cmd/cli/build_test.go
++++ b/cmd/cli/build_test.go
+@@ -29,6 +29,46 @@ import (
+ 	"isula.org/isula-build/util"
+ )
+ 
++func TestBuildCommand(t *testing.T) {
++	dockerfile := ``
++	filename := "Dockerfile"
++	tmpDir := fs.NewDir(t, t.Name(), fs.WithFile(filename, dockerfile))
++	defer tmpDir.Remove()
++
++	type testcase struct {
++		name      string
++		file      string
++		args      []string
++		wanterr   bool
++		errString string
++	}
++	var testcases = []testcase{
++		{
++			name:      "TC1 - normal case",
++			file:      tmpDir.Path(),
++			args:      []string{tmpDir.Path()},
++			wanterr:   true,
++			errString: "isula_build.sock",
++		},
++	}
++
++	for _, tc := range testcases {
++		t.Run(tc.name, func(t *testing.T) {
++			buildCmd := NewBuildCmd()
++			err := buildCmd.Execute()
++			assert.Equal(t, err != nil, true)
++
++			err = buildCommand(buildCmd, tc.args)
++			if tc.wanterr {
++				assert.ErrorContains(t, err, tc.errString)
++			}
++			if !tc.wanterr {
++				assert.NilError(t, err)
++			}
++		})
++	}
++}
++
+ func TestRunBuildWithLocalDockerfile(t *testing.T) {
+ 	dockerfile := `
+ 		FROM alpine:latest
+diff --git a/daemon/import_test.go b/daemon/import_test.go
+new file mode 100644
+index 0000000..1a24eb4
+--- /dev/null
++++ b/daemon/import_test.go
+@@ -0,0 +1,87 @@
++// Copyright (c) Huawei Technologies Co., Ltd. 2020. All rights reserved.
++// isula-build licensed under the Mulan PSL v2.
++// You can use this software according to the terms and conditions of the Mulan PSL v2.
++// You may obtain a copy of Mulan PSL v2 at:
++//     http://license.coscl.org.cn/MulanPSL2
++// THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER EXPRESS OR
++// IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY OR FIT FOR A PARTICULAR
++// PURPOSE.
++// See the Mulan PSL v2 for more details.
++// Author: daisicheng
++// Create: 2022-12-01
++// Description: This file tests import interface.
++
++package daemon
++
++import (
++	"context"
++	"io/ioutil"
++	"testing"
++
++	"github.com/pkg/errors"
++	"google.golang.org/grpc"
++	"gotest.tools/v3/assert"
++	"gotest.tools/v3/fs"
++
++	constant "isula.org/isula-build"
++	pb "isula.org/isula-build/api/services"
++	"isula.org/isula-build/util"
++)
++
++type controlImportServer struct {
++	grpc.ServerStream
++}
++
++func (c *controlImportServer) Send(response *pb.ImportResponse) error {
++	if response.Log == "error" {
++		return errors.New("error happened")
++	}
++	return nil
++}
++
++func (c *controlImportServer) Context() context.Context {
++	return context.Background()
++}
++
++func TestImport(t *testing.T) {
++	d := prepare(t)
++	defer tmpClean(d)
++
++	tmpFile := fs.NewFile(t, t.Name())
++	defer tmpFile.Remove()
++	err := ioutil.WriteFile(tmpFile.Path(), []byte("This is test file"), constant.DefaultSharedFileMode)
++	assert.NilError(t, err)
++	importID := util.GenerateNonCryptoID()[:constant.DefaultIDLen]
++
++	testcases := []struct {
++		name      string
++		req       *pb.ImportRequest
++		wantErr   bool
++		errString string
++	}{
++		{
++			name: "TC1 - normal case",
++			req: &pb.ImportRequest{
++				ImportID:  importID,
++				Source:    tmpFile.Path(),
++				Reference: "test:image",
++			},
++			wantErr:   true,
++			errString: "Error processing tar file",
++		},
++	}
++
++	for _, tc := range testcases {
++		t.Run(tc.name, func(t *testing.T) {
++			stream := &controlImportServer{}
++			err := d.Daemon.backend.Import(tc.req, stream)
++			if tc.wantErr == true {
++				assert.ErrorContains(t, err, tc.errString)
++			}
++			if tc.wantErr == false {
++				assert.NilError(t, err)
++			}
++		})
++	}
++
++}
+diff --git a/daemon/login_test.go b/daemon/login_test.go
+new file mode 100644
+index 0000000..b8ae002
+--- /dev/null
++++ b/daemon/login_test.go
+@@ -0,0 +1,103 @@
++// Copyright (c) Huawei Technologies Co., Ltd. 2020. All rights reserved.
++// isula-build licensed under the Mulan PSL v2.
++// You can use this software according to the terms and conditions of the Mulan PSL v2.
++// You may obtain a copy of Mulan PSL v2 at:
++//     http://license.coscl.org.cn/MulanPSL2
++// THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER EXPRESS OR
++// IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY OR FIT FOR A PARTICULAR
++// PURPOSE.
++// See the Mulan PSL v2 for more details.
++// Author: daisicheng
++// Create: 2022-12-01
++// Description: This file tests login interface.
++
++package daemon
++
++import (
++	"context"
++	"crypto/sha512"
++	"testing"
++
++	"gotest.tools/v3/assert"
++
++	pb "isula.org/isula-build/api/services"
++	"isula.org/isula-build/util"
++)
++
++func TestLogin(t *testing.T) {
++	d := prepare(t)
++	defer tmpClean(d)
++
++	encryptKey, err := util.EncryptRSA("testpassword", d.Daemon.backend.daemon.key.PublicKey, sha512.New())
++	assert.NilError(t, err)
++	testcases := []struct {
++		name      string
++		req       *pb.LoginRequest
++		wantErr   bool
++		errString string
++	}{
++		{
++			name: "TC1 - normal case with abnormal password",
++			req: &pb.LoginRequest{
++				Server:   "testcase.org",
++				Username: "testuser",
++				Password: "decfabdc",
++			},
++			wantErr:   true,
++			errString: "decryption failed",
++		},
++		{
++			name: "TC2 - normal case with abnormal registry",
++			req: &pb.LoginRequest{
++				Server:   "testcase.org",
++				Username: "testuser",
++				Password: encryptKey,
++			},
++			wantErr:   true,
++			errString: "no route to host",
++		},
++		{
++			name: "TC3 - abnormal case with empty server",
++			req: &pb.LoginRequest{
++				Server:   "",
++				Username: "testuser",
++				Password: "testpassword",
++			},
++			wantErr:   true,
++			errString: "empty server address",
++		},
++		{
++			name: "TC4 - abnormal case with empty password",
++			req: &pb.LoginRequest{
++				Server:   "test.org",
++				Username: "testuser",
++				Password: "",
++			},
++			wantErr:   true,
++			errString: "empty auth info",
++		},
++		{
++			name: "TC5 - abnormal case with empty password and username",
++			req: &pb.LoginRequest{
++				Server:   "test.org",
++				Username: "",
++				Password: "",
++			},
++			wantErr:   true,
++			errString: "failed to read auth file",
++		},
++	}
++
++	for _, tc := range testcases {
++		t.Run(tc.name, func(t *testing.T) {
++			ctx := context.TODO()
++			_, err := d.Daemon.backend.Login(ctx, tc.req)
++			if tc.wantErr == true {
++				assert.ErrorContains(t, err, tc.errString)
++			}
++			if tc.wantErr == false {
++				assert.NilError(t, err)
++			}
++		})
++	}
++}
+diff --git a/daemon/logout_test.go b/daemon/logout_test.go
+new file mode 100644
+index 0000000..58f00b3
+--- /dev/null
++++ b/daemon/logout_test.go
+@@ -0,0 +1,75 @@
++// Copyright (c) Huawei Technologies Co., Ltd. 2020. All rights reserved.
++// isula-build licensed under the Mulan PSL v2.
++// You can use this software according to the terms and conditions of the Mulan PSL v2.
++// You may obtain a copy of Mulan PSL v2 at:
++//     http://license.coscl.org.cn/MulanPSL2
++// THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER EXPRESS OR
++// IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY OR FIT FOR A PARTICULAR
++// PURPOSE.
++// See the Mulan PSL v2 for more details.
++// Author: daisicheng
++// Create: 2022-11-29
++// Description: This file tests logout interface.
++
++package daemon
++
++import (
++	"context"
++	"testing"
++
++	"gotest.tools/v3/assert"
++
++	pb "isula.org/isula-build/api/services"
++)
++
++func TestLogout(t *testing.T) {
++	d := prepare(t)
++	defer tmpClean(d)
++
++	testcases := []struct {
++		name      string
++		req       *pb.LogoutRequest
++		wantErr   bool
++		errString string
++	}{
++		{
++			name: "TC1 - normal case",
++			req: &pb.LogoutRequest{
++				Server: "test.org",
++				All:    true,
++			},
++			wantErr: false,
++		},
++		{
++			name: "TC2 - abnormal case with empty server",
++			req: &pb.LogoutRequest{
++				Server: "",
++				All:    false,
++			},
++			wantErr:   true,
++			errString: "empty server address",
++		},
++		{
++			name: "TC3 - abnormal case with no logined registry",
++			req: &pb.LogoutRequest{
++				Server: "test.org",
++				All:    false,
++			},
++			wantErr:   true,
++			errString: "not logged in",
++		},
++	}
++
++	for _, tc := range testcases {
++		t.Run(tc.name, func(t *testing.T) {
++			ctx := context.TODO()
++			_, err := d.Daemon.backend.Logout(ctx, tc.req)
++			if tc.wantErr == true {
++				assert.ErrorContains(t, err, tc.errString)
++			}
++			if tc.wantErr == false {
++				assert.NilError(t, err)
++			}
++		})
++	}
++}
+diff --git a/daemon/pull_test.go b/daemon/pull_test.go
+index 27a4d6e..b296bfd 100644
+--- a/daemon/pull_test.go
++++ b/daemon/pull_test.go
+@@ -34,6 +34,7 @@ import (
+ 	_ "isula.org/isula-build/exporter/docker"
+ 	"isula.org/isula-build/pkg/logger"
+ 	"isula.org/isula-build/store"
++	"isula.org/isula-build/util"
+ )
+ 
+ type daemonTestOptions struct {
+@@ -75,10 +76,14 @@ func prepare(t *testing.T) daemonTestOptions {
+ 		DataRoot: dOpt.RootDir + "/data",
+ 		RunRoot:  dOpt.RootDir + "/run",
+ 	})
+-	localStore, _ := store.GetStore()
++	localStore, err := store.GetStore()
++	assert.NilError(t, err)
++	localKey, err := util.GenerateRSAKey(util.DefaultRSAKeySize)
++	assert.NilError(t, err)
+ 	dOpt.Daemon = &Daemon{
+ 		opts:       opt,
+ 		localStore: &localStore,
++		key:        localKey,
+ 	}
+ 	dOpt.Daemon.NewBackend()
+ 	return dOpt
+diff --git a/daemon/remove_test.go b/daemon/remove_test.go
+new file mode 100644
+index 0000000..fc0f007
+--- /dev/null
++++ b/daemon/remove_test.go
+@@ -0,0 +1,101 @@
++// Copyright (c) Huawei Technologies Co., Ltd. 2020. All rights reserved.
++// isula-build licensed under the Mulan PSL v2.
++// You can use this software according to the terms and conditions of the Mulan PSL v2.
++// You may obtain a copy of Mulan PSL v2 at:
++//     http://license.coscl.org.cn/MulanPSL2
++// THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER EXPRESS OR
++// IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY OR FIT FOR A PARTICULAR
++// PURPOSE.
++// See the Mulan PSL v2 for more details.
++// Author: daisicheng
++// Create: 2022-12-02
++// Description: This file tests remove interface.
++
++package daemon
++
++import (
++	"context"
++	"testing"
++
++	"github.com/containers/storage"
++	"github.com/containers/storage/pkg/stringid"
++	"github.com/pkg/errors"
++	"google.golang.org/grpc"
++	"gotest.tools/v3/assert"
++
++	pb "isula.org/isula-build/api/services"
++)
++
++type controlRemoveServer struct {
++	grpc.ServerStream
++}
++
++func (c *controlRemoveServer) Send(response *pb.RemoveResponse) error {
++	if response.LayerMessage == "error" {
++		return errors.New("error happened")
++	}
++	return nil
++}
++
++func (c *controlRemoveServer) Context() context.Context {
++	return context.Background()
++}
++
++func TestRemove(t *testing.T) {
++	d := prepare(t)
++	defer tmpClean(d)
++
++	options := &storage.ImageOptions{}
++	testImg := make([]string, 0)
++	testImg1, err := d.Daemon.localStore.CreateImage(stringid.GenerateRandomID(), []string{"test:image1"}, "", "", options)
++	if err != nil {
++		t.Fatalf("create image with error: %v", err)
++	}
++	d.Daemon.localStore.SetNames(testImg1.ID, append(testImg1.Names, "test:image1-backup"))
++	testImg = append(testImg, testImg1.ID)
++	testImg2, err := d.Daemon.localStore.CreateImage(stringid.GenerateRandomID(), []string{"test:image2"}, "", "", options)
++	if err != nil {
++		t.Fatalf("create image with error: %v", err)
++	}
++	testImg = append(testImg, testImg2.ID)
++
++	testcases := []struct {
++		name      string
++		req       *pb.RemoveRequest
++		wantErr   bool
++		errString string
++	}{
++		{
++			name: "TC1 - normal case",
++			req: &pb.RemoveRequest{
++				ImageID: testImg,
++				All:     true,
++				Prune:   false,
++			},
++			wantErr: false,
++		},
++		{
++			name: "TC2 - abnormal case with no images",
++			req: &pb.RemoveRequest{
++				ImageID: []string{""},
++				All:     false,
++				Prune:   false,
++			},
++			wantErr:   true,
++			errString: "remove one or more images failed",
++		},
++	}
++
++	for _, tc := range testcases {
++		t.Run(tc.name, func(t *testing.T) {
++			stream := &controlRemoveServer{}
++			err := d.Daemon.backend.Remove(tc.req, stream)
++			if tc.wantErr == true {
++				assert.ErrorContains(t, err, tc.errString)
++			}
++			if tc.wantErr == false {
++				assert.NilError(t, err)
++			}
++		})
++	}
++}
+diff --git a/daemon/tag_test.go b/daemon/tag_test.go
+new file mode 100644
+index 0000000..07ad9ee
+--- /dev/null
++++ b/daemon/tag_test.go
+@@ -0,0 +1,73 @@
++// Copyright (c) Huawei Technologies Co., Ltd. 2020. All rights reserved.
++// isula-build licensed under the Mulan PSL v2.
++// You can use this software according to the terms and conditions of the Mulan PSL v2.
++// You may obtain a copy of Mulan PSL v2 at:
++//     http://license.coscl.org.cn/MulanPSL2
++// THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER EXPRESS OR
++// IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY OR FIT FOR A PARTICULAR
++// PURPOSE.
++// See the Mulan PSL v2 for more details.
++// Author: daisicheng
++// Create: 2022-12-04
++// Description: This file tests tag interface.
++
++package daemon
++
++import (
++	"context"
++	"testing"
++
++	"github.com/containers/storage"
++	"github.com/containers/storage/pkg/stringid"
++	"gotest.tools/v3/assert"
++
++	pb "isula.org/isula-build/api/services"
++)
++
++func TestTag(t *testing.T) {
++	d := prepare(t)
++	defer tmpClean(d)
++
++	options := &storage.ImageOptions{}
++	_, err := d.Daemon.localStore.CreateImage(stringid.GenerateRandomID(), []string{"test:image"}, "", "", options)
++	if err != nil {
++		t.Fatalf("create image with error: %v", err)
++	}
++	testcases := []struct {
++		name      string
++		req       *pb.TagRequest
++		wantErr   bool
++		errString string
++	}{
++		{
++			name: "TC1 - normal case",
++			req: &pb.TagRequest{
++				Image: "test:image",
++				Tag:   "image-backup",
++			},
++			wantErr: false,
++		},
++		{
++			name: "TC2 - abnormal case with no existed images",
++			req: &pb.TagRequest{
++				Image: "",
++				Tag:   "image-backup",
++			},
++			wantErr:   true,
++			errString: "repository name must have at least one component",
++		},
++	}
++
++	for _, tc := range testcases {
++		t.Run(tc.name, func(t *testing.T) {
++			ctx := context.TODO()
++			_, err := d.Daemon.backend.Tag(ctx, tc.req)
++			if tc.wantErr == true {
++				assert.ErrorContains(t, err, tc.errString)
++			}
++			if tc.wantErr == false {
++				assert.NilError(t, err)
++			}
++		})
++	}
++}
+-- 
+2.33.0
+
