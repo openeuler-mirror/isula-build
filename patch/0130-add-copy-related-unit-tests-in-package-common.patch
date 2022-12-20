@@ -1,0 +1,51 @@
+From bf4d9f5638ab63d5272ccfb2689cdafc7b0adaf5 Mon Sep 17 00:00:00 2001
+From: jingxiaolu <lujingxiao@huawei.com>
+Date: Mon, 31 Oct 2022 19:01:17 +0800
+Subject: [PATCH] add copy related unit tests in package common
+
+Signed-off-by: jingxiaolu <lujingxiao@huawei.com>
+---
+ util/common_test.go | 27 +++++++++++++++++++++++++++
+ 1 file changed, 27 insertions(+)
+
+diff --git a/util/common_test.go b/util/common_test.go
+index 7d2444a..263eae2 100644
+--- a/util/common_test.go
++++ b/util/common_test.go
+@@ -21,6 +21,33 @@ import (
+ 	"gotest.tools/v3/fs"
+ )
+ 
++func TestCopyMapStringString(t *testing.T) {
++	src := map[string]string{"isula": "build"}
++	dst := CopyMapStringString(src)
++
++	assert.Equal(t, dst != nil, true)
++	assert.Equal(t, dst == nil, false)
++	assert.Equal(t, dst["isula"] == "build", true)
++}
++
++func TestCopyStrings(t *testing.T) {
++	src := []string{"isula", "build"}
++	dst := CopyStrings(src)
++
++	assert.Equal(t, dst != nil, true)
++	const dstLen = 2
++	assert.Equal(t, len(dst) == dstLen, true)
++}
++
++func TestCopyStringsWithoutSpecificElem(t *testing.T) {
++	src := []string{"isula", "build", "gogogo"}
++	dst := CopyStringsWithoutSpecificElem(src, "go")
++
++	assert.Equal(t, dst != nil, true)
++	const dstLen = 2
++	assert.Equal(t, len(dst) == dstLen, true)
++}
++
+ func TestCheckFileInfoAndSize(t *testing.T) {
+ 	content := `
+  ARG testArg
+-- 
+2.33.0
+
