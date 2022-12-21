@@ -49,12 +49,11 @@ func TestLogin(t *testing.T) {
 		{
 			name: "TC2 - normal case with abnormal registry",
 			req: &pb.LoginRequest{
-				Server:   "testcase.org",
+				Server:   "localhost://8080",
 				Username: "testuser",
 				Password: encryptKey,
 			},
-			wantErr:   true,
-			errString: "no route to host",
+			wantErr: true,
 		},
 		{
 			name: "TC3 - abnormal case with empty server",
