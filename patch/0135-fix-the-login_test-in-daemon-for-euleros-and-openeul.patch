@@ -1,0 +1,32 @@
+From 72136fa6d5e08936a5ebced9a69044efa84b1fb3 Mon Sep 17 00:00:00 2001
+From: daisicheng <daisicheng@huawei.com>
+Date: Wed, 21 Dec 2022 17:12:36 +0800
+Subject: [PATCH] fix the login_test in daemon for euleros and openeuler
+ consistency
+
+---
+ daemon/login_test.go | 5 ++---
+ 1 file changed, 2 insertions(+), 3 deletions(-)
+
+diff --git a/daemon/login_test.go b/daemon/login_test.go
+index b8ae002..03cbb62 100644
+--- a/daemon/login_test.go
++++ b/daemon/login_test.go
+@@ -49,12 +49,11 @@ func TestLogin(t *testing.T) {
+ 		{
+ 			name: "TC2 - normal case with abnormal registry",
+ 			req: &pb.LoginRequest{
+-				Server:   "testcase.org",
++				Server:   "localhost://8080",
+ 				Username: "testuser",
+ 				Password: encryptKey,
+ 			},
+-			wantErr:   true,
+-			errString: "no route to host",
++			wantErr: true,
+ 		},
+ 		{
+ 			name: "TC3 - abnormal case with empty server",
+-- 
+2.33.0
+
