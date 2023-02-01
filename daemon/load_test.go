@@ -271,7 +271,7 @@ func TestLoadSingleImage(t *testing.T) {
 				assert.ErrorContains(t, err, tc.errString)
 				return
 			}
-			assert.ErrorContains(t, err, "failed to get the image")
+			assert.ErrorContains(t, err, "wrong image format detected from local tarball")
 		})
 	}
 
@@ -314,16 +314,9 @@ func TestLoadMultipleImages(t *testing.T) {
 	defer clean(dir)
 
 	path := dir.Join(loadedTarFile)
-	repoTags, err := tryToParseImageFormatFromTarball(daemon.opts.DataRoot, &LoadOptions{path: path})
-	assert.NilError(t, err)
-	assert.Equal(t, repoTags[0].nameTag[0], "registry.example.com/sayhello:first")
-	assert.Equal(t, repoTags[1].nameTag[0], "registry.example.com/sayhello:second")
-	assert.Equal(t, repoTags[1].nameTag[1], "registry.example.com/sayhello:third")
-	assert.Equal(t, len(repoTags[2].nameTag), 0)
-
 	req := &pb.LoadRequest{Path: path}
 	stream := &controlLoadServer{}
 
-	err = daemon.backend.Load(req, stream)
-	assert.ErrorContains(t, err, "failed to get the image")
+	err := daemon.backend.Load(req, stream)
+	assert.ErrorContains(t, err, "wrong image format detected from local tarball")
 }
