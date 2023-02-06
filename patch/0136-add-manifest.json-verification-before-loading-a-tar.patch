@@ -1,0 +1,130 @@
+From 373d9fb100649b74811acc73e6b7d67f539b561c Mon Sep 17 00:00:00 2001
+From: daisicheng <daisicheng@huawei.com>
+Date: Wed, 1 Feb 2023 15:12:33 +0800
+Subject: [PATCH] add manifest.json verification before loading a tar
+
+---
+ daemon/load.go      | 45 +++++++++++++++++++++++++++++++++++++--------
+ daemon/load_test.go | 13 +++----------
+ 2 files changed, 40 insertions(+), 18 deletions(-)
+
+diff --git a/daemon/load.go b/daemon/load.go
+index c071374..69175d7 100644
+--- a/daemon/load.go
++++ b/daemon/load.go
+@@ -16,6 +16,7 @@ package daemon
+ import (
+ 	"context"
+ 	"os"
++	"strconv"
+ 	"strings"
+ 
+ 	"github.com/containers/image/v5/docker/tarfile"
+@@ -175,25 +176,26 @@ func tryToParseImageFormatFromTarball(dataRoot string, opts *LoadOptions) ([]sin
+ 	systemContext.BigFilesTemporaryDir = tmpDir
+ 
+ 	// try docker format loading
+-	imagesInTar, err := getDockerRepoTagFromImageTar(systemContext, opts.path)
+-	if err == nil {
++	imagesInTar, errDockerFormat := getDockerRepoTagFromImageTar(systemContext, opts.path)
++	if errDockerFormat == nil {
+ 		logrus.Infof("Parse image successful with %q format", constant.DockerTransport)
+ 		opts.format = constant.DockerArchiveTransport
+ 		return imagesInTar, nil
+ 	}
+-	logrus.Warnf("Try to Parse image of docker format failed with error: %v", err)
++	logrus.Warnf("Try to Parse image of docker format failed with error: %v", errDockerFormat)
+ 
+ 	// try oci format loading
+-	imagesInTar, err = getOCIRepoTagFromImageTar(systemContext, opts.path)
+-	if err == nil {
++	imagesInTar, errOciFormat := getOCIRepoTagFromImageTar(systemContext, opts.path)
++	if errOciFormat == nil {
+ 		logrus.Infof("Parse image successful with %q format", constant.OCITransport)
+ 		opts.format = constant.OCIArchiveTransport
+ 		return imagesInTar, nil
+ 	}
+-	logrus.Warnf("Try to parse image of oci format failed with error: %v", err)
++	logrus.Warnf("Try to parse image of oci format failed with error: %v", errOciFormat)
+ 
+-	// record the last error
+-	return nil, errors.Wrap(err, "wrong image format detected from local tarball")
++	// record the error
++	return nil, errors.Errorf("wrong image format detected from local tarball: try docker format: %v,try oci format: %v",
++		errDockerFormat, errOciFormat)
+ }
+ 
+ func getDockerRepoTagFromImageTar(systemContext *types.SystemContext, path string) ([]singleImage, error) {
+@@ -215,6 +217,9 @@ func getDockerRepoTagFromImageTar(systemContext *types.SystemContext, path strin
+ 
+ 	imagesInTar := make([]singleImage, 0, len(topLevelImageManifest))
+ 	for i, manifestItem := range topLevelImageManifest {
++		if err := checkManifestIsValid(systemContext, path, i); err != nil {
++			return nil, err
++		}
+ 		imageID, err := parseConfigID(manifestItem.Config)
+ 		if err != nil {
+ 			return nil, err
+@@ -282,3 +287,27 @@ func getLoadedImageID(imageRef types.ImageReference, systemContext *types.System
+ 
+ 	return "@" + imageDigest.Encoded(), nil
+ }
++
++func checkManifestIsValid(systemContext *types.SystemContext, path string, manifestIndex int) error {
++	imageName := exporter.FormatTransport(constant.DockerArchiveTransport, path)
++	srcRef, err := alltransports.ParseImageName(imageName + ":@" + strconv.Itoa(manifestIndex))
++	if err != nil {
++		return errors.Wrap(err, "failed to parse image name of docker image format")
++	}
++
++	if srcRef == nil || systemContext == nil {
++		return errors.New("nil image reference or system context when loading image")
++	}
++
++	newImage, err := srcRef.NewImage(context.TODO(), systemContext)
++	if err != nil {
++		return err
++	}
++	defer func() {
++		if err = newImage.Close(); err != nil {
++			logrus.Errorf("failed to close image: %v", err)
++		}
++	}()
++
++	return nil
++}
+diff --git a/daemon/load_test.go b/daemon/load_test.go
+index 5e1a42b..cecda36 100644
+--- a/daemon/load_test.go
++++ b/daemon/load_test.go
+@@ -271,7 +271,7 @@ func TestLoadSingleImage(t *testing.T) {
+ 				assert.ErrorContains(t, err, tc.errString)
+ 				return
+ 			}
+-			assert.ErrorContains(t, err, "failed to get the image")
++			assert.ErrorContains(t, err, "wrong image format detected from local tarball")
+ 		})
+ 	}
+ 
+@@ -314,16 +314,9 @@ func TestLoadMultipleImages(t *testing.T) {
+ 	defer clean(dir)
+ 
+ 	path := dir.Join(loadedTarFile)
+-	repoTags, err := tryToParseImageFormatFromTarball(daemon.opts.DataRoot, &LoadOptions{path: path})
+-	assert.NilError(t, err)
+-	assert.Equal(t, repoTags[0].nameTag[0], "registry.example.com/sayhello:first")
+-	assert.Equal(t, repoTags[1].nameTag[0], "registry.example.com/sayhello:second")
+-	assert.Equal(t, repoTags[1].nameTag[1], "registry.example.com/sayhello:third")
+-	assert.Equal(t, len(repoTags[2].nameTag), 0)
+-
+ 	req := &pb.LoadRequest{Path: path}
+ 	stream := &controlLoadServer{}
+ 
+-	err = daemon.backend.Load(req, stream)
+-	assert.ErrorContains(t, err, "failed to get the image")
++	err := daemon.backend.Load(req, stream)
++	assert.ErrorContains(t, err, "wrong image format detected from local tarball")
+ }
+-- 
+2.33.0
+
