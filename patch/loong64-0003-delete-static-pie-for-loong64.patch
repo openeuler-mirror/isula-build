@@ -1,0 +1,25 @@
+From 971d64904c5ab6e595109b3d88aa9e5b33eac6ac Mon Sep 17 00:00:00 2001
+From: Wenlong Zhang <zhangwenlong@loongson.cn>
+Date: Wed, 1 Feb 2023 10:59:12 +0800
+Subject: [PATCH] delete static-pie for loong64
+
+---
+ Makefile | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/Makefile b/Makefile
+index 0d6bd01..889b610 100644
+--- a/Makefile
++++ b/Makefile
+@@ -23,7 +23,7 @@ BUILDFLAGS := -tags "$(BUILDTAGS)"
+ TMPDIR := /tmp/isula_build_tmpdir
+ BEFLAG := -tmpdir=${TMPDIR}
+ SAFEBUILDFLAGS := -buildid=IdByIsula -buildmode=pie -extldflags=-ftrapv -extldflags=-zrelro -extldflags=-znow $(BEFLAG) $(LDFLAGS)
+-STATIC_LDFLAGS := -linkmode=external -extldflags "-static-pie -Wl,-z,now"
++STATIC_LDFLAGS := -linkmode=external -extldflags "-Wl,-z,now"
+ 
+ IMAGE_BUILDARGS := $(if $(http_proxy), --build-arg http_proxy=$(http_proxy))
+ IMAGE_BUILDARGS += $(if $(https_proxy), --build-arg https_proxy=$(https_proxy))
+-- 
+2.33.0
+
