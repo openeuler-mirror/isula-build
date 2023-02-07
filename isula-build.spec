@@ -2,7 +2,7 @@
 
 Name: isula-build
 Version: 0.9.6
-Release: 16
+Release: 17
 Summary: A tool to build container images
 License: Mulan PSL V2
 URL: https://gitee.com/openeuler/isula-build
@@ -85,6 +85,12 @@ fi
 /usr/share/bash-completion/completions/isula-build
 
 %changelog
+* Thu Feb 02 2023 daisicheng <daisicheng@huawei.com> - 0.9.6-17
+- Type:bugfix
+- CVE:NA
+- SUG:NA
+- DESC:add manifest.json verification before loading a tar
+
 * Thu Dec 22 2022 daisicheng <daisicheng@huawei.com> - 0.9.6-16
 - Type:bugfix
 - CVE:NA
