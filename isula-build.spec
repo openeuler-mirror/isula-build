@@ -2,7 +2,7 @@
 
 Name: isula-build
 Version: 0.9.6
-Release: 18
+Release: 19
 Summary: A tool to build container images
 License: Mulan PSL V2
 URL: https://gitee.com/openeuler/isula-build
@@ -40,6 +40,8 @@ sh ./apply-patches
 %ifarch loongarch64
 patch -p1 < patch/loong64-0001-add-loong64-support-for-etcd.patch
 patch -p1 < patch/loong64-0002-update-vendor-for-isula-build-to-support-loong64.patch
+%endif
+%ifarch loongarch64 riscv64
 patch -p1 < patch/loong64-0003-delete-static-pie-for-loong64.patch
 %endif
 %{make_build} safe
@@ -90,6 +92,12 @@ fi
 /usr/share/bash-completion/completions/isula-build
 
 %changelog
+* Wed Mar 15 2023 laokz <zhangkai@iscas.ac.cn> - 0.9.6-19
+- Type:enhancement
+- CVE:NA
+- SUG:NA
+- DESC:remove -static-pie for riscv64
+
 * Mon Feb 6 2023 Wenlong Zhang <zhangwenlong@loongson.cn> - 0.9.6-18
 - Type:bugfix
 - CVE:NA
