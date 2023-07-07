@@ -2,7 +2,7 @@
 
 Name: isula-build
 Version: 0.9.6
-Release: 17
+Release: 18
 Summary: A tool to build container images
 License: Mulan PSL V2
 URL: https://gitee.com/openeuler/isula-build
@@ -13,6 +13,7 @@ Source3: apply-patches
 Source4: gen-version.sh
 Source5: series.conf
 Source6: patch.tar.gz
+
 BuildRequires: make btrfs-progs-devel device-mapper-devel glib2-devel gpgme-devel
 BuildRequires: libassuan-devel libseccomp-devel git bzip2 systemd-devel
 BuildRequires: golang >= 1.13
@@ -37,6 +38,9 @@ cp %{SOURCE6} .
 
 %build
 sh ./apply-patches
+%if "toolchain"=="clang"
+patch -p1<patch/0137-fix-clang.patch
+%endif
 %{make_build} safe
 ./bin/isula-build completion > __isula-build
 
@@ -85,6 +89,12 @@ fi
 /usr/share/bash-completion/completions/isula-build
 
 %changelog
+* Fri Jul 07 2023 zhangxiang <zhangxiang@iscas.ac.cn> - 0.9.6-18
+- Type:bugfix
+- CVE:NA
+- SUG:NA
+- DESC:fix clang build error
+
 * Thu Feb 02 2023 daisicheng <daisicheng@huawei.com> - 0.9.6-17
 - Type:bugfix
 - CVE:NA
