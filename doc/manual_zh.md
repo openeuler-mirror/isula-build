@@ -211,6 +211,10 @@ isula-build 构建 Dockerfile 内的 RUN 指令时依赖可执行文件 runc ，
 sudo yum install -y docker-runc
 ```
 
+> **注意：**
+> 
+> - 某些openEuler软件源上，包名称docker-runc已经变更为了runc，需要执行`sudo yum install -y runc`进行安装
+
 如果用户需要使用完整的 docker-engine 工具链，则可以安装 docker-engine rpm包，默认包含可执行文件 runc ：
 
 ```sh
@@ -462,7 +466,7 @@ localhost:5000/library/alpine            latest       a24bb4013296       2022-01
 命令原型如下：
 
 ```
-isula-build ctr-img import [flags]
+isula-build ctr-img import FILE [REPOSITORY[:TAG]]
 ```
 
 使用举例：
