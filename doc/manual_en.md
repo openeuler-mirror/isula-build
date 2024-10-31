@@ -210,6 +210,10 @@ isula-build depends on the executable file runc to build the RUN command in the 
 sudo yum install -y docker-runc
 ```
 
+> **Note:**
+>
+> - On some openEuler software repositories, the package name docker-runc has been changed to runc. You need to run `sudo yum install -y runc` to install it.
+
 If you need to use a complete docker-engine tool chain, install the docker-engine RPM package, which contains the executable file runc by default.
 
 ```sh
@@ -465,7 +469,7 @@ A tar file in rootfs form can be imported into isula-build via the `ctr-img impo
 The command is as follows:
 
 ```
-isula-build ctr-img import [flags]
+isula-build ctr-img import FILE [REPOSITORY[:TAG]]
 ```
 
 Example:
