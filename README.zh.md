@@ -29,10 +29,72 @@ isula-build提供的命令行工具提供了很多功能，例如：
 
 ## 详细文档
 
-- [中文版](./doc/manual_zh.md)
-- [使用教程](./doc/manual_zh.md#使用指南)
+- 📖 [容器镜像构建](./doc/manual_zh.md) - 完整用户手册
+- 📚 [使用指南](./doc/manual_zh.md#使用指南) - 详细使用说明
+- 🔧 [集成指南](./doc/manual_zh.md#直接集成容器引擎) - 与容器引擎集成
 
 ## 开始
+
+### 快速链接
+
+- 📖 [用户手册](./doc/manual_zh.md) - 完整文档
+- 🛠️ [构建指南](#在openeuler上安装) - 安装说明
+- 🔗 [集成](./doc/manual_zh.md#直接集成容器引擎) - 容器引擎集成
+- ⚠️ [注意事项](./doc/manual_zh.md#使用注意事项) - 重要提示和限制
+
+### 开发环境设置
+
+#### 前置要求
+
+- **操作系统**: Linux（推荐：openEuler、CentOS、Ubuntu）
+- **Go**: 1.15 或更高版本
+- **构建工具**: make, git
+- **依赖项**: 请参考下面的安装部分
+
+#### 快速设置
+
+1. **克隆仓库:**
+   ```bash
+   git clone https://gitee.com/openeuler/isula-build.git
+   cd isula-build
+   ```
+
+2. **安装依赖 (openEuler):**
+   ```bash
+   sudo yum install make btrfs-progs-devel device-mapper-devel glib2-devel \
+       gpgme-devel libassuan-devel libseccomp-devel git bzip2 \
+       go-md2man systemd-devel golang
+   ```
+
+3. **从源码构建:**
+   ```bash
+   sudo make all
+   sudo make install
+   ```
+
+其他发行版的安装方法，请参考下面的安装部分。
+
+#### IDE 配置
+
+**推荐的 IDE:**
+- **GoLand/IntelliJ IDEA**: 直接打开项目，Go 插件会自动配置
+- **VSCode**: 安装 Go 扩展，使用 `go.toolsEnvVars` 配置
+- **Vim/Neovim**: 使用 gopls（Go 语言服务器）配合 vim-go 或 coc.nvim
+
+**Go 开发环境设置:**
+```bash
+# 安装 Go 工具
+go install golang.org/x/tools/gopls@latest
+go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest
+
+# 验证 Go 环境
+go env
+```
+
+**代码质量工具:**
+- 静态分析: `hack/static_check.sh all`（全量检查）或 `hack/static_check.sh last`（最新提交）
+- 使用 `golangci-lint`，配置文件为 `.golangci.yml`
+- 运行测试: `make test` 或 `go test ./...`
 
 ### 在openEuler上安装
 
@@ -109,22 +171,33 @@ sudo rpm -ivh isula-build-*.rpm
 
 ### 运行守护进程
 
-#### 以系统服务运行
+#### 以系统服务运行（推荐）
 
 如果需要使用`systemd`进行管理isula-build，请参考以下步骤：
 
-```sh
+```bash
+# 安装 systemd 服务文件
 sudo install -p -m 640 ./isula-build.service /etc/systemd/system/isula-build.service
+
+# 启用并启动服务
 sudo systemctl enable isula-build
 sudo systemctl start isula-build
+
+# 检查服务状态
+sudo systemctl status isula-build
 ```
 
 #### 直接运行二进制
 
 用户也可以直接运行isula-builder二进制开启服务：
 
-```sh
+```bash
 sudo isula-builder --dataroot="/var/lib/isula-build"
+```
+
+**注意**: 直接运行时，如果服务正在以 systemd 方式运行，请先停止：
+```bash
+sudo systemctl stop isula-build
 ```
 
 ### 构建容器镜像
@@ -202,12 +275,126 @@ Deleted: sha256:86567f7a01b04c662a9657aac436e8d63ecebb26da4252abb016d177721fa11b
 
 约束、限制以及与`docker build`的差别可见[使用注意事项](./doc/manual_zh.md#使用注意事项)
 
+## 故障排查
+
+### 常见问题
+
+#### 构建问题
+
+**问题**: `go: command not found`
+```bash
+# 解决方案: 安装 Go（1.15 或更高版本）
+# 在 openEuler 上:
+sudo yum install golang
+
+# 或从 https://golang.org/dl/ 下载
+```
+
+**问题**: 构建时缺少依赖
+```bash
+# 解决方案: 安装所有必需的开发包
+sudo yum install make btrfs-progs-devel device-mapper-devel glib2-devel \
+    gpgme-devel libassuan-devel libseccomp-devel git bzip2 \
+    go-md2man systemd-devel golang
+```
+
+**问题**: 构建时权限错误
+```bash
+# 解决方案: 确保您有 sudo 权限进行安装
+# 某些构建步骤需要 root 权限
+sudo make install
+```
+
+#### 运行时问题
+
+**问题**: 无法连接到 isula-builder 守护进程
+```bash
+# 解决方案: 检查守护进程是否运行
+sudo systemctl status isula-build
+
+# 或检查进程是否运行
+ps aux | grep isula-builder
+
+# 如果未运行，启动守护进程
+sudo systemctl start isula-build
+```
+
+**问题**: 构建镜像时权限被拒绝
+```bash
+# 解决方案: 确保您有适当的权限
+# isula-build 通常需要 sudo 来构建
+sudo isula-build ctr-img build -f Dockerfile .
+```
+
+**问题**: 构建时找不到 `runc`
+```bash
+# 解决方案: 安装 runc 或 docker
+sudo yum install docker
+# 或
+sudo yum install docker-runc
+```
+
+#### 开发问题
+
+**问题**: 静态检查失败
+```bash
+# 解决方案: 安装 golangci-lint
+go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest
+
+# 运行静态检查
+hack/static_check.sh all
+```
+
+**问题**: 测试失败
+```bash
+# 解决方案: 确保所有依赖都已安装
+# 使用详细输出运行测试
+go test -v ./...
+
+# 或使用 make
+make test
+```
+
+更多详细的故障排查信息，请参考：
+- [用户手册](./doc/manual_zh.md)
+- [使用注意事项](./doc/manual_zh.md#使用注意事项)
+
 ## 如何贡献
 
-我们很高兴能有新的贡献者加入！
+我们欢迎您的贡献！以下是如何开始：
 
-在一切开始之前，请签署[CLA协议](https://openeuler.org/en/cla.html)
+### 贡献前准备
+
+1. **签署 CLA**: 在贡献之前，请签署 [CLA协议](https://openeuler.org/en/cla.html)
+2. **阅读文档**: 熟悉[用户手册](./doc/manual_zh.md)
+3. **查看现有问题**: 查找现有问题或创建新问题
+
+### 开发工作流程
+
+1. **Fork 仓库**并克隆您的 fork
+2. **创建特性分支**: `git checkout -b feature/您的特性名称`
+3. **进行更改**并确保通过：
+   - 静态检查: `hack/static_check.sh all`
+   - 测试: `make test` 或 `go test ./...`
+4. **提交更改**: 使用清晰、描述性的提交信息
+5. **推送到您的 fork**并创建 Pull Request
+
+### 代码质量标准
+
+- 遵循 Go 编码标准和约定
+- 提交前运行 `hack/static_check.sh all`
+- 确保所有测试通过
+- 如需要，更新文档
+- 为新功能添加测试
+
+### 获取帮助
+
+- 查看[文档](./doc/manual_zh.md)
+- 查看现有问题和 PR
+- 在问题或讨论中提问
 
 ## 版权
 
 isula-build遵从**Mulan PSL v2**版权协议
+
+更多信息，请查看 [LICENSE](./License/LICENSE) 文件。

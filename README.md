@@ -27,10 +27,73 @@ In addition, the following capabilities are also provided:
 - Support for export of different image formats, for example, docker-archive, iSulad.
 
 ## Documentation
-- [Container Image Building](./doc/manual_en.md)
-- [Usage Guidelines](./doc/manual_en.md#usage-guidelines)
+
+- 📖 [Container Image Building](./doc/manual_en.md) - Complete user manual
+- 📚 [Usage Guidelines](./doc/manual_en.md#usage-guidelines) - Detailed usage instructions
+- 🔧 [Integration Guide](./doc/manual_en.md#directly-integrating-a-container-engine) - Integration with container engines
 
 ## Getting Started
+
+### Quick Links
+
+- 📖 [User Manual](./doc/manual_en.md) - Complete documentation
+- 🛠️ [Build Guide](#installation-on-openeuler) - Installation instructions
+- 🔗 [Integration](./doc/manual_en.md#directly-integrating-a-container-engine) - Container engine integration
+- ⚠️ [Precautions](./doc/manual_en.md#precautions) - Important notes and limitations
+
+### Development Environment Setup
+
+#### Prerequisites
+
+- **OS**: Linux (recommended: openEuler, CentOS, Ubuntu)
+- **Go**: Version 1.15 or later
+- **Build Tools**: make, git
+- **Dependencies**: See installation section below
+
+#### Quick Setup
+
+1. **Clone the repository:**
+   ```bash
+   git clone https://gitee.com/openeuler/isula-build.git
+   cd isula-build
+   ```
+
+2. **Install dependencies (openEuler):**
+   ```bash
+   sudo yum install make btrfs-progs-devel device-mapper-devel glib2-devel \
+       gpgme-devel libassuan-devel libseccomp-devel git bzip2 \
+       go-md2man systemd-devel golang
+   ```
+
+3. **Build from source:**
+   ```bash
+   sudo make all
+   sudo make install
+   ```
+
+For other distributions, see the installation section below.
+
+#### IDE Configuration
+
+**Recommended IDEs:**
+- **GoLand/IntelliJ IDEA**: Open project, Go plugin will auto-configure
+- **VSCode**: Install Go extension, configure with `go.toolsEnvVars`
+- **Vim/Neovim**: Use gopls (Go language server) with vim-go or coc.nvim
+
+**Go Development Setup:**
+```bash
+# Install Go tools
+go install golang.org/x/tools/gopls@latest
+go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest
+
+# Verify Go environment
+go env
+```
+
+**Code Quality Tools:**
+- Static analysis: `hack/static_check.sh all` (full check) or `hack/static_check.sh last` (latest commit)
+- Uses `golangci-lint` with configuration in `.golangci.yml`
+- Run tests: `make test` or `go test ./...`
 
 ### Installation on openEuler
 
@@ -105,21 +168,33 @@ sudo rpm -ivh isula-build-*.rpm
 
 ### Running the Daemon Server
 
-#### Run as the system service.
+#### Run as the system service (Recommended)
 
-To manage `isula-build` by systemd, please refer to following steps:
+To manage `isula-build` by systemd, follow these steps:
 
-```sh
+```bash
+# Install systemd service file
 sudo install -p -m 640 ./isula-build.service /etc/systemd/system/isula-build.service
+
+# Enable and start the service
 sudo systemctl enable isula-build
 sudo systemctl start isula-build
+
+# Check service status
+sudo systemctl status isula-build
 ```
 
-#### Directly run the isula-builder binary file.
-User can also run the isula-builder binary file on the server to start the service.
+#### Directly run the isula-builder binary
 
-```sh
+Alternatively, you can run the isula-builder binary directly:
+
+```bash
 sudo isula-builder --dataroot="/var/lib/isula-build"
+```
+
+**Note**: When running directly, ensure the daemon is stopped if it's running as a systemd service:
+```bash
+sudo systemctl stop isula-build
 ```
 
 ### Example on Building Container Images
@@ -193,12 +268,126 @@ Integration with `iSulad` or `docker` are listed in [integration](./doc/manual_e
 
 Constraints, limitations, and differences from `docker build` are listed in [precautions](./doc/manual_en.md#precautions).
 
+## Troubleshooting
+
+### Common Issues
+
+#### Build Issues
+
+**Problem**: `go: command not found`
+```bash
+# Solution: Install Go (version 1.15+)
+# On openEuler:
+sudo yum install golang
+
+# Or download from https://golang.org/dl/
+```
+
+**Problem**: Missing dependencies during build
+```bash
+# Solution: Install all required development packages
+sudo yum install make btrfs-progs-devel device-mapper-devel glib2-devel \
+    gpgme-devel libassuan-devel libseccomp-devel git bzip2 \
+    go-md2man systemd-devel golang
+```
+
+**Problem**: Build fails with permission errors
+```bash
+# Solution: Ensure you have sudo privileges for installation
+# Some build steps require root access
+sudo make install
+```
+
+#### Runtime Issues
+
+**Problem**: Cannot connect to isula-builder daemon
+```bash
+# Solution: Check if daemon is running
+sudo systemctl status isula-build
+
+# Or check if process is running
+ps aux | grep isula-builder
+
+# Start the daemon if not running
+sudo systemctl start isula-build
+```
+
+**Problem**: Permission denied when building images
+```bash
+# Solution: Ensure you have proper permissions
+# isula-build typically requires sudo for building
+sudo isula-build ctr-img build -f Dockerfile .
+```
+
+**Problem**: `runc` not found during build
+```bash
+# Solution: Install runc or docker
+sudo yum install docker
+# or
+sudo yum install docker-runc
+```
+
+#### Development Issues
+
+**Problem**: Static check fails
+```bash
+# Solution: Install golangci-lint
+go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest
+
+# Run static check
+hack/static_check.sh all
+```
+
+**Problem**: Tests fail
+```bash
+# Solution: Ensure all dependencies are installed
+# Run tests with verbose output
+go test -v ./...
+
+# Or use make
+make test
+```
+
+For more detailed troubleshooting, please refer to:
+- [User Manual](./doc/manual_en.md)
+- [Precautions](./doc/manual_en.md#precautions)
+
 ## How to Contribute
 
-We are happy to provide guidance for the new contributors.
+We welcome contributions! Here's how to get started:
 
-Please sign the [CLA](https://openeuler.org/en/cla.html) before contributing.
+### Before Contributing
+
+1. **Sign the CLA**: Please sign the [CLA](https://openeuler.org/en/cla.html) before contributing
+2. **Read the documentation**: Familiarize yourself with the [user manual](./doc/manual_en.md)
+3. **Check existing issues**: Look for existing issues or create a new one
+
+### Development Workflow
+
+1. **Fork the repository** and clone your fork
+2. **Create a feature branch**: `git checkout -b feature/your-feature-name`
+3. **Make your changes** and ensure they pass:
+   - Static checks: `hack/static_check.sh all`
+   - Tests: `make test` or `go test ./...`
+4. **Commit your changes**: Use clear, descriptive commit messages
+5. **Push to your fork** and create a Pull Request
+
+### Code Quality Standards
+
+- Follow Go coding standards and conventions
+- Run `hack/static_check.sh all` before submitting
+- Ensure all tests pass
+- Update documentation if needed
+- Add tests for new features
+
+### Getting Help
+
+- Check the [documentation](./doc/manual_en.md)
+- Review existing issues and PRs
+- Ask questions in issues or discussions
 
 ## Licensing
 
 isula-build is licensed under the **Mulan PSL v2**.
+
+For more information, see the [LICENSE](./License/LICENSE) file.
